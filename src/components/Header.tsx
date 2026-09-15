@@ -62,7 +62,7 @@ function Header({
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Pesquise cidade, bairro ou rua..."
+            placeholder="Empresa, segmento ou local..."
             className="w-full h-full bg-white/80 border-none rounded-full pl-10 pr-24 py-2.5 text-xs text-stone-900 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[#FF4D00]/50 transition shadow-inner"
           />
 
