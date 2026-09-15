@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { queryPlacesInBBox, searchPlacesByKeyword, OverturePlace } from './overtureService.js';
+import { queryPlacesInBBox, OverturePlace } from './overtureService.js';
 import {
   interpretSearchIntent,
   parseSearchLocation,
@@ -231,7 +231,7 @@ export async function handleAIChat({
     // Standard Search: Overture + CNPJ + Serper merged
     let overtureSummaries: BusinessSummary[] = [];
     try {
-      const rawPlaces = await queryPlacesInBBox(
+      const { places: rawPlaces } = await queryPlacesInBBox(
         resolvedArea.bbox.west,
         resolvedArea.bbox.south,
         resolvedArea.bbox.east,
@@ -292,54 +292,6 @@ export async function handleAIChat({
           seenIds.add(m.id);
           deduplicatedResults.push(m);
         }
-      }
-    }
-
-    if (deduplicatedResults.length < 2) {
-      try {
-        const keywordPlaces = await searchPlacesByKeyword(
-          intent.businessType,
-          activeRegionName,
-          resolvedArea.center.lat,
-          resolvedArea.center.lng
-        );
-        const inBBoxKw = keywordPlaces.filter(
-          (p) =>
-            p.latitude >= resolvedArea.bbox.south &&
-            p.latitude <= resolvedArea.bbox.north &&
-            p.longitude >= resolvedArea.bbox.west &&
-            p.longitude <= resolvedArea.bbox.east
-        );
-        for (const p of inBBoxKw) {
-          if (!seenIds.has(p.id)) {
-            seenIds.add(p.id);
-            deduplicatedResults.push({
-              id: p.id,
-              name: p.name,
-              category: p.category,
-              basicCategory: p.basicCategory || intent.validCategories[0] || 'professional_service',
-              taxonomyPrimary: p.taxonomyPrimary || intent.validCategories[0] || 'professional_service',
-              taxonomyHierarchy: p.taxonomyHierarchy || intent.validCategories,
-              taxonomyAlternates: p.taxonomyAlternates || [],
-              address: p.address,
-              lat: p.latitude,
-              lng: p.longitude,
-              coordinates: { lat: p.latitude, lng: p.longitude },
-              website: p.website || null,
-              phone: p.phone || (p.phones && p.phones[0]) || null,
-              phones: Array.isArray(p.phones) ? p.phones : p.phone ? [p.phone] : [],
-              emails: Array.isArray(p.emails) ? p.emails : [],
-              socials: Array.isArray(p.socials) ? p.socials : [],
-              confidence: p.confidence || 0.85,
-              leadStatus: 'NOVO',
-              notes: '',
-              sources: ['overture'],
-              hasCoordinates: true,
-            });
-          }
-        }
-      } catch (kwErr: any) {
-        console.warn('[Keyword fallback error]:', kwErr.message);
       }
     }
 
@@ -413,6 +365,19 @@ export async function handleAIChat({
     deduplicatedResults = deduplicatedResults.filter((b) => Boolean(b.phone || (b.phones && b.phones.length > 0)));
   }
 
+  // Prioritize high-quality sources: Serper (Google Places) > CNPJ > Overture
+  deduplicatedResults.sort((a, b) => {
+    const aIsSerper = a.sources?.includes('serper') ? 1 : 0;
+    const bIsSerper = b.sources?.includes('serper') ? 1 : 0;
+    if (aIsSerper !== bIsSerper) return bIsSerper - aIsSerper;
+
+    const aHasCnpj = a.cnpj ? 1 : 0;
+    const bHasCnpj = b.cnpj ? 1 : 0;
+    if (aHasCnpj !== bHasCnpj) return bHasCnpj - aHasCnpj;
+
+    return (b.confidence || 0) - (a.confidence || 0);
+  });
+
   console.log(`
 === [SCOUTLY GEOGRAPHIC RESOLUTION LOG] ===
 - Localização interpretada: Bairro="${resolvedArea.bairro}", Cidade="${resolvedArea.cidade}", UF="${resolvedArea.uf}", País="${resolvedArea.pais}"
@@ -447,29 +412,17 @@ export async function handleAIChat({
     leadStatus: b.leadStatus || 'NOVO',
   }));
 
-  const systemPrompt = `Você é o Scoutly Copilot, assistente especialista em prospecção B2B de negócios locais e auditor da taxonomia Overture + Receita Federal (CNPJ/CNAE).
-
-DIAGNÓSTICO DE PRECISÃO GEOGRÁFICA (${activeRegionName.toUpperCase()}):
-- Bairro Solicitado: "${resolvedArea.bairro}"
-- Cidade Solicitada: "${resolvedArea.cidade}"
-- Bbox Utilizado: west=${resolvedArea.bbox.west}, south=${resolvedArea.bbox.south}, east=${resolvedArea.bbox.east}, north=${resolvedArea.bbox.north}
-- Coordenada Central: lat=${resolvedArea.center.lat}, lng=${resolvedArea.center.lng}
-- Overture realmente dentro do Bbox: ${filteredOvertureCount}
-- CNPJs realmente do bairro ${resolvedArea.bairro || resolvedArea.cidade}: ${filteredCNPJCount}
-- Total Unificados Finais: ${deduplicatedResults.length}
-
-EMPRESAS CONFIRMADAS NA REGIÃO (${deduplicatedResults.length}):
-${JSON.stringify(businessCatalog, null, 2)}
+  const systemPrompt = `Você é o Scoutly Copilot, um assistente especialista em prospecção B2B de negócios locais.
+O usuário buscou por "${intent.businessType}" em "${activeRegionName}".
+Foram encontrados ${deduplicatedResults.length} estabelecimentos reais na região confirmada (Bairro: ${resolvedArea.bairro || 'Geral'}, Cidade: ${resolvedArea.cidade}).
 
 DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
-1. Apresente no início o diagnóstico geográfico exato:
-   - bbox real usado (west, south, east, north)
-   - coordenada central (lat, lng)
-   - quantos Overture estavam realmente dentro do bbox
-   - quantos CNPJ tinham bairro ${resolvedArea.bairro || resolvedArea.cidade}
-2. Liste os Nomes e Endereços Finais estritamente confirmados nessa área.
-3. Se não houver empresas confirmadas na região solicitada, retorne somente as encontradas (${deduplicatedResults.length}). NUNCA complete com empresas de outros bairros ou cidades.
-4. Ao final inclua a tag: <<<MATCHED_BUSINESSES:[${deduplicatedResults.slice(0, 6).map((b) => `"${b.id}"`).join(', ')}]>>>`;
+1. Aja de forma consultiva e direta. Responda de forma humanizada e sem jargões técnicos.
+2. NUNCA mostre coordenadas, "bboxes", quantidades exatas de APIs, CNPJs, ou qualquer log de sistema.
+3. NUNCA liste o nome, endereço ou contato das empresas no corpo do texto da sua resposta. O sistema já exibe os cards detalhados visualmente logo abaixo do chat. Apenas mencione que "os resultados estão listados nos cards abaixo".
+4. Forneça uma breve análise comercial sobre prospectar esse tipo de negócio na região (ex: "Oficinas na Vila Leopoldina costumam ter boa demanda...") e sugira um "Script de Abordagem (WhatsApp)" para o usuário enviar.
+5. Ao final da sua resposta, você DEVE incluir a seguinte tag exata para que a interface renderize os cards corretamente:
+<<<MATCHED_BUSINESSES:[${deduplicatedResults.slice(0, 10).map((b) => `"${b.id}"`).join(', ')}]>>>`;
 
   if (openRouterKey) {
     const candidateModels = [
@@ -612,36 +565,21 @@ function generateLocalSmartResponse(
   filteredOvertureCount: number,
   filteredCNPJCount: number
 ): { text: string; matchedBusinessIds: string[] } {
-  const displayResults = deduplicatedResults.slice(0, 10);
+  const displayResults = deduplicatedResults.slice(0, 20); // Keep IDs for UI cards
   const matchedIds = displayResults.map((b) => b.id);
   const locationLabel = `${resolvedArea.bairro ? resolvedArea.bairro + ', ' : ''}${resolvedArea.cidade}`;
 
-  let responseText = `### 📍 Diagnóstico de Precisão Geográfica (${locationLabel})\n\n`;
-  responseText += `- **bbox real usado**: \`west: ${resolvedArea.bbox.west.toFixed(7)}, south: ${resolvedArea.bbox.south.toFixed(7)}, east: ${resolvedArea.bbox.east.toFixed(7)}, north: ${resolvedArea.bbox.north.toFixed(7)}\`\n`;
-  responseText += `- **coordenada central**: \`lat: ${resolvedArea.center.lat.toFixed(7)}, lng: ${resolvedArea.center.lng.toFixed(7)}\`\n`;
-  responseText += `- **quantos Overture estavam realmente dentro do bbox**: \`${filteredOvertureCount}\`\n`;
-  responseText += `- **quantos CNPJ tinham bairro ${resolvedArea.bairro || resolvedArea.cidade}**: \`${filteredCNPJCount}\`\n\n`;
+  let responseText = `Encontramos **${deduplicatedResults.length} estabelecimentos** relacionados a "${intent.businessType}" na região de ${locationLabel}.\n\n`;
+  responseText += `Os resultados detalhados (incluindo telefones, endereços e CNPJ quando disponíveis) já estão listados nos **cards abaixo** para você avaliar e prospectar.\n\n`;
 
-  responseText += `#### 🏢 Nomes e Endereços Finais\n\n`;
-  if (deduplicatedResults.length > 0) {
-    deduplicatedResults.forEach((b, i) => {
-      const bhr = b.bairro || resolvedArea.bairro || resolvedArea.cidade;
-      const sourcesTag = b.sources ? `[${b.sources.join(' + ').toUpperCase()}]` : '[OVERTURE]';
-      responseText += `${i + 1}. **${b.name}** — Bairro: **${bhr}** ${sourcesTag}\n   - 📍 Endereço: ${b.address}\n`;
-      if (b.cnpj) responseText += `   - 🏢 CNPJ: \`${b.cnpj}\` | CNAE Principal: \`${b.cnaePrincipal || ''}\`\n`;
-      if (b.phone) responseText += `   - 📱 Telefone: ${b.phone}\n`;
-      responseText += `\n`;
-    });
-  } else {
-    responseText += `Nenhuma empresa foi encontrada estritamente na região de ${locationLabel}.\n`;
-  }
-
-  responseText += `---\n\n### 💬 Sugestão de Abordagem Comercial (WhatsApp):\n\n`;
+  responseText += `### 💬 Sugestão de Abordagem Comercial (WhatsApp):\n\n`;
   const sample = displayResults[0];
   if (sample && !sample.website) {
-    responseText += `> *"Olá, pessoal da **${sample.name}**! Tudo bem? Estava pesquisando ${intent.businessType} em ${locationLabel} e vi que vocês ainda não possuem um site ou catálogo online próprio. Desenvolvemos páginas comerciais de alta conversão para captar clientes locais. Gostariam de ver uma demonstração rápida?"*\n`;
+    responseText += `> *"Olá! Tudo bem? Estava pesquisando ${intent.businessType} na região de ${locationLabel} e vi que vocês ainda não possuem um site ou catálogo online próprio. Desenvolvemos páginas comerciais de alta conversão para captar clientes locais. Gostariam de ver uma demonstração rápida para o negócio de vocês?"*\n`;
   } else if (sample) {
-    responseText += `> *"Olá, equipe da **${sample.name}**! Tudo bem? Estava analisando estabelecimentos do segmento de ${intent.businessType} em ${locationLabel} e identifiquei 2 pontos que podem otimizar o fluxo de agendamentos e vendas via WhatsApp. Posso compartilhar um diagnóstico de 1 minuto com vocês?"*\n`;
+    responseText += `> *"Olá! Tudo bem? Estava analisando estabelecimentos do segmento de ${intent.businessType} em ${locationLabel} e identifiquei alguns pontos que podem otimizar o fluxo de agendamentos e vendas via WhatsApp. Posso compartilhar um diagnóstico rápido com vocês?"*\n`;
+  } else {
+    responseText += `> *"Olá! Tudo bem? Atendemos empresas do segmento de ${intent.businessType} e ajudamos a otimizar vendas locais. Teria interesse em bater um papo rápido sobre o seu negócio?"*\n`;
   }
 
   return {

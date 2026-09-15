@@ -1,8 +1,9 @@
-import { memo } from 'react';
-import { Star } from 'lucide-react';
+import { useState, memo } from 'react';
+import { Star, ChevronDown } from 'lucide-react';
 import { Business } from '../types';
 import { getWhatsAppLink, getTrustIcon } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
+import { usePageSpeed } from '../hooks/usePageSpeed';
 
 interface BusinessCardProps {
   business: Business;
@@ -20,10 +21,15 @@ function BusinessCard({
   onOpenDetails,
   onToggleFavorite,
 }: BusinessCardProps) {
+  const [isSpeedExpanded, setIsSpeedExpanded] = useState(false);
   const hasWebsite = Boolean(business.website);
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const whatsappUrl = getWhatsAppLink(business.phone);
-  const isFavorited = Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
+  const isFavorited = Boolean(business.isFavorite);
+
+  const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
+    hasWebsite ? business.website : null
+  );
 
   return (
     <div
@@ -67,15 +73,50 @@ function BusinessCard({
 
         {/* Website Status & Opening Hours Badges */}
         <div className="shrink-0 flex flex-col items-end gap-1">
-          {hasWebsite ? (
-            <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Site encontrado
-            </span>
-          ) : (
-            <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-              Site não identificado
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {hasWebsite ? (
+              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Site encontrado
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                Site não identificado
+              </span>
+            )}
+
+            {/* Real PageSpeed Score displayed upfront */}
+            {hasWebsite && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSpeedExpanded(!isSpeedExpanded);
+                }}
+                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border transition cursor-pointer shadow-2xs ${
+                  isSpeedLoading
+                    ? 'bg-stone-50 text-stone-600 border-stone-200 animate-pulse'
+                    : pageSpeed
+                    ? pageSpeed.score >= 90
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : pageSpeed.score >= 50
+                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                    : 'bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+                title="Pontuação Google PageSpeed (clique para detalhes)"
+              >
+                <img src="/velocimetro.png" alt="Google PageSpeed" className="w-3.5 h-3.5 object-contain" />
+                <span>
+                  {isSpeedLoading ? (
+                    '...'
+                  ) : pageSpeed ? (
+                    <span className="tracking-tight">{pageSpeed.score}/100</span>
+                  ) : (
+                    'Score'
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Status Aberto / Fechado / Não identificado */}
           {business.openStatus === 'ABERTO_AGORA' ? (
@@ -121,7 +162,7 @@ function BusinessCard({
           )}
         </div>
 
-        {/* Confidence Badge with Speedometer Icon */}
+        {/* Confidence Badge with Trust Icon */}
         <div className="ml-auto text-[11px] font-semibold text-stone-600 shrink-0 flex items-center gap-1.5 bg-[#FAF7F2] px-2 py-0.5 rounded-lg border border-[#EDE8E0]">
           <span>{confidencePercent}% conf.</span>
           <img
@@ -132,6 +173,93 @@ function BusinessCard({
           />
         </div>
       </div>
+
+      {/* Collapsible PageSpeed Section */}
+      {hasWebsite && (
+        <div className="mt-3 pt-2.5 border-t border-stone-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSpeedExpanded(!isSpeedExpanded);
+            }}
+            className="flex items-center justify-between w-full text-left py-1 group/toggle cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <img src="/velocimetro.png" alt="PageSpeed" className="w-4 h-4 object-contain" />
+              <span className="text-xs font-semibold text-stone-700">
+                Google PageSpeed:{' '}
+                <strong
+                  className={`font-black ${
+                    pageSpeed
+                      ? pageSpeed.score >= 90
+                        ? 'text-emerald-600'
+                        : pageSpeed.score >= 50
+                        ? 'text-amber-600'
+                        : 'text-rose-600'
+                      : 'text-stone-500'
+                  }`}
+                >
+                  {isSpeedLoading ? 'Medindo score...' : pageSpeed ? `${pageSpeed.score}/100` : 'Disponível'}
+                </strong>
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-[#FF4D00] group-hover/toggle:underline flex items-center gap-1">
+              {isSpeedExpanded ? 'Recolher' : 'Ver mais informações'}
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  isSpeedExpanded ? 'rotate-180' : ''
+                }`}
+              />
+            </span>
+          </button>
+
+          {isSpeedExpanded && (
+            <div className="mt-2.5 p-3 rounded-xl bg-[#FAF7F2] border border-[#EDE8E0] space-y-2.5">
+              {isSpeedLoading ? (
+                <div className="flex items-center gap-2 text-xs text-stone-500 py-1">
+                  <div className="w-3.5 h-3.5 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin" />
+                  <span>Obtendo diagnóstico do Google PageSpeed...</span>
+                </div>
+              ) : pageSpeed ? (
+                <>
+                  {/* Web Vitals Metrics Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
+                      <div className="text-[10px] text-stone-400 font-semibold uppercase">FCP (1ª Pintura)</div>
+                      <div className="text-xs font-bold text-stone-800">{pageSpeed.fcp || '-'}</div>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
+                      <div className="text-[10px] text-stone-400 font-semibold uppercase">LCP (Conteúdo)</div>
+                      <div className="text-xs font-bold text-stone-800">{pageSpeed.lcp || '-'}</div>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
+                      <div className="text-[10px] text-stone-400 font-semibold uppercase">TBT (Bloqueio)</div>
+                      <div className="text-xs font-bold text-stone-800">{pageSpeed.tbt || '-'}</div>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
+                      <div className="text-[10px] text-stone-400 font-semibold uppercase">CLS (Estabilidade)</div>
+                      <div className="text-xs font-bold text-stone-800">{pageSpeed.cls || '-'}</div>
+                    </div>
+                  </div>
+
+                  {/* Commercial Argument */}
+                  <div className="text-[11px] text-stone-600 bg-white p-2.5 rounded-lg border border-stone-200 leading-relaxed">
+                    <strong className="text-stone-900 block mb-0.5 font-bold">
+                      💡 {pageSpeed.opportunityTitle}
+                    </strong>
+                    <span>{pageSpeed.opportunityDescription}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-stone-500 py-1">
+                  Não foi possível obter dados para este site.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action Buttons & Details */}
       <div className="mt-3.5 pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">

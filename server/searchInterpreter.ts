@@ -329,6 +329,13 @@ const CATEGORY_TAXONOMY_MAP: Array<{
     keywords: ['dentist', 'odonto', 'dent', 'sorris', 'implant', 'ortodon'],
   },
   {
+    // Despachante
+    match: (q) => /despachante|despachantes|cnh|documento|detran|licenciamento/i.test(q),
+    businessType: 'despachante',
+    candidateCategories: ['professional_service', 'corporate_office', 'despachante_fake'],
+    keywords: ['despachante', 'cnh', 'documentos', 'veículos', 'autoescola', 'detran', 'licenciamento'],
+  },
+  {
     // Clínica Médica
     match: (q) => /cl[íi]nica|cl[íi]nicas|consult[óo]rio|m[ée]dico|m[ée]dicos|sa[úu]de/i.test(q),
     businessType: 'clínica médica',

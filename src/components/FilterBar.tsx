@@ -38,189 +38,190 @@ function FilterBar({
     !activeFilters.comRedeSocial;
 
   return (
-    <div className="w-full bg-[#FAF7F2] border-b border-[#EDE8E0] px-4 lg:px-8 py-3">
-      <div className="max-w-7xl mx-auto flex flex-col gap-3">
-        {/* Top Row: Filter Pills & Dynamic Counters */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider mr-1 shrink-0">
-              Filtro:
-            </span>
-
-            {/* Button: Todos */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter('TODOS')}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shrink-0 border flex items-center gap-1.5 ${
+    <div className="flex flex-col gap-6 w-full shrink-0 pb-8">
+      {/* Digital Status Filters */}
+      <div className="flex flex-col gap-3">
+        <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+          Status Digital:
+        </span>
+        
+        <div className="flex flex-col gap-2.5">
+          {/* Button: Todos */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('TODOS')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              isAll
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white shadow-sm'
+            }`}
+          >
+            <span>Todos os negócios</span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                 isAll
-                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-xs'
-                  : 'bg-white text-stone-700 border-[#EDE8E0] hover:border-stone-400 hover:text-stone-900'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white/10 text-stone-300'
               }`}
             >
-              <span>Todos</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isAll
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-100 text-stone-600'
-                }`}
-              >
-                {totalCount}
-              </span>
-            </button>
+              {totalCount}
+            </span>
+          </button>
 
-            {/* Button: Sem site (Oportunidades) */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter('semSite')}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shrink-0 border flex items-center gap-1.5 ${
-                activeFilters.semSite
-                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-xs'
-                  : 'bg-white text-stone-700 border-[#EDE8E0] hover:border-amber-300 hover:text-stone-900'
-              }`}
-            >
+          {/* Button: Sem site (Oportunidades) */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('semSite')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              activeFilters.semSite
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-amber-400/40 hover:text-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.semSite ? 'bg-white' : 'bg-red-500'}`} />
               <span>Sem site (Oportunidades)</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeFilters.semSite
-                    ? 'bg-white/20 text-white'
-                    : 'bg-amber-100 text-amber-900'
-                }`}
-              >
-                {opportunitiesCount}
-              </span>
-            </button>
-
-            {/* Button: Com site */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter('comSite')}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shrink-0 border flex items-center gap-1.5 ${
-                activeFilters.comSite
-                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-xs'
-                  : 'bg-white text-stone-700 border-[#EDE8E0] hover:border-stone-400 hover:text-stone-900'
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.semSite
+                  ? 'bg-white/20 text-white'
+                  : 'bg-amber-500/20 text-amber-300'
               }`}
             >
+              {opportunitiesCount}
+            </span>
+          </button>
+
+          {/* Button: Com site */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('comSite')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              activeFilters.comSite
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-green-400/40 hover:text-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.comSite ? 'bg-white' : 'bg-green-500'}`} />
               <span>Com site</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeFilters.comSite
-                    ? 'bg-white/20 text-white'
-                    : 'bg-stone-100 text-stone-600'
-                }`}
-              >
-                {Math.max(0, totalCount - opportunitiesCount)}
-              </span>
-            </button>
-
-            {/* Button: Com WhatsApp */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter('comWhatsapp')}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shrink-0 border flex items-center gap-1.5 ${
-                activeFilters.comWhatsapp
-                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-xs'
-                  : 'bg-white text-stone-700 border-[#EDE8E0] hover:border-emerald-300 hover:text-stone-900'
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.comSite
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white/10 text-stone-300'
               }`}
             >
-              <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />
+              {Math.max(0, totalCount - opportunitiesCount)}
+            </span>
+          </button>
+
+          {/* Button: Com WhatsApp */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('comWhatsapp')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              activeFilters.comWhatsapp
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-emerald-400/40 hover:text-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-4 h-4 object-contain" />
               <span>Com WhatsApp</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeFilters.comWhatsapp
-                    ? 'bg-white/20 text-white'
-                    : 'bg-emerald-100 text-emerald-900'
-                }`}
-              >
-                {whatsappCount}
-              </span>
-            </button>
-
-            {/* Button: Com rede social */}
-            <button
-              type="button"
-              onClick={() => onToggleFilter('comRedeSocial')}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shrink-0 border flex items-center gap-1.5 ${
-                activeFilters.comRedeSocial
-                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-xs'
-                  : 'bg-white text-stone-700 border-[#EDE8E0] hover:border-purple-300 hover:text-stone-900'
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.comWhatsapp
+                  ? 'bg-white/20 text-white'
+                  : 'bg-emerald-500/20 text-emerald-300'
               }`}
             >
-              <span>Com rede social</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeFilters.comRedeSocial
-                    ? 'bg-white/20 text-white'
-                    : 'bg-purple-100 text-purple-900'
-                }`}
-              >
-                {socialsCount}
-              </span>
-            </button>
-          </div>
+              {whatsappCount}
+            </span>
+          </button>
 
-          {/* Results Summary Counter */}
-          <div className="hidden sm:block text-xs font-semibold text-stone-500 shrink-0">
-            Exibindo <strong className="text-stone-900">{filteredCount}</strong> {filteredCount === 1 ? 'negócio' : 'negócios'}
-            {filteredCount !== totalCount && (
-              <span className="text-stone-400"> de {totalCount}</span>
-            )}
-          </div>
+          {/* Button: Com Rede Social */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('comRedeSocial')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              activeFilters.comRedeSocial
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-blue-400/40 hover:text-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.comRedeSocial ? 'bg-white' : 'bg-blue-500'}`} />
+              <span>Com rede social</span>
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.comRedeSocial
+                  ? 'bg-white/20 text-white'
+                  : 'bg-blue-500/20 text-blue-300'
+              }`}
+            >
+              {socialsCount}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div className="h-px bg-white/10 w-full" />
+
+      {/* Selectors: Category and Sorting */}
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="category-select"
+            className="text-[11px] font-bold text-stone-400 uppercase tracking-wider"
+          >
+            Categoria:
+          </label>
+          <select
+            id="category-select"
+            value={selectedCategory}
+            onChange={(e) => onSelectCategory(e.target.value)}
+            className="w-full bg-stone-800/90 text-stone-100 border border-white/15 rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-[#FF4D00] cursor-pointer shadow-sm transition backdrop-blur-md"
+          >
+            <option value="TODAS" className="bg-stone-900 text-stone-100">Todas as Categorias ({totalCount})</option>
+            {availableCategories.map((cat) => (
+              <option key={cat.name} value={cat.name} className="bg-stone-900 text-stone-100">
+                {translateCategory(cat.name)} ({cat.count})
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Bottom Row: Category Dropdown & Sorting */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#EDE8E0]/70">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Translated Category Dropdown */}
-            <div className="flex items-center gap-1.5">
-              <label
-                htmlFor="category-select"
-                className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0"
-              >
-                Categoria:
-              </label>
-              <select
-                id="category-select"
-                value={selectedCategory}
-                onChange={(e) => onSelectCategory(e.target.value)}
-                className="bg-white border border-[#EDE8E0] rounded-xl px-3 py-1.5 text-xs text-stone-800 font-medium focus:outline-none focus:border-[#FF4D00] max-w-[240px] truncate cursor-pointer shadow-2xs"
-              >
-                <option value="TODAS">Todas as Categorias ({totalCount})</option>
-                {availableCategories.map((cat) => (
-                  <option key={cat.name} value={cat.name}>
-                    {translateCategory(cat.name)} ({cat.count})
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="sort-select"
+            className="text-[11px] font-bold text-stone-400 uppercase tracking-wider"
+          >
+            Ordenar por:
+          </label>
+          <select
+            id="sort-select"
+            value={sortBy}
+            onChange={(e) =>
+              onSelectSortBy(e.target.value as 'CONFIDENCE' | 'NOME' | 'COM_CONTATO')
+            }
+            className="w-full bg-stone-800/90 text-stone-100 border border-white/15 rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-[#FF4D00] cursor-pointer shadow-sm transition backdrop-blur-md"
+          >
+            <option value="CONFIDENCE" className="bg-stone-900 text-stone-100">Maior Confiança</option>
+            <option value="COM_CONTATO" className="bg-stone-900 text-stone-100">Melhores Contatos Primeiro</option>
+            <option value="NOME" className="bg-stone-900 text-stone-100">Ordem Alfabética (A-Z)</option>
+          </select>
+        </div>
+      </div>
 
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-1.5">
-              <label
-                htmlFor="sort-select"
-                className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0"
-              >
-                Ordenar:
-              </label>
-              <select
-                id="sort-select"
-                value={sortBy}
-                onChange={(e) =>
-                  onSelectSortBy(e.target.value as 'CONFIDENCE' | 'NOME' | 'COM_CONTATO')
-                }
-                className="bg-white border border-[#EDE8E0] rounded-xl px-3 py-1.5 text-xs text-stone-800 font-medium focus:outline-none focus:border-[#FF4D00] cursor-pointer shadow-2xs"
-              >
-                <option value="CONFIDENCE">Maior Confiança</option>
-                <option value="NOME">Nome (A-Z)</option>
-                <option value="COM_CONTATO">Com WhatsApp / Telefone primeiro</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Mobile visible counter */}
-          <div className="sm:hidden text-xs font-semibold text-stone-500">
-            Exibindo <strong className="text-stone-900">{filteredCount}</strong> de {totalCount}
-          </div>
+      {/* Info summary */}
+      <div className="mt-4 pt-4 border-t border-white/10 text-center">
+        <div className="text-xs text-stone-400 font-medium">
+          Exibindo <strong className="text-white">{filteredCount}</strong> de {totalCount} negócios
         </div>
       </div>
     </div>

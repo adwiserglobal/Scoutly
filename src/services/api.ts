@@ -1,4 +1,4 @@
-import { Business } from '../types';
+import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
 
 export async function fetchPlacesFromOverture(
@@ -7,8 +7,9 @@ export async function fetchPlacesFromOverture(
   east: number,
   north: number,
   limit: number = 5000,
-  signal?: AbortSignal
-): Promise<Business[]> {
+  signal?: AbortSignal,
+  zoom?: number
+): Promise<{ places: Business[]; cached: boolean; durationMs: number }> {
   const params = new URLSearchParams({
     west: west.toFixed(6),
     south: south.toFixed(6),
@@ -16,6 +17,9 @@ export async function fetchPlacesFromOverture(
     north: north.toFixed(6),
     limit: limit.toString(),
   });
+  if (zoom !== undefined) {
+    params.set('zoom', zoom.toString());
+  }
 
   const res = await fetch(`/api/places?${params.toString()}`, {
     method: 'GET',
@@ -28,9 +32,7 @@ export async function fetchPlacesFromOverture(
   }
 
   const data = await res.json();
-  const places = data.places || [];
-
-  return places.map((p: any) => ({
+  const places = (data.places || []).map((p: any) => ({
     ...p,
     category: translateCategory(p.category),
     coordinates: {
@@ -39,6 +41,12 @@ export async function fetchPlacesFromOverture(
     },
     leadStatus: 'NOVO' as const,
   }));
+
+  return {
+    places,
+    cached: !!data.cached,
+    durationMs: data.durationMs || 0,
+  };
 }
 
 export async function enrichBusinessData(url: string) {
@@ -50,24 +58,42 @@ export async function enrichBusinessData(url: string) {
   return res.json();
 }
 
-export async function fetchUserLeads(): Promise<Record<string, { status: any; notes: string }>> {
+export interface UserUserData {
+  leads: Record<string, { status: any; notes: string }>;
+  favorites: Record<string, boolean>;
+}
+
+export async function fetchUserLeads(): Promise<UserUserData> {
   try {
     const res = await fetch('/api/leads');
-    if (!res.ok) return {};
+    if (!res.ok) return { leads: {}, favorites: {} };
     const data = await res.json();
-    return data.leads || {};
+    return {
+      leads: data.leads || {},
+      favorites: data.favorites || {},
+    };
   } catch (err) {
     console.warn('[API] Error fetching saved user leads:', err);
-    return {};
+    return { leads: {}, favorites: {} };
   }
 }
 
-export async function saveUserLead(businessId: string, status: string, notes: string) {
+export async function saveUserLead(
+  businessId: string,
+  status?: string,
+  notes?: string,
+  isFavorite?: boolean
+) {
   try {
+    const body: Record<string, any> = { businessId };
+    if (status !== undefined) body.status = status;
+    if (notes !== undefined) body.notes = notes;
+    if (isFavorite !== undefined) body.isFavorite = isFavorite;
+
     const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ businessId, status, notes }),
+      body: JSON.stringify(body),
     });
     return res.ok;
   } catch (err) {
@@ -184,4 +210,32 @@ export async function fetchContextualSuggestions(
     return [];
   }
 }
+
+export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
+  const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao carregar métricas do PageSpeed.');
+  }
+  return res.json();
+}
+
+export async function generateMessage(business: any): Promise<string> {
+  try {
+    const res = await fetch('/api/ai/generate-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business })
+    });
+    if (!res.ok) {
+      throw new Error('Falha ao gerar mensagem com a API');
+    }
+    const data = await res.json();
+    return data.message || '';
+  } catch (error) {
+    console.error('Failed to generate message:', error);
+    throw error;
+  }
+}
+
 

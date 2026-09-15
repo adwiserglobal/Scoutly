@@ -1,5 +1,5 @@
 import { useState, FormEvent, memo } from 'react';
-import { Search, Navigation, Sparkles } from 'lucide-react';
+import { Search, Navigation, SlidersHorizontal } from 'lucide-react';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -9,14 +9,16 @@ interface HeaderProps {
   onOpenAIAssistant?: () => void;
   isLocating: boolean;
   totalOpportunitiesCount: number;
+  totalBusinessesCount: number;
+  onOpenFilters: () => void;
 }
 
 function Header({
-  currentRegionName,
   onSearch,
   onUseCurrentLocation,
-  onOpenAIAssistant,
   isLocating,
+  totalBusinessesCount,
+  onOpenFilters,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
 
@@ -28,60 +30,76 @@ function Header({
   };
 
   return (
-    <header className="w-full bg-[#FAF7F2] border-b border-[#EDE8E0] px-4 lg:px-8 py-3.5">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        {/* Brand Logo (Bigger & Crisp) */}
-        <div className="flex items-center py-0.5">
-          <img
-            src="/logo.png"
-            alt="Scoutly - Radar de Prospecção"
-            className="h-16 sm:h-24 w-auto max-w-[360px] sm:max-w-[480px] object-contain cursor-pointer transition hover:opacity-95 drop-shadow-2xs"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        </div>
-
-        {/* Enhanced Search & Location Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-          {/* Main Search Input */}
-          <form
-            onSubmit={handleSubmit}
-            className="relative flex items-center flex-1 sm:w-80 group"
-          >
-            <div className="absolute left-3.5 text-stone-400 group-focus-within:text-[#FF4D00] transition pointer-events-none">
-              <Search className="w-4 h-4" />
-            </div>
-
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Pesquise cidade, bairro ou rua..."
-              className="w-full bg-white border border-[#EDE8E0] rounded-2xl pl-10 pr-24 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#FF4D00] focus:ring-2 focus:ring-[#FF4D00]/15 transition shadow-2xs"
-            />
-
-            <button
-              type="submit"
-              className="absolute right-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-xl text-[11px] font-bold tracking-wider uppercase transition active:scale-95 shadow-2xs cursor-pointer"
-            >
-              BUSCAR
-            </button>
-          </form>
-
-          {/* Button: Perto de você com contorno laranja */}
-          <button
-            type="button"
-            onClick={onUseCurrentLocation}
-            disabled={isLocating}
-            className="px-4 py-2.5 bg-white border-2 border-[#FF4D00] text-[#FF4D00] hover:bg-[#FF4D00] hover:text-white rounded-2xl text-xs font-bold tracking-wider uppercase transition disabled:opacity-50 whitespace-nowrap active:scale-95 shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-            <span>{isLocating ? 'LOCALIZANDO...' : 'PERTO DE VOCÊ'}</span>
-          </button>
-        </div>
+    <div className="flex flex-col sm:flex-row items-center gap-3 w-full shrink-0 pointer-events-auto">
+      {/* Brand Logo - Enlarged, background removed */}
+      <div className="flex items-center shrink-0 pr-1">
+        <img
+          src="/logo_white.png"
+          alt="Scoutly - Radar de Prospecção"
+          className="h-12 sm:h-14 md:h-16 w-auto object-contain cursor-pointer transition-transform duration-200 hover:scale-105 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
       </div>
-    </header>
+
+      {/* Enhanced Search & Location Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/70 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-white/40 h-auto sm:h-[52px]">
+        {/* Main Search Input */}
+        <form
+          onSubmit={handleSubmit}
+          className="relative flex items-center flex-1 sm:w-72 lg:w-80 group h-full"
+        >
+          <div className="absolute left-3.5 text-stone-400 group-focus-within:text-[#FF4D00] transition pointer-events-none">
+            <Search className="w-4 h-4" />
+          </div>
+
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Pesquise cidade, bairro ou rua..."
+            className="w-full h-full bg-white/80 border-none rounded-full pl-10 pr-24 py-2.5 text-xs text-stone-900 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[#FF4D00]/50 transition shadow-inner"
+          />
+
+          <button
+            type="submit"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3.5 py-1.5 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-full text-[11px] font-bold tracking-wider uppercase transition active:scale-95 shadow-2xs cursor-pointer"
+          >
+            BUSCAR
+          </button>
+        </form>
+
+        {/* Button: Perto de você com contorno laranja */}
+        <button
+          type="button"
+          onClick={onUseCurrentLocation}
+          disabled={isLocating}
+          className="h-full px-4 py-2 bg-white/90 border-2 border-[#FF4D00] text-[#FF4D00] hover:bg-[#FF4D00] hover:text-white rounded-full text-xs font-bold tracking-wider uppercase transition disabled:opacity-50 whitespace-nowrap active:scale-95 shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline-block">{isLocating ? 'LOCALIZANDO' : 'PERTO DE VOCÊ'}</span>
+        </button>
+      </div>
+
+      {/* Button: Filters */}
+      <button
+        type="button"
+        onClick={onOpenFilters}
+        className="flex items-center gap-2 h-[52px] px-5 py-2 bg-white/70 backdrop-blur-md hover:bg-white border border-white/40 text-stone-700 hover:text-stone-900 rounded-full text-xs font-bold tracking-wider uppercase transition active:scale-95 shadow-sm cursor-pointer ml-auto sm:ml-0"
+      >
+        <SlidersHorizontal className="w-4 h-4" />
+        <span>Filtros</span>
+      </button>
+
+      {/* Business Counter Badge - Moved to right side after filters */}
+      <div className="flex items-center gap-2 h-[52px] px-4 py-2 bg-white/70 backdrop-blur-md border border-white/40 rounded-full shadow-sm text-xs font-semibold text-stone-800 shrink-0">
+        <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D00]"></span>
+        <span className="tracking-tight whitespace-nowrap">
+          {totalBusinessesCount} {totalBusinessesCount === 1 ? 'negócio' : 'negócios'}
+        </span>
+      </div>
+    </div>
   );
 }
 

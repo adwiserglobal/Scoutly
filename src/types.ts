@@ -1,3 +1,10 @@
+export interface MapBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
 export interface ActiveFilters {
   semSite: boolean;
   comSite: boolean;
@@ -65,10 +72,27 @@ export interface Business {
     lng: number;
   };
   leadStatus: LeadStatus;
+  isFavorite?: boolean;
   notes?: string;
   openStatus?: 'ABERTO_AGORA' | 'FECHADO_AGORA' | 'DESCONHECIDO';
   openStatusText?: string;
   openingHoursRaw?: string | null;
+  pageSpeed?: PageSpeedData;
+}
+
+export interface PageSpeedData {
+  url: string;
+  score: number; // 0 - 100
+  fcp?: string; // e.g. "1.2 s"
+  lcp?: string; // e.g. "2.4 s"
+  tbt?: string; // e.g. "120 ms"
+  cls?: string; // e.g. "0.02"
+  speedIndex?: string; // e.g. "1.8 s"
+  rating: 'FAST' | 'AVERAGE' | 'SLOW';
+  opportunityTitle?: string;
+  opportunityDescription?: string;
+  diagnostics?: Array<{ title: string; impact: string }>;
+  fetchedAt?: string;
 }
 
 export interface FilterOptions {

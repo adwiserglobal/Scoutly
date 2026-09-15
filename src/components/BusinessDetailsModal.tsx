@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { enrichBusinessData, getWhatsAppLink, getTrustIcon } from '../services/api';
+import { enrichBusinessData, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
+import { usePageSpeed } from '../hooks/usePageSpeed';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
   onClose: () => void;
   onUpdateStatus?: (id: string, status: LeadStatus, notes?: string) => void;
+  onToggleFavorite?: (business: Business) => void;
 }
 
 export default function BusinessDetailsModal({
   business,
   onClose,
   onUpdateStatus,
+  onToggleFavorite,
 }: BusinessDetailsModalProps) {
   if (!business) return null;
 
@@ -21,26 +24,36 @@ export default function BusinessDetailsModal({
     business.leadStatus || 'NOVO'
   );
   const [notes, setNotes] = useState(business.notes || '');
+  const [isSpeedDetailsExpanded, setIsSpeedDetailsExpanded] = useState(false);
 
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentData, setEnrichmentData] = useState<any>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     setCurrentLeadStatus(business.leadStatus || 'NOVO');
     setNotes(business.notes || '');
     setEnrichmentData(null);
     setEnrichError(null);
+    setGeneratedMessage('');
+    setMessageError(null);
   }, [business]);
 
   const hasWebsite = Boolean(business.website);
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
-  const isFavorited = Boolean(currentLeadStatus && currentLeadStatus !== 'NOVO');
+  const isFavorited = Boolean(business.isFavorite);
+
+  const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
+    hasWebsite ? business.website : null
+  );
 
   const handleToggleFavorite = () => {
-    const nextStatus = isFavorited ? 'NOVO' : 'CONTATADO';
-    setCurrentLeadStatus(nextStatus);
-    onUpdateStatus?.(business.id, nextStatus, notes);
+    onToggleFavorite?.(business);
   };
 
   const handleStatusChange = (newStatus: LeadStatus) => {
@@ -63,6 +76,30 @@ export default function BusinessDetailsModal({
       setEnrichError(err.message || 'Falha ao enriquecer dados.');
     } finally {
       setIsEnriching(false);
+    }
+  };
+
+  const handleGenerateMessage = async () => {
+    setIsGeneratingMessage(true);
+    setMessageError(null);
+    try {
+      // Ensure we pass the pageSpeedScore if we have it
+      const payload = { ...business, pageSpeedScore: pageSpeed?.score };
+      const msg = await generateMessage(payload);
+      setGeneratedMessage(msg);
+      setIsCopied(false);
+    } catch (err: any) {
+      setMessageError(err.message || 'Falha ao gerar mensagem.');
+    } finally {
+      setIsGeneratingMessage(false);
+    }
+  };
+
+  const handleCopyMessage = () => {
+    if (generatedMessage) {
+      navigator.clipboard.writeText(generatedMessage);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
     }
   };
 
@@ -97,7 +134,10 @@ export default function BusinessDetailsModal({
 
   // Calculate WhatsApp URL (prioritize explicitly verified WhatsApp, then fallback to phone)
   const whatsappTarget = whatsapps.length > 0 ? whatsapps[0] : business.phone;
-  const whatsappUrl = getWhatsAppLink(whatsappTarget);
+  let whatsappUrl = getWhatsAppLink(whatsappTarget);
+  if (whatsappUrl && generatedMessage) {
+    whatsappUrl = `${whatsappUrl}?text=${encodeURIComponent(generatedMessage)}`;
+  }
 
   return (
     <div
@@ -194,7 +234,48 @@ export default function BusinessDetailsModal({
                   <span>Conversar no WhatsApp</span>
                 </a>
               )}
+
+              <button
+                type="button"
+                onClick={handleGenerateMessage}
+                disabled={isGeneratingMessage}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-[#FF4D00] bg-white/40 hover:bg-white/60 backdrop-blur-md border border-white/60 shadow-[0_4px_12px_rgba(255,77,0,0.08)] transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingMessage ? (
+                  <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-[#FF4D00]" />
+                )}
+                <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar Mensagem (IA)'}</span>
+              </button>
             </div>
+            
+            {/* AI Generated Message Box */}
+            {messageError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                {messageError}
+              </div>
+            )}
+            
+            {generatedMessage && (
+              <div className="mt-4 p-4 bg-[#FF4D00]/5 border border-[#FF4D00]/20 rounded-2xl relative group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-[#FF4D00] uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Mensagem Gerada
+                  </span>
+                  <button
+                    onClick={handleCopyMessage}
+                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#FF4D00] hover:text-white bg-[#FF4D00]/10 hover:bg-[#FF4D00] px-2 py-1 rounded-lg transition"
+                  >
+                    {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {isCopied ? 'Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+                <div className="text-xs text-stone-800 whitespace-pre-wrap leading-relaxed">
+                  {generatedMessage}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -332,7 +413,10 @@ export default function BusinessDetailsModal({
                   <div className="space-y-2">
                     {/* Botões de WhatsApp com ícone e ação direta */}
                     {whatsapps.map((w: any, idx) => {
-                      const waLink = getWhatsAppLink(w);
+                      let waLink = getWhatsAppLink(w);
+                      if (waLink && generatedMessage) {
+                        waLink = `${waLink}?text=${encodeURIComponent(generatedMessage)}`;
+                      }
                       return (
                         <a
                           key={`wa-${idx}`}
@@ -464,46 +548,181 @@ export default function BusinessDetailsModal({
           </div>
         </div>
 
+        {/* Google PageSpeed Insights Section (quando houver site) */}
+        {hasWebsite && (
+          <div className="mb-6 p-4 sm:p-5 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0] space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <img src="/velocimetro.png" alt="Google PageSpeed" className="w-5 h-5 object-contain" />
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+                    Google PageSpeed Insights
+                  </h4>
+                  <p className="text-[11px] text-stone-500">
+                    Métricas reais de velocidade mobile e Core Web Vitals
+                  </p>
+                </div>
+              </div>
+
+              {/* Score upfront */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                    isSpeedLoading
+                      ? 'bg-stone-100 text-stone-600 border-stone-200 animate-pulse'
+                      : pageSpeed
+                      ? pageSpeed.score >= 90
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : pageSpeed.score >= 50
+                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                      : 'bg-stone-100 text-stone-600 border-stone-200'
+                  }`}
+                >
+                  <img src="/velocimetro.png" alt="Speed" className="w-4 h-4 object-contain" />
+                  <span>
+                    {isSpeedLoading
+                      ? 'Medindo...'
+                      : pageSpeed
+                      ? `Score: ${pageSpeed.score}/100 • ${
+                          pageSpeed.score >= 90
+                            ? 'Rápido'
+                            : pageSpeed.score >= 50
+                            ? 'Médio'
+                            : 'Crítico'
+                        }`
+                      : 'Score indisponível'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSpeedDetailsExpanded(!isSpeedDetailsExpanded)}
+                  className="text-xs font-bold text-[#FF4D00] hover:text-[#E04400] flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-stone-200/60 transition cursor-pointer"
+                >
+                  <span>{isSpeedDetailsExpanded ? 'Recolher' : 'Ver mais informações'}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isSpeedDetailsExpanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            {pageSpeed && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">FCP (1ª Pintura)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.fcp || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">LCP (Maior Conteúdo)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.lcp || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">TBT (Bloqueio)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.tbt || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">CLS (Estabilidade)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.cls || '-'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Expandable Details (recolhido por padrão) */}
+            {isSpeedDetailsExpanded && pageSpeed && (
+              <div className="pt-2 space-y-3 border-t border-stone-200/80">
+                {/* Commercial Opportunity Pitch */}
+                <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
+                    <Sparkles className="w-4 h-4 text-[#FF4D00]" />
+                    <span>Oportunidade Comercial para Prospecção</span>
+                  </div>
+                  <strong className="text-xs text-stone-800 block">
+                    {pageSpeed.opportunityTitle}
+                  </strong>
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    {pageSpeed.opportunityDescription}
+                  </p>
+                </div>
+
+                {/* Diagnostics list */}
+                {pageSpeed.diagnostics && pageSpeed.diagnostics.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                      Diagnósticos Técnicos Recomendados
+                    </span>
+                    <div className="space-y-1">
+                      {pageSpeed.diagnostics.map((diag, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between text-xs bg-white px-3 py-2 rounded-lg border border-stone-200"
+                        >
+                          <span className="text-stone-700">{diag.title}</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              diag.impact === 'Crítico'
+                                ? 'bg-rose-100 text-rose-800'
+                                : diag.impact === 'Alto'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-stone-100 text-stone-700'
+                            }`}
+                          >
+                            Impacto {diag.impact}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Gestão de Prospecção (Pipeline e Anotações) */}
         <div className="border-t border-stone-100 pt-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
             <div>
               <span className="text-xs font-bold text-stone-900 uppercase tracking-wider block">
-                Funil de Vendas
+                Funil de Vendas (CRM)
               </span>
               <span className="text-[11px] text-stone-500">
-                {currentLeadStatus !== 'NOVO'
-                  ? 'Este negócio está ativo no seu pipeline comercial.'
-                  : 'Adicione este negócio ao seu pipeline de prospecção.'}
+                Selecione a etapa deste lead no seu processo comercial:
               </span>
             </div>
 
-            {currentLeadStatus === 'NOVO' ? (
-              <button
-                type="button"
-                onClick={() => handleStatusChange('CONTATADO')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Adicionar ao pipeline</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold">
-                  <Columns3 className="w-3.5 h-3.5 text-amber-700" />
-                  <span>No Pipeline ({currentLeadStatus})</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange('NOVO')}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition border border-stone-200 cursor-pointer"
-                  title="Remover do pipeline"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Remover</span>
-                </button>
-              </div>
-            )}
+            {/* Stages Selector Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { id: 'NOVO', label: 'Fora do Funil' },
+                  { id: 'CONTATADO', label: 'Contatado' },
+                  { id: 'EM_NEGOCIACAO', label: 'Em Negociação' },
+                  { id: 'FECHADO', label: 'Fechado' },
+                  { id: 'PERDIDO', label: 'Perdido' },
+                ] as const
+              ).map((stage) => {
+                const isActive = currentLeadStatus === stage.id;
+                return (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    onClick={() => handleStatusChange(stage.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      isActive
+                        ? 'bg-[#FF4D00] text-white shadow-2xs'
+                        : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    {stage.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="mt-3">

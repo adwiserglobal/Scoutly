@@ -27,10 +27,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('overture query started');
-    const places = await queryPlacesInBBox(west, south, east, north, limit);
+    const result = await queryPlacesInBBox(west, south, east, north, limit);
     console.log('overture query finished');
 
-    return res.status(200).json({ places, total: places.length });
+    return res.status(200).json({
+      places: result.places,
+      total: result.places.length,
+      cached: result.cached,
+      durationMs: result.durationMs,
+    });
   } catch (err: any) {
     console.error('[API /api/places Error FULL]:', err);
     return res.status(500).json({

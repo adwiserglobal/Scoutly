@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { fetchPlacesFromOverture, fetchUserLeads, saveUserLead } from './services/api';
+import { fetchUserLeads, saveUserLead } from './services/api';
+import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
-import Sidebar from './components/Sidebar';
+import BottomMenu from './components/BottomMenu';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
 import InteractiveMap, { MapBounds } from './components/InteractiveMap';
@@ -22,12 +23,16 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<NavigationTab>('INICIO');
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [userLeadsMap, setUserLeadsMap] = useState<Record<string, { status: LeadStatus; notes: string }>>({});
+  const [userFavoritesMap, setUserFavoritesMap] = useState<Record<string, boolean>>({});
   const [isMapLoading, setIsMapLoading] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [isBusinessesLoading, setIsBusinessesLoading] = useState(false);
   const [businessesError, setBusinessesError] = useState<string | null>(null);
   const [isZoomTooLow, setIsZoomTooLow] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(14);
+  
+  const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
 
   const [currentRegionName, setCurrentRegionName] = useState('São Paulo - Pinheiros');
   const [centerCoordinates, setCenterCoordinates] = useState({
@@ -91,12 +96,17 @@ export default function App() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const leadsMapRef = useRef<Record<string, { status: LeadStatus; notes: string }>>({});
   leadsMapRef.current = userLeadsMap;
+  const favoritesMapRef = useRef<Record<string, boolean>>({});
+  favoritesMapRef.current = userFavoritesMap;
 
-  // Load persistent user leads from database on mount
+  // Load persistent user leads and favorites from database on mount
   useEffect(() => {
-    fetchUserLeads().then((leads) => {
-      if (leads) {
-        setUserLeadsMap(leads);
+    fetchUserLeads().then((data) => {
+      if (data && data.leads) {
+        setUserLeadsMap(data.leads);
+      }
+      if (data && data.favorites) {
+        setUserFavoritesMap(data.favorites);
       }
     });
   }, []);
@@ -125,58 +135,46 @@ export default function App() {
         debounceTimerRef.current = null;
       }
 
-      // Check zoom constraint
-      if (zoom < 12 || !bounds) {
+      // Check zoom constraint (supports zoom 11+ smoothly)
+      if (zoom < 11 || !bounds) {
         setIsZoomTooLow(true);
-        // Abort any ongoing query
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
-        }
+        mapCacheService.cancelOngoingRequests();
         setIsBusinessesLoading(false);
         return;
       }
 
       setIsZoomTooLow(false);
 
-      // Debounce the query by 600ms
+      // Debounce the query between 200-350ms (280ms optimal for Google Maps-like fluidity)
       debounceTimerRef.current = setTimeout(async () => {
-        // Abort previous in-flight request if user moved map again
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
-
         setIsBusinessesLoading(true);
         setBusinessesError(null);
 
         try {
-          const places = await fetchPlacesFromOverture(
-            bounds.west,
-            bounds.south,
-            bounds.east,
-            bounds.north,
-            5000,
-            controller.signal
-          );
-          
-          // Merge with persistent user leads from database
-          const currentLeads = leadsMapRef.current;
-          const mergedPlaces = places.map((p) => {
-            const saved = currentLeads[p.id];
-            return {
-              ...p,
-              leadStatus: saved ? (saved.status as LeadStatus) : 'NOVO',
-              notes: saved ? saved.notes : '',
-            };
-          });
+          await mapCacheService.loadViewport(
+            bounds,
+            zoom,
+            (allPlaces, fromCache) => {
+              // Merge with persistent user leads and favorites from database
+              const currentLeads = leadsMapRef.current;
+              const currentFavorites = favoritesMapRef.current;
+              const mergedPlaces = allPlaces.map((p) => {
+                const saved = currentLeads[p.id];
+                const isFav = Boolean(currentFavorites[p.id]);
+                return {
+                  ...p,
+                  isFavorite: isFav,
+                  leadStatus: saved ? (saved.status as LeadStatus) : 'NOVO',
+                  notes: saved ? saved.notes : '',
+                };
+              });
 
-          setBusinesses(mergedPlaces);
+              // Progressive state update without clearing screen or flickering
+              setBusinesses(mergedPlaces);
+            }
+          );
         } catch (err: any) {
           if (err.name === 'AbortError') {
-            // Ignored, user panned map
             return;
           }
           console.warn('[Places Fetch Warning]:', err.message || err);
@@ -186,7 +184,7 @@ export default function App() {
         } finally {
           setIsBusinessesLoading(false);
         }
-      }, 600);
+      }, 280);
     },
     []
   );
@@ -319,11 +317,37 @@ export default function App() {
     setModalBusiness(biz);
   }, []);
 
+  // Toggle Favorite status (and persist in database)
+  const handleToggleFavorite = useCallback((biz: Business) => {
+    const nextIsFavorite = !biz.isFavorite;
+    setBusinesses((prev) =>
+      prev.map((b) => (b.id === biz.id ? { ...b, isFavorite: nextIsFavorite } : b))
+    );
+    setModalBusiness((prev) =>
+      prev && prev.id === biz.id ? { ...prev, isFavorite: nextIsFavorite } : prev
+    );
+    setSelectedBusiness((prev) =>
+      prev && prev.id === biz.id ? { ...prev, isFavorite: nextIsFavorite } : prev
+    );
+    setUserFavoritesMap((prev) => ({
+      ...prev,
+      [biz.id]: nextIsFavorite,
+    }));
+    // Save favorite state to database
+    saveUserLead(biz.id, undefined, undefined, nextIsFavorite);
+  }, []);
+
   // Update Lead Status (and persist in database)
   const handleUpdateStatus = useCallback((id: string, newStatus: LeadStatus, notes?: string) => {
-    const updatedNotes = notes || '';
+    const updatedNotes = notes !== undefined ? notes : '';
     setBusinesses((prev) =>
       prev.map((b) => (b.id === id ? { ...b, leadStatus: newStatus, notes: updatedNotes } : b))
+    );
+    setModalBusiness((prev) =>
+      prev && prev.id === id ? { ...prev, leadStatus: newStatus, notes: updatedNotes } : prev
+    );
+    setSelectedBusiness((prev) =>
+      prev && prev.id === id ? { ...prev, leadStatus: newStatus, notes: updatedNotes } : prev
     );
     setUserLeadsMap((prev) => ({
       ...prev,
@@ -333,13 +357,13 @@ export default function App() {
     saveUserLead(id, newStatus, updatedNotes);
   }, []);
 
-  const savedLeadsCount = useMemo(() => {
-    return businesses.filter((b) => b.leadStatus && b.leadStatus !== 'NOVO').length;
+  const favoritesCount = useMemo(() => {
+    return businesses.filter((b) => Boolean(b.isFavorite)).length;
   }, [businesses]);
 
   const pipelineDealsCount = useMemo(() => {
     return businesses.filter(
-      (b) => b.leadStatus === 'CONTATADO' || b.leadStatus === 'EM_NEGOCIACAO'
+      (b) => b.leadStatus && b.leadStatus !== 'NOVO'
     ).length;
   }, [businesses]);
 
@@ -352,245 +376,311 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-row bg-[#FAF7F2] text-stone-900 font-sans">
-      {/* Sidebar na lateral esquerda */}
-      <Sidebar
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        savedLeadsCount={savedLeadsCount}
-        pipelineDealsCount={pipelineDealsCount}
-        onOpenAIChat={() => setIsAIChatOpen(true)}
-        onLogout={signOut}
-      />
+    <div className="relative w-full h-screen overflow-hidden bg-[#FAF7F2] text-stone-900 font-sans flex flex-col">
+      
+      {/* Background Fullscreen Map */}
+      <div className="absolute inset-0 z-0">
+        {mapError && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#FAF7F2]/80 p-6 text-center">
+            <span className="text-sm font-semibold text-red-600 mb-2">
+              Erro ao carregar mapa
+            </span>
+            <span className="text-xs text-stone-600">{mapError}</span>
+          </div>
+        )}
 
-      {/* Área principal das telas */}
-      <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
+          <InteractiveMap
+            businesses={filteredBusinesses}
+            selectedBusiness={selectedBusiness}
+            onSelectBusiness={(biz) => {
+              setSelectedBusiness(biz);
+              setModalBusiness(biz);
+            }}
+            centerCoordinates={centerCoordinates}
+            zoom={14}
+            activeFilters={activeFilters}
+            onMapLoad={() => setIsMapLoading(false)}
+            onMapError={(err) => {
+              setIsMapLoading(false);
+              setMapError(err.message);
+            }}
+            onBoundsChange={handleBoundsChange}
+          />
+      </div>
+
+      {/* Main Foreground Layer */}
+      <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
+        
+        {/* Only show Header & Filters on INICIO tab */}
         {currentTab === 'INICIO' && (
           <>
-            {/* Header */}
-            <Header
-              currentRegionName={currentRegionName}
-              onSearch={handleSearch}
-              onUseCurrentLocation={handleUseCurrentLocation}
-              onSelectPreset={handleSelectPreset}
-              onOpenAIAssistant={() => setIsAIChatOpen(true)}
-              isLocating={isLocating}
-              totalOpportunitiesCount={opportunitiesCount}
-            />
+            <div className="absolute top-4 left-4 right-4 z-30 pointer-events-none flex items-start justify-center">
+              <div className="max-w-[1400px] w-full flex flex-col items-center justify-between pointer-events-none">
+                <Header
+                  currentRegionName={currentRegionName}
+                  onSearch={handleSearch}
+                  onUseCurrentLocation={handleUseCurrentLocation}
+                  onSelectPreset={handleSelectPreset}
+                  onOpenAIAssistant={() => setIsAIChatOpen(true)}
+                  isLocating={isLocating}
+                  totalOpportunitiesCount={opportunitiesCount}
+                  totalBusinessesCount={filteredBusinesses.length}
+                  onOpenFilters={() => setIsFiltersOpen(true)}
+                />
+              </div>
+            </div>
 
-            {/* Filter Bar */}
-            <FilterBar
-              activeFilters={activeFilters}
-              onToggleFilter={handleToggleFilter}
-              selectedCategory={selectedCategory}
-              onSelectCategory={setSelectedCategory}
-              availableCategories={availableCategories}
-              sortBy={sortBy}
-              onSelectSortBy={setSortBy}
-              filteredCount={filteredBusinesses.length}
-              totalCount={businesses.length}
-              opportunitiesCount={opportunitiesCount}
-              whatsappCount={whatsappCount}
-              socialsCount={socialsCount}
-            />
+            {/* Side Drawer for Filters - Glassmorphism */}
+            <div 
+              className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-stone-900/85 backdrop-blur-2xl border-l border-white/10 shadow-2xl flex flex-col pointer-events-auto transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                isFiltersOpen ? 'translate-x-0' : 'translate-x-full'
+              }`}
+            >
+              {/* Backdrop */}
+              <div 
+                className={`fixed inset-0 bg-black/40 backdrop-blur-xs -z-10 transition-opacity duration-500 ${
+                  isFiltersOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
+                onClick={() => setIsFiltersOpen(false)}
+              />
 
-            {/* Main Interactive Workspace */}
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 flex flex-col gap-6">
-              {/* Split Section: Interactive Map + Business Cards Feed */}
-              <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* Map View (Left Column - 7 cols on Desktop - Fixed on scroll) */}
-                <div className="lg:col-span-7 h-[460px] lg:h-[calc(100vh-2rem)] lg:sticky lg:top-4 rounded-3xl overflow-hidden shadow-xs border border-[#EDE8E0] relative bg-stone-100 shrink-0">
-                  {/* Loading Overlay com blur suave, gif e indicador carregando */}
-                  {(isMapLoading || isBusinessesLoading) && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#FFF8F3]/80 backdrop-blur-xs transition-all duration-300 pointer-events-none p-4">
-                      <div className="flex flex-col items-center justify-center text-center">
-                        <img
-                          src="/scoutly-loading.gif"
-                          alt="Carregando"
-                          className="w-32 h-32 sm:w-44 sm:h-44 object-contain drop-shadow-xs"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                        <div className="flex items-center justify-center gap-2.5 mt-2">
-                          <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0"></div>
-                          <span className="text-xs font-bold uppercase tracking-wider text-stone-900">
-                            Carregando
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {mapError && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#FAF7F2] p-6 text-center">
-                      <span className="text-sm font-semibold text-red-600 mb-2">
-                        Erro ao carregar mapa
-                      </span>
-                      <span className="text-xs text-stone-600">{mapError}</span>
-                    </div>
-                  )}
-
-                  {/* Zoom Alert Overlay */}
-                  {isZoomTooLow && !isMapLoading && (
-                    <div className="absolute top-4 right-14 z-20 bg-amber-500/90 text-white backdrop-blur-md px-4 py-2 rounded-xl text-xs font-bold shadow-md animate-bounce">
-                      Aproxime o mapa para visualizar os negócios (Zoom {Math.round(currentZoom)}/12)
-                    </div>
-                  )}
-
-                  <InteractiveMap
-                    businesses={filteredBusinesses}
-                    selectedBusiness={selectedBusiness}
-                    onSelectBusiness={(biz) => {
-                      setSelectedBusiness(biz);
-                      setModalBusiness(biz);
-                    }}
-                    centerCoordinates={centerCoordinates}
-                    zoom={14}
-                    onMapLoad={() => setIsMapLoading(false)}
-                    onMapError={(err) => {
-                      setIsMapLoading(false);
-                      setMapError(err.message);
-                    }}
-                    onBoundsChange={handleBoundsChange}
-                  />
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/5 backdrop-blur-md shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <SlidersHorizontal className="w-5 h-5 text-[#FF4D00]" />
+                  <h2 className="text-base font-bold text-white tracking-wide">Filtros</h2>
                 </div>
+                <button
+                  onClick={() => setIsFiltersOpen(false)}
+                  className="p-2 text-stone-400 hover:text-white hover:bg-white/10 rounded-full transition cursor-pointer"
+                  title="Fechar filtros"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                {/* Business Cards Feed (Right Column - 5 cols on Desktop) */}
-                <div className="lg:col-span-5 flex flex-col gap-3.5">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs font-bold text-stone-900 uppercase tracking-wider">
-                      Estabelecimentos em {currentRegionName.split(',')[0]}
-                    </span>
-                    <span className="text-xs font-semibold text-stone-500">
-                      {isBusinessesLoading ? (
-                        <span className="text-[#FF4D00] font-bold animate-pulse">Carregando dados...</span>
-                      ) : (
-                        `${filteredBusinesses.length} ${filteredBusinesses.length === 1 ? 'negócio' : 'negócios'}`
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Low Zoom Warning */}
-                  {isZoomTooLow && (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs leading-relaxed">
-                      <p className="font-bold text-sm mb-1">Aproxime o mapa para visualizar os negócios</p>
-                      <p className="text-amber-700">
-                        Para garantir alta performance e precisão, os dados de estabelecimentos são carregados no nível de aproximação 12 ou superior.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Error Banner */}
-                  {businessesError && (
-                    <div className="bg-red-50 text-red-700 p-4 rounded-2xl text-xs border border-red-200 leading-relaxed">
-                      {businessesError}
-                    </div>
-                  )}
-
-                  {/* List or Empty State */}
-                  {filteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
-                    <div className="bg-white rounded-2xl p-8 border border-[#EDE8E0] text-center">
-                      <p className="text-sm font-semibold text-stone-800 mb-1">
-                        Nenhum estabelecimento encontrado nesta área.
-                      </p>
-                      <p className="text-xs text-stone-500">
-                        Mova o mapa para outra região ou ajuste os filtros acima.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {displayedBusinesses.map((biz, idx) => (
-                        <BusinessCard
-                          key={biz.id}
-                          business={biz}
-                          index={idx}
-                          isSelected={selectedBusiness?.id === biz.id}
-                          onSelect={() => handleCardSelect(biz)}
-                          onOpenDetails={handleOpenDetails}
-                          onToggleFavorite={(b) => {
-                            const isFav = Boolean(b.leadStatus && b.leadStatus !== 'NOVO');
-                            handleUpdateStatus(b.id, isFav ? 'NOVO' : 'CONTATADO', b.notes);
-                          }}
-                        />
-                      ))}
-
-                      {/* Progressive Load More button when results exceed current page slice */}
-                      {visibleCount < filteredBusinesses.length && (
-                        <div className="pt-2 pb-4 flex flex-col items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setVisibleCount((prev) => Math.min(prev + 30, filteredBusinesses.length))}
-                            className="w-full py-3 px-4 rounded-2xl bg-white border border-[#EDE8E0] hover:border-[#FF4D00] text-stone-800 hover:text-[#FF4D00] text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-[0.99] flex items-center justify-center gap-2"
-                          >
-                            <span>Carregar mais 30 estabelecimentos</span>
-                            <span className="text-[11px] text-stone-400 font-normal">
-                              ({displayedBusinesses.length} de {filteredBusinesses.length} visíveis)
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setVisibleCount(filteredBusinesses.length)}
-                            className="text-[11px] text-stone-500 hover:text-stone-800 font-medium underline underline-offset-2 transition"
-                          >
-                            Exibir todos ({filteredBusinesses.length})
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
-            </main>
+              <div className="flex-1 overflow-y-auto p-6 text-stone-200">
+                <FilterBar
+                  activeFilters={activeFilters}
+                  onToggleFilter={handleToggleFilter}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                  availableCategories={availableCategories}
+                  sortBy={sortBy}
+                  onSelectSortBy={setSortBy}
+                  filteredCount={filteredBusinesses.length}
+                  totalCount={businesses.length}
+                  opportunitiesCount={opportunitiesCount}
+                  whatsappCount={whatsappCount}
+                  socialsCount={socialsCount}
+                />
+              </div>
+            </div>
+            
+            {/* Zoom Alert Overlay */}
+            {isZoomTooLow && !isMapLoading && (
+              <div className="absolute top-[180px] left-1/2 -translate-x-1/2 z-20 bg-amber-500/90 text-white backdrop-blur-md px-4 py-2 rounded-xl text-xs font-bold shadow-md animate-bounce pointer-events-auto">
+                Aproxime o mapa para visualizar os negócios (Zoom {Math.round(currentZoom)}/12)
+              </div>
+            )}
           </>
         )}
 
+        {/* Business List Drawer Overlay for INICIO tab */}
+        {currentTab === 'INICIO' && (
+          <div 
+            className={`absolute inset-x-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              isListOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+            }`}
+          >
+            {/* Backdrop Blur effect over the map when list is open */}
+            <div 
+              className={`absolute inset-0 bg-white/30 transition-opacity duration-700 ${isListOpen ? 'opacity-100 backdrop-blur-md pointer-events-auto' : 'opacity-0'}`} 
+              onClick={() => setIsListOpen(false)}
+            />
+            
+            {/* The List Container */}
+            <div className="relative w-full max-w-4xl h-full bg-[#FAF7F2] rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex flex-col pointer-events-auto border border-[#EDE8E0] transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pb-24">
+              {/* Drawer Handle */}
+              <button 
+                onClick={() => setIsListOpen(false)}
+                className="w-full flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-stone-50 rounded-t-3xl transition"
+              >
+                <div className="w-12 h-1.5 bg-stone-300 rounded-full mb-2" />
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1">
+                  Ocultar Empresas <ChevronDown className="w-3 h-3" />
+                </span>
+              </button>
+
+              <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 custom-scrollbar">
+                <div className="flex items-center justify-between px-1 mb-4">
+                  <span className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+                    Estabelecimentos em {currentRegionName.split(',')[0]}
+                  </span>
+                  <span className="text-xs font-semibold text-stone-500">
+                    {isBusinessesLoading ? (
+                      <span className="text-[#FF4D00] font-bold animate-pulse">Carregando dados...</span>
+                    ) : (
+                      `${filteredBusinesses.length} ${filteredBusinesses.length === 1 ? 'negócio' : 'negócios'}`
+                    )}
+                  </span>
+                </div>
+
+                {/* Error Banner */}
+                {businessesError && (
+                  <div className="bg-red-50 text-red-700 p-4 rounded-2xl text-xs border border-red-200 leading-relaxed mb-4">
+                    {businessesError}
+                  </div>
+                )}
+
+                {/* List or Empty State */}
+                {filteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
+                  <div className="bg-white rounded-2xl p-8 border border-[#EDE8E0] text-center mt-4">
+                    <p className="text-sm font-semibold text-stone-800 mb-1">
+                      Nenhum estabelecimento encontrado nesta área.
+                    </p>
+                    <p className="text-xs text-stone-500">
+                      Mova o mapa para outra região ou ajuste os filtros acima.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3.5">
+                    {displayedBusinesses.map((biz, idx) => (
+                      <BusinessCard
+                        key={biz.id}
+                        business={biz}
+                        index={idx}
+                        isSelected={selectedBusiness?.id === biz.id}
+                        onSelect={() => handleCardSelect(biz)}
+                        onOpenDetails={handleOpenDetails}
+                        onToggleFavorite={handleToggleFavorite}
+                      />
+                    ))}
+
+                    {/* Progressive Load More button */}
+                    {visibleCount < filteredBusinesses.length && (
+                      <div className="pt-2 pb-4 flex flex-col items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount((prev) => Math.min(prev + 30, filteredBusinesses.length))}
+                          className="w-full py-3 px-4 rounded-2xl bg-white border border-[#EDE8E0] hover:border-[#FF4D00] text-stone-800 hover:text-[#FF4D00] text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>Carregar mais 30 estabelecimentos</span>
+                          <span className="text-[11px] text-stone-400 font-normal">
+                            ({displayedBusinesses.length} de {filteredBusinesses.length} visíveis)
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount(filteredBusinesses.length)}
+                          className="text-[11px] text-stone-500 hover:text-stone-800 font-medium underline underline-offset-2 transition cursor-pointer"
+                        >
+                          Exibir todos ({filteredBusinesses.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Businesses Button (floating below BottomMenu) */}
+        {currentTab === 'INICIO' && (
+          <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500">
+            <button
+              onClick={() => setIsListOpen(!isListOpen)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-white/70 hover:bg-white text-stone-700 hover:text-stone-900 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all shadow-md border border-white/40 backdrop-blur-md cursor-pointer hover:scale-105 active:scale-95"
+            >
+              {isListOpen ? (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5" /> Ocultar
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5" /> Ver Empresas
+                </>
+              )}
+              {!isListOpen && filteredBusinesses.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-[#FF4D00] rounded-full text-[9px] text-white">
+                  {filteredBusinesses.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Other Tabs Content */}
         {currentTab === 'FAVORITOS' && (
-          <FavoritesView
-            businesses={businesses}
-            onSelectBusiness={(biz) => {
-              setSelectedBusiness(biz);
-              setModalBusiness(biz);
-            }}
-            onUpdateLeadStatus={handleUpdateStatus}
-            onNavigateToExplore={() => setCurrentTab('INICIO')}
-            onOpenAIChat={() => setIsAIChatOpen(true)}
-          />
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+            <FavoritesView
+              businesses={businesses}
+              onSelectBusiness={(biz) => {
+                setSelectedBusiness(biz);
+                setModalBusiness(biz);
+              }}
+              onUpdateLeadStatus={handleUpdateStatus}
+              onToggleFavorite={handleToggleFavorite}
+              onNavigateToExplore={() => setCurrentTab('INICIO')}
+              onOpenAIChat={() => setIsAIChatOpen(true)}
+            />
+          </div>
         )}
 
         {currentTab === 'PIPELINE' && (
-          <PipelineView
-            businesses={businesses}
-            onSelectBusiness={(biz) => {
-              setSelectedBusiness(biz);
-              setModalBusiness(biz);
-            }}
-            onUpdateLeadStatus={handleUpdateStatus}
-            onOpenAIChat={() => setIsAIChatOpen(true)}
-            onNavigateToExplore={() => setCurrentTab('INICIO')}
-          />
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+            <PipelineView
+              businesses={businesses}
+              onSelectBusiness={(biz) => {
+                setSelectedBusiness(biz);
+                setModalBusiness(biz);
+              }}
+              onUpdateLeadStatus={handleUpdateStatus}
+              onOpenAIChat={() => setIsAIChatOpen(true)}
+              onNavigateToExplore={() => setCurrentTab('INICIO')}
+            />
+          </div>
         )}
 
         {currentTab === 'CONFIGURACOES' && (
-          <SettingsView
-            businesses={businesses}
-            currentRegionName={currentRegionName}
-            onClearLocalCache={() => {
-              localStorage.clear();
-              setUserLeadsMap({});
-              setBusinesses((prev) =>
-                prev.map((b) => ({ ...b, leadStatus: 'NOVO', notes: '' }))
-              );
-            }}
-          />
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+            <SettingsView
+              businesses={businesses}
+              currentRegionName={currentRegionName}
+              onClearLocalCache={() => {
+                localStorage.clear();
+                mapCacheService.clear();
+                setUserLeadsMap({});
+                setBusinesses([]);
+              }}
+            />
+          </div>
         )}
       </div>
+
+      <BottomMenu
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        savedLeadsCount={favoritesCount}
+        pipelineDealsCount={pipelineDealsCount}
+      />
+
+      {/* Map Loading Indicator */}
+      {currentTab === 'INICIO' && isBusinessesLoading && (
+        <div className="fixed bottom-[90px] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 pointer-events-none transition-all duration-300 drop-shadow-md">
+          <div className="w-4 h-4 border-[2.5px] border-[#FF4D00] border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-xs font-black text-white tracking-widest flex items-center drop-shadow-md">
+            CARREGANDO<span className="inline-block w-3 text-left loading-dots" />
+          </span>
+        </div>
+      )}
 
       {/* Business Details Modal */}
       <BusinessDetailsModal
         business={modalBusiness}
         onClose={() => setModalBusiness(null)}
         onUpdateStatus={handleUpdateStatus}
+        onToggleFavorite={handleToggleFavorite}
       />
 
       {/* Scoutly Copilot AI Assistant Drawer */}
@@ -614,11 +704,11 @@ export default function App() {
       />
 
       {/* Floating Action Button: Scoutly AI (Orange Liquid Glass Design) */}
-      {!isAIChatOpen && currentTab === 'INICIO' && (
+      {!isAIChatOpen && !isFiltersOpen && currentTab === 'INICIO' && (
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
-          className="fixed bottom-6 right-6 z-40 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105"
+          className="fixed bottom-[52px] right-4 lg:right-8 z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
         >
           {/* Glass reflection highlight overlay */}
           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none rounded-t-full" />

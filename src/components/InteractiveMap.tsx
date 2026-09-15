@@ -1,4 +1,4 @@
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, memo, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 // @ts-ignore
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -25,6 +25,12 @@ interface InteractiveMapProps {
   onSelectBusiness: (business: Business) => void;
   centerCoordinates: { lat: number; lng: number };
   zoom?: number;
+  activeFilters: {
+    semSite: boolean;
+    comSite: boolean;
+    comWhatsapp: boolean;
+    comRedeSocial: boolean;
+  };
   onMapLoad?: () => void;
   onMapError?: (err: Error) => void;
   onBoundsChange?: (bounds: MapBounds | null, zoom: number) => void;
@@ -45,6 +51,7 @@ function InteractiveMap({
   onSelectBusiness,
   centerCoordinates,
   zoom = 14,
+  activeFilters,
   onMapLoad,
   onMapError,
   onBoundsChange,
@@ -54,6 +61,7 @@ function InteractiveMap({
   const businessesMapRef = useRef<Map<string, Business>>(new Map());
   const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const popupLeaveTimerRef = useRef<any>(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
 
   // Keep fast O(1) lookup map in sync with current businesses
   useEffect(() => {
@@ -78,7 +86,7 @@ function InteractiveMap({
     try {
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
-        style: 'https://tiles.openfreemap.org/styles/liberty',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         center: [centerCoordinates.lng, centerCoordinates.lat],
         zoom: zoom,
         attributionControl: false,
@@ -145,6 +153,7 @@ function InteractiveMap({
       map.on('load', () => {
         clearTimeout(fallbackTimer);
         map.resize();
+        setIsMapLoaded(true);
         onMapLoad?.();
 
         // 1. Add GeoJSON Source
@@ -173,18 +182,26 @@ function InteractiveMap({
               10,
               '#E04400',
               50,
-              '#B33600',
+              '#C43800',
+              100,
+              '#A02E00',
+              500,
+              '#7D2400',
             ],
             'circle-radius': [
               'step',
               ['get', 'point_count'],
               18,
               10,
-              23,
+              22,
               50,
-              28,
+              26,
+              100,
+              30,
+              500,
+              35,
             ],
-            'circle-stroke-width': 2,
+            'circle-stroke-width': 2.5,
             'circle-stroke-color': '#ffffff',
           },
         });
@@ -211,12 +228,39 @@ function InteractiveMap({
           source: 'businesses',
           filter: ['!', ['has', 'point_count']],
           paint: {
-            'circle-color': '#FF4D00',
-            'circle-radius': 7,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
+            'circle-color': ['get', 'markerColor'],
+            'circle-radius': ['get', 'markerRadius'],
+            'circle-stroke-width': ['get', 'outlineWidth'],
+            'circle-stroke-color': ['get', 'outlineColor'],
           },
         });
+
+        // 4b. Load and add WhatsApp Icon Layer (Conditional)
+        map.loadImage('/whatsapp_icone.png')
+          .then((response) => {
+            if (response && response.data) {
+              if (!map.hasImage('whatsapp-icon')) {
+                map.addImage('whatsapp-icon', response.data);
+              }
+              if (!map.getLayer('unclustered-point-whatsapp')) {
+                map.addLayer({
+                  id: 'unclustered-point-whatsapp',
+                  type: 'symbol',
+                  source: 'businesses',
+                  filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'showWhatsappIcon'], true]],
+                  layout: {
+                    'icon-image': 'whatsapp-icon',
+                    'icon-size': 0.052,
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                  },
+                });
+              }
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to load whatsapp icon on map', error);
+          });
 
         // 5. Interaction Handlers
         map.on('click', 'clusters', (e) => {
@@ -399,22 +443,55 @@ function InteractiveMap({
     if (source) {
       const geojson: GeoJSON.FeatureCollection = {
         type: 'FeatureCollection',
-        features: businesses.map((biz) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [biz.longitude, biz.latitude],
-          },
-          properties: {
-            id: biz.id,
-            name: biz.name,
-          },
-        })),
+        features: businesses.map((biz) => {
+          let markerColor = '#FF4D00';
+          let outlineColor = '#ffffff';
+          let outlineWidth = 2;
+          let markerRadius = 7;
+          let showWhatsappIcon = false;
+
+          const hasWebsite = Boolean(biz.website);
+          const hasPhone = Boolean(biz.phone || (biz.phones && biz.phones.length > 0));
+          const hasSocial = Boolean(biz.socials && biz.socials.length > 0);
+
+          if (activeFilters.semSite && !hasWebsite) {
+            markerColor = '#ef4444'; // red
+          } else if (activeFilters.comSite && hasWebsite) {
+            markerColor = '#22c55e'; // green
+          } else if (activeFilters.comRedeSocial && hasSocial) {
+            markerColor = '#3b82f6'; // blue
+          }
+          
+          if (activeFilters.comWhatsapp && hasPhone) {
+            outlineColor = '#25D366'; // whatsapp green outline
+            outlineWidth = 2.5;
+            markerColor = '#ffffff'; // white background behind whatsapp icon
+            markerRadius = 10;
+            showWhatsappIcon = true;
+          }
+
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [biz.longitude, biz.latitude],
+            },
+            properties: {
+              id: biz.id,
+              name: biz.name,
+              markerColor,
+              outlineColor,
+              outlineWidth,
+              markerRadius,
+              showWhatsappIcon,
+            },
+          };
+        }),
       };
 
       source.setData(geojson);
     }
-  }, [businesses]);
+  }, [businesses, activeFilters, isMapLoaded]);
 
   // Pan to selected business
   useEffect(() => {
@@ -429,16 +506,6 @@ function InteractiveMap({
   return (
     <div className="relative w-full h-full bg-[#FAF7F2]">
       <div ref={mapContainerRef} className="w-full h-full" id="interactive-prospect-map" />
-
-      {/* Map Header Status Badge */}
-      <div className="absolute top-4 left-4 z-10 pointer-events-none">
-        <div className="bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-[#EDE8E0] shadow-sm flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D00]"></span>
-          <span className="text-xs font-medium text-stone-800 tracking-tight">
-            {businesses.length} {businesses.length === 1 ? 'negócio exibido' : 'negócios no mapa'}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }

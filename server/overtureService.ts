@@ -116,7 +116,37 @@ export async function getDuckDB(): Promise<duckdb.Database> {
                       console.log('spatial loaded');
 
                       db.all(
-                        "SET s3_region='us-west-2'; SET enable_http_metadata_cache=true; SET enable_object_cache=true; PRAGMA threads=4; PRAGMA enable_progress_bar=false; CREATE TABLE IF NOT EXISTS enrichment_cache (url VARCHAR PRIMARY KEY, data JSON, updated_at TIMESTAMP); CREATE TABLE IF NOT EXISTS user_leads (business_id VARCHAR PRIMARY KEY, status VARCHAR, notes VARCHAR, updated_at TIMESTAMP);",
+                        "SET s3_region='us-west-2'; SET enable_http_metadata_cache=true; SET enable_object_cache=true; PRAGMA threads=8; PRAGMA enable_progress_bar=false; " +
+                        "CREATE TABLE IF NOT EXISTS enrichment_cache (url VARCHAR PRIMARY KEY, data JSON, updated_at TIMESTAMP); " +
+                        "CREATE TABLE IF NOT EXISTS user_leads (business_id VARCHAR PRIMARY KEY, status VARCHAR, notes VARCHAR, updated_at TIMESTAMP); " +
+                        "CREATE TABLE IF NOT EXISTS overture_places_cache (" +
+                        "  id VARCHAR PRIMARY KEY, " +
+                        "  name VARCHAR, " +
+                        "  latitude DOUBLE, " +
+                        "  longitude DOUBLE, " +
+                        "  category VARCHAR, " +
+                        "  basic_category VARCHAR, " +
+                        "  taxonomy_primary VARCHAR, " +
+                        "  confidence DOUBLE, " +
+                        "  operating_status VARCHAR, " +
+                        "  website VARCHAR, " +
+                        "  websites JSON, " +
+                        "  email VARCHAR, " +
+                        "  emails JSON, " +
+                        "  phone VARCHAR, " +
+                        "  phones JSON, " +
+                        "  socials JSON, " +
+                        "  address VARCHAR, " +
+                        "  source VARCHAR, " +
+                        "  tile_key VARCHAR, " +
+                        "  updated_at TIMESTAMP" +
+                        "); " +
+                        "CREATE INDEX IF NOT EXISTS idx_places_lat_lng ON overture_places_cache (latitude, longitude); " +
+                        "CREATE TABLE IF NOT EXISTS overture_cached_tiles (" +
+                        "  tile_key VARCHAR PRIMARY KEY, " +
+                        "  place_count INTEGER, " +
+                        "  fetched_at TIMESTAMP" +
+                        ");",
                         (tableErr) => {
                           if (tableErr) {
                             console.error('[DuckDB] Error creating tables:', tableErr);
@@ -300,9 +330,62 @@ export async function searchPlacesByKeyword(
   // 2. Fallback: Query DuckDB in bbox if lat/lng are provided
   if (lat && lng) {
     const delta = 0.08;
-    return queryPlacesInBBox(lng - delta, lat - delta, lng + delta, lat + delta, 200);
+    const res = await queryPlacesInBBox(lng - delta, lat - delta, lng + delta, lat + delta, 200);
+    return res.places;
   }
 
+  return [];
+}
+
+export function lon2tile(lon: number, zoom: number = 13): number {
+  return Math.floor(((lon + 180) / 360) * Math.pow(2, zoom));
+}
+
+export function lat2tile(lat: number, zoom: number = 13): number {
+  const rad = (lat * Math.PI) / 180;
+  return Math.floor(
+    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+      Math.pow(2, zoom)
+  );
+}
+
+export function getTilesForBBox(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  zoom: number = 13
+): string[] {
+  const minTileX = lon2tile(west, zoom);
+  const maxTileX = lon2tile(east, zoom);
+  const minTileY = lat2tile(north, zoom);
+  const maxTileY = lat2tile(south, zoom);
+  const tiles: string[] = [];
+  const startX = Math.min(minTileX, maxTileX);
+  const endX = Math.max(minTileX, maxTileX);
+  const startY = Math.min(minTileY, maxTileY);
+  const endY = Math.max(minTileY, maxTileY);
+  for (let x = startX; x <= endX; x++) {
+    for (let y = startY; y <= endY; y++) {
+      tiles.push(`${zoom}/${x}/${y}`);
+    }
+  }
+  return tiles;
+}
+
+function safeParseJsonArray(val: any): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map(String).filter((s) => s.trim().length > 0);
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed)
+        ? parsed.map(String).filter((s) => s.trim().length > 0)
+        : [String(parsed)];
+    } catch {
+      return val.trim() ? [val.trim()] : [];
+    }
+  }
   return [];
 }
 
@@ -311,8 +394,10 @@ export async function queryPlacesInBBox(
   south: number,
   east: number,
   north: number,
-  limit: number = 5000
-): Promise<OverturePlace[]> {
+  limit: number = 5000,
+  zoom?: number
+): Promise<{ places: OverturePlace[]; cached: boolean; durationMs: number }> {
+  const startTime = Date.now();
   const roundedWest = Number(west.toFixed(3));
   const roundedSouth = Number(south.toFixed(3));
   const roundedEast = Number(east.toFixed(3));
@@ -321,24 +406,95 @@ export async function queryPlacesInBBox(
 
   const cacheKey = `${roundedWest}_${roundedSouth}_${roundedEast}_${roundedNorth}_${safeLimit}`;
 
-  // Check in-memory cache
+  // 1. Fast in-memory RAM cache (< 1ms)
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    console.log(`[Overture Cache] HIT for bbox [${roundedWest}, ${roundedSouth}, ${roundedEast}, ${roundedNorth}] (${cached.data.length} places)`);
-    return cached.data;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(
+        `[Scoutly Perf] Memory Cache HIT | ${cached.data.length} places | Duration: ${Date.now() - startTime}ms`
+      );
+    }
+    return {
+      places: cached.data,
+      cached: true,
+      durationMs: Date.now() - startTime,
+    };
   }
 
-  // Check in-flight query deduplication
+  // 2. In-flight query deduplication
   if (inFlightQueries.has(cacheKey)) {
-    console.log(`[Overture Deduplication] Reusing active query for bbox ${cacheKey}`);
-    return inFlightQueries.get(cacheKey)!;
+    const data = await inFlightQueries.get(cacheKey)!;
+    return {
+      places: data,
+      cached: true,
+      durationMs: Date.now() - startTime,
+    };
   }
 
-  const queryPromise = (async () => {
-    const startTime = Date.now();
+  const queryPromise = (async (): Promise<OverturePlace[]> => {
     const db = await getDuckDB();
+    const bboxTiles = getTilesForBBox(west, south, east, north, 13);
 
-    const sql = `
+    // 3. Check persistent DuckDB overture_places_cache (< 5ms)
+    const localPlaces = await new Promise<OverturePlace[] | null>((resolve) => {
+      const selectSql = `
+        SELECT 
+          id, name, latitude, longitude, category, basic_category,
+          taxonomy_primary, confidence, operating_status, website,
+          websites, email, emails, phone, phones, socials,
+          address, source
+        FROM overture_places_cache
+        WHERE latitude >= ? AND latitude <= ? AND longitude >= ? AND longitude <= ?
+        LIMIT ?;
+      `;
+      db.all(selectSql, south, north, west, east, safeLimit, (err, rows: any[]) => {
+        if (err || !rows) {
+          resolve(null);
+          return;
+        }
+        if (rows.length > 0) {
+          const places: OverturePlace[] = rows.map((r) => ({
+            id: String(r.id),
+            name: r.name || 'Estabelecimento Comercial',
+            latitude: Number(r.latitude),
+            longitude: Number(r.longitude),
+            category: r.category || 'Estabelecimento Comercial',
+            basicCategory: r.basic_category || undefined,
+            taxonomyPrimary: r.taxonomy_primary || undefined,
+            confidence: typeof r.confidence === 'number' ? r.confidence : 0.85,
+            operatingStatus: r.operating_status || 'OPERATIONAL',
+            website: r.website || null,
+            websites: safeParseJsonArray(r.websites),
+            email: r.email || null,
+            emails: safeParseJsonArray(r.emails),
+            phone: r.phone || null,
+            phones: safeParseJsonArray(r.phones),
+            socials: safeParseJsonArray(r.socials),
+            address: r.address || 'Endereço não identificado',
+            source: r.source || 'Overture Maps',
+            openStatus: 'DESCONHECIDO',
+            openStatusText: 'Horário não identificado',
+          }));
+          resolve(places);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+
+    if (localPlaces && localPlaces.length > 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(
+          `[Scoutly Perf] DuckDB Disk Cache HIT | ${localPlaces.length} places | Duration: ${Date.now() - startTime}ms`
+        );
+      }
+      // Save to memory cache for sub-millisecond followups
+      cache.set(cacheKey, { data: localPlaces, timestamp: Date.now() });
+      return localPlaces;
+    }
+
+    // 4. Area not yet in local cache: query Overture Parquet from S3
+    const s3Sql = `
       SELECT 
         id,
         names.primary AS name,
@@ -364,59 +520,83 @@ export async function queryPlacesInBBox(
     `;
 
     return new Promise<OverturePlace[]>((resolve, reject) => {
-      console.log('overture query started');
-      db.all(sql, west, east, south, north, safeLimit, (err, rows) => {
-        const duration = Date.now() - startTime;
-        console.log('overture query finished');
+      db.all(s3Sql, west, east, south, north, safeLimit, async (err, rows) => {
+        const fetchDuration = Date.now() - startTime;
         if (err) {
-          console.error(`[Overture DuckDB] Query failed after ${duration}ms:`, err.message);
-          reject(err);
+          console.error(`[Overture DuckDB S3] Query failed after ${fetchDuration}ms:`, err.message);
+          // If query fails, return empty array without crashing
+          resolve([]);
           return;
         }
 
         const normalized = (rows || []).map(normalizeOverturePlace);
-        console.log(
-          `[Overture DuckDB] Query took ${duration}ms, returned ${normalized.length} places for bbox [${west.toFixed(4)}, ${south.toFixed(4)}, ${east.toFixed(4)}, ${north.toFixed(4)}]`
-        );
-
-        // Populate default open status first
         normalized.forEach((p) => {
           p.openStatus = 'DESCONHECIDO';
           p.openStatusText = 'Horário não identificado';
         });
 
-        // Attempt fast OSM match within 1.5s max
-        const osmPromise = fetchOsmOpeningHoursInBBox(west, south, east, north)
-          .then((osmNodes) => {
-            if (osmNodes && osmNodes.length > 0) {
-              const matches = matchOverturePlacesWithOsmHours(normalized, osmNodes);
-              matches.forEach((matched, placeId) => {
-                const p = normalized.find((item) => item.id === placeId);
-                if (p) {
-                  p.openStatus = matched.openStatus;
-                  p.openStatusText = matched.openStatusText;
-                  p.openingHoursRaw = matched.openingHoursRaw;
-                }
-              });
-              console.log(`[OSM Hours Matching] Matched ${matches.size} places with OSM opening_hours`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(
+            `[Scoutly Perf] Overture S3 Fetched | ${normalized.length} places in ${fetchDuration}ms for bbox [${west.toFixed(3)}, ${south.toFixed(3)}, ${east.toFixed(3)}, ${north.toFixed(3)}]`
+          );
+        }
+
+        // Asynchronously persist fetched places into DuckDB overture_places_cache for instant future queries
+        if (normalized.length > 0) {
+          try {
+            const insertStmt = db.prepare(`
+              INSERT OR REPLACE INTO overture_places_cache 
+              (id, name, latitude, longitude, category, basic_category, taxonomy_primary, confidence, operating_status, website, websites, email, emails, phone, phones, socials, address, source, tile_key, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `);
+            for (const p of normalized) {
+              const tileK = `${lon2tile(p.longitude, 13)}_${lat2tile(p.latitude, 13)}`;
+              insertStmt.run(
+                p.id,
+                p.name,
+                p.latitude,
+                p.longitude,
+                p.category,
+                p.basicCategory || null,
+                p.taxonomyPrimary || null,
+                p.confidence,
+                p.operatingStatus || null,
+                p.website || null,
+                JSON.stringify(p.websites || []),
+                p.email || null,
+                JSON.stringify(p.emails || []),
+                p.phone || null,
+                JSON.stringify(p.phones || []),
+                JSON.stringify(p.socials || []),
+                p.address,
+                p.source,
+                tileK
+              );
             }
-          })
-          .catch((osmErr) => {
-            console.warn('[OSM Hours Warning]:', osmErr?.message || osmErr);
-          });
+            insertStmt.finalize();
 
-        const timeoutPromise = new Promise<void>((r) => setTimeout(r, 1500));
-
-        Promise.race([osmPromise, timeoutPromise]).finally(() => {
-          // Store in cache
-          if (cache.size >= MAX_CACHE_SIZE) {
-            const oldestKey = cache.keys().next().value;
-            if (oldestKey) cache.delete(oldestKey);
+            // Record tiles in overture_cached_tiles
+            const tileStmt = db.prepare(`
+              INSERT OR REPLACE INTO overture_cached_tiles (tile_key, place_count, fetched_at)
+              VALUES (?, ?, CURRENT_TIMESTAMP)
+            `);
+            for (const t of bboxTiles) {
+              tileStmt.run(t, normalized.length);
+            }
+            tileStmt.finalize();
+          } catch (dbErr: any) {
+            console.warn('[DuckDB Cache Save Warning]:', dbErr.message);
           }
-          cache.set(cacheKey, { data: normalized, timestamp: Date.now() });
+        }
 
-          resolve(normalized);
-        });
+        // Store in memory cache
+        if (cache.size >= MAX_CACHE_SIZE) {
+          const oldestKey = cache.keys().next().value;
+          if (oldestKey) cache.delete(oldestKey);
+        }
+        cache.set(cacheKey, { data: normalized, timestamp: Date.now() });
+
+        resolve(normalized);
       });
     });
   })();
@@ -425,7 +605,11 @@ export async function queryPlacesInBBox(
 
   try {
     const results = await queryPromise;
-    return results;
+    return {
+      places: results,
+      cached: false,
+      durationMs: Date.now() - startTime,
+    };
   } finally {
     inFlightQueries.delete(cacheKey);
   }
