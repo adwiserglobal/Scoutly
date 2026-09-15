@@ -34,8 +34,8 @@ export async function fetchBusinessesFromSerper(
   }
 
   try {
-    console.log(`[Serper API] Fetching Google Search results for: "${query}"...`);
-    const response = await fetch('https://google.serper.dev/search', {
+    console.log(`[Serper API] Fetching Google Places results for: "${query}"...`);
+    const response = await fetch('https://google.serper.dev/places', {
       method: 'POST',
       headers: {
         'X-API-KEY': apiKey,
