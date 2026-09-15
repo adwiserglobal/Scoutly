@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/* Hide scrollbar completely while allowing smooth scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  background: transparent;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* MapLibre Hover Popup Custom Styling */
+.scoutly-hover-popup .maplibregl-popup-content {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 1rem;
+}
+.scoutly-hover-popup .maplibregl-popup-tip {
+  border-top-color: #EDE8E0 !important;
+}
+
+/* ChatGPT / Gemini style animated blue shimmer text */
+/* Animated orange shimmer text for AI thinking state */
+@keyframes orangeShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.orange-shimmer-text {
+  background: linear-gradient(90deg, #c2410c 0%, #ff4d00 25%, #ff8c00 50%, #fb923c 75%, #c2410c 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: orangeShimmer 2.2s linear infinite;
+}
+
+/* Orange Liquid Glass Effect */
+.orange-liquid-glass {
+  background: linear-gradient(135deg, rgba(255, 77, 0, 0.95) 0%, rgba(255, 106, 0, 0.88) 50%, rgba(255, 140, 0, 0.95) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 8px 32px 0 rgba(255, 77, 0, 0.35),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.15);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.orange-liquid-glass:hover {
+  box-shadow:
+    0 12px 36px 0 rgba(255, 77, 0, 0.5),
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+

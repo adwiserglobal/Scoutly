@@ -1,0 +1,10 @@
+{
+  "name": "Radar de Prospecção",
+  "description": "Plataforma de prospecção de negócios com mapa interativo para encontrar empresas sem site, filtros avançados e assistente inteligente de prospecção com IA.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
