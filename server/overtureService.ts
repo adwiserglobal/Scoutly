@@ -71,19 +71,69 @@ export async function getDuckDB(): Promise<duckdb.Database> {
       const dbPath = path.join(dataDir, 'radar.duckdb');
       console.log(`[DuckDB] Initializing persistent database at ${dbPath}...`);
       const db = new duckdb.Database(dbPath);
-      
+      console.log('duckdb initialized');
+
+      try {
+        fs.mkdirSync('/tmp/duckdb_extensions', { recursive: true });
+      } catch (e) {}
+
       db.all(
-        "INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial; SET s3_region='us-west-2'; SET enable_http_metadata_cache=true; SET enable_object_cache=true; PRAGMA threads=4; PRAGMA enable_progress_bar=false; CREATE TABLE IF NOT EXISTS enrichment_cache (url VARCHAR PRIMARY KEY, data JSON, updated_at TIMESTAMP); CREATE TABLE IF NOT EXISTS user_leads (business_id VARCHAR PRIMARY KEY, status VARCHAR, notes VARCHAR, updated_at TIMESTAMP);",
-        (err) => {
-          if (err) {
-            console.error('[DuckDB] Error loading extensions or creating cache table:', err);
-            reject(err);
+        "SET home_directory='/tmp';",
+        (homeErr) => {
+          if (homeErr) {
+            console.error('[DuckDB] Error setting home_directory:', homeErr);
           } else {
-            console.log('[DuckDB] Extensions (httpfs, spatial) loaded successfully and tables (user_leads, enrichment_cache) created.');
-            dbInstance = db;
-            isInitialized = true;
-            resolve();
+            console.log('home_directory configured');
           }
+
+          db.all(
+            "SET extension_directory='/tmp/duckdb_extensions';",
+            (extErr) => {
+              if (extErr) {
+                console.error('[DuckDB] Error setting extension_directory:', extErr);
+              } else {
+                console.log('extension_directory configured');
+              }
+
+              db.all(
+                "INSTALL httpfs; LOAD httpfs;",
+                (httpfsErr) => {
+                  if (httpfsErr) {
+                    console.error('[DuckDB] Error loading httpfs:', httpfsErr);
+                    reject(httpfsErr);
+                    return;
+                  }
+                  console.log('httpfs loaded');
+
+                  db.all(
+                    "INSTALL spatial; LOAD spatial;",
+                    (spatialErr) => {
+                      if (spatialErr) {
+                        console.error('[DuckDB] Error loading spatial:', spatialErr);
+                        reject(spatialErr);
+                        return;
+                      }
+                      console.log('spatial loaded');
+
+                      db.all(
+                        "SET s3_region='us-west-2'; SET enable_http_metadata_cache=true; SET enable_object_cache=true; PRAGMA threads=4; PRAGMA enable_progress_bar=false; CREATE TABLE IF NOT EXISTS enrichment_cache (url VARCHAR PRIMARY KEY, data JSON, updated_at TIMESTAMP); CREATE TABLE IF NOT EXISTS user_leads (business_id VARCHAR PRIMARY KEY, status VARCHAR, notes VARCHAR, updated_at TIMESTAMP);",
+                        (tableErr) => {
+                          if (tableErr) {
+                            console.error('[DuckDB] Error creating tables:', tableErr);
+                            reject(tableErr);
+                          } else {
+                            dbInstance = db;
+                            isInitialized = true;
+                            resolve();
+                          }
+                        }
+                      );
+                    }
+                  );
+                }
+              );
+            }
+          );
         }
       );
     } catch (err) {
@@ -314,8 +364,10 @@ export async function queryPlacesInBBox(
     `;
 
     return new Promise<OverturePlace[]>((resolve, reject) => {
+      console.log('overture query started');
       db.all(sql, west, east, south, north, safeLimit, (err, rows) => {
         const duration = Date.now() - startTime;
+        console.log('overture query finished');
         if (err) {
           console.error(`[Overture DuckDB] Query failed after ${duration}ms:`, err.message);
           reject(err);
