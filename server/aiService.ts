@@ -542,6 +542,12 @@ DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
     }
   }
 
+  const categoryCounts: Record<string, number> = {};
+  for (const b of deduplicatedResults) {
+    const cat = b.category || 'Outros';
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  }
+
   const localRes = generateLocalSmartResponse(
     intent,
     categoryCounts,

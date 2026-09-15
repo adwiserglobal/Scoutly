@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/places", "dest": "/api/places.ts" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
