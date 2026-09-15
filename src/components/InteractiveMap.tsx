@@ -42,6 +42,7 @@ interface InteractiveMapProps {
   onMapLoad?: () => void;
   onMapError?: (err: Error) => void;
   onBoundsChange?: (bounds: MapBounds | null, zoom: number) => void;
+  onCenterChange?: (coords: { lat: number; lng: number }) => void;
   radarPin?: RadarPinState | null;
   onRadarPinDrag?: (coords: { lat: number; lng: number }) => void;
   onRadarPinDrop?: (coords: { lat: number; lng: number }) => void;
@@ -67,6 +68,7 @@ function InteractiveMap({
   onMapLoad,
   onMapError,
   onBoundsChange,
+  onCenterChange,
   radarPin,
   onRadarPinDrag,
   onRadarPinDrop,
@@ -91,6 +93,11 @@ function InteractiveMap({
   const radarPinRef = useRef(radarPin);
   radarPinRef.current = radarPin;
 
+  const onCenterChangeRef = useRef(onCenterChange);
+  onCenterChangeRef.current = onCenterChange;
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
+
   // Keep fast O(1) lookup map in sync with current businesses
   useEffect(() => {
     const map = new Map<string, Business>();
@@ -110,6 +117,7 @@ function InteractiveMap({
     if (mapRef.current) return;
 
     let resizeObserver: ResizeObserver | null = null;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
 
     try {
       const map = new maplibregl.Map({
@@ -154,12 +162,14 @@ function InteractiveMap({
       const triggerBoundsUpdate = () => {
         const m = mapRef.current;
         if (!m) return;
+        const center = m.getCenter();
+        onCenterChangeRef.current?.({ lat: center.lat, lng: center.lng });
         const currentZoom = m.getZoom();
         const b = m.getBounds();
         if (currentZoom < 12) {
-          onBoundsChange?.(null, currentZoom);
+          onBoundsChangeRef.current?.(null, currentZoom);
         } else {
-          onBoundsChange?.(
+          onBoundsChangeRef.current?.(
             {
               west: b.getWest(),
               south: b.getSouth(),
@@ -172,7 +182,7 @@ function InteractiveMap({
       };
 
       // Fallback: If map doesn't fire load event for some reason
-      const fallbackTimer = setTimeout(() => {
+      fallbackTimer = setTimeout(() => {
         mapRef.current?.resize();
         onMapLoad?.();
         triggerBoundsUpdate();
@@ -489,6 +499,9 @@ function InteractiveMap({
     }
 
     return () => {
+      clearTimeout(fallbackTimer);
+      pinMarkerRef.current?.remove();
+      pinMarkerRef.current = null;
       if (popupLeaveTimerRef.current) {
         clearTimeout(popupLeaveTimerRef.current);
       }
