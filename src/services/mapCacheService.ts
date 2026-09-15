@@ -43,6 +43,29 @@ class MapCacheService {
   private pinInFlightController: AbortController | null = null;
   private prefetchController: AbortController | null = null;
   private prefetchTimer: any = null;
+  private targetedSearchResults: Business[] | null = null;
+  private targetedSearchQuery: string | null = null;
+
+  /**
+   * Activates a targeted name/segment search. While active, viewport refreshes keep
+   * returning the targeted result set instead of replacing it with generic nearby places.
+   */
+  public setTargetedSearchResults(places: Business[], query?: string): void {
+    this.cancelOngoingRequests();
+    this.targetedSearchResults = places;
+    this.targetedSearchQuery = query || null;
+    this.addPlaces(places);
+  }
+
+  /** Clear a targeted search and return to normal geographic browsing. */
+  public clearTargetedSearch(): void {
+    this.targetedSearchResults = null;
+    this.targetedSearchQuery = null;
+  }
+
+  public hasTargetedSearch(): boolean {
+    return Boolean(this.targetedSearchResults && this.targetedSearchResults.length > 0);
+  }
 
   /**
    * Check if all tiles covering the specified bounds have already been loaded
@@ -123,6 +146,8 @@ class MapCacheService {
     radiusMeters: number,
     onPlacesUpdated: (allPlaces: Business[], fromCache: boolean) => void
   ): Promise<void> {
+    this.clearTargetedSearch();
+
     if (this.pinInFlightController) {
       this.pinInFlightController.abort();
     }
@@ -199,6 +224,22 @@ class MapCacheService {
     onPlacesUpdated: (allPlaces: Business[], fromCache: boolean) => void
   ): Promise<void> {
     const t0 = performance.now();
+
+    // A targeted name/segment search owns the result set until the user performs
+    // a normal location search or activates the pin radar. Do not overwrite it
+    // with generic viewport businesses when the map recenters.
+    if (this.targetedSearchResults && this.targetedSearchResults.length > 0) {
+      if (import.meta.env.DEV) {
+        console.log(
+          `%c[Scoutly Search] Targeted results%c | Query: ${this.targetedSearchQuery || '-'} | ${this.targetedSearchResults.length} businesses`,
+          'color: #FF4D00; font-weight: bold;',
+          'color: inherit;'
+        );
+      }
+      onPlacesUpdated(this.targetedSearchResults, true);
+      return;
+    }
+
     const requiredTiles = getTilesForBounds(bounds, 13);
     const isCovered = requiredTiles.length > 0 && requiredTiles.every((t) => this.loadedTiles.has(t));
 
@@ -268,6 +309,8 @@ class MapCacheService {
    * Schedule silent background prefetch for surrounding geographic tiles
    */
   public scheduleSilentPrefetch(bounds: MapBounds, zoom: number): void {
+    if (this.targetedSearchResults && this.targetedSearchResults.length > 0) return;
+
     if (this.prefetchTimer) {
       clearTimeout(this.prefetchTimer);
     }
@@ -328,6 +371,7 @@ class MapCacheService {
    */
   public clear(): void {
     this.cancelOngoingRequests();
+    this.clearTargetedSearch();
     this.placesMap.clear();
     this.loadedTiles.clear();
   }
