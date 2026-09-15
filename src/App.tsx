@@ -5,10 +5,12 @@ import { searchAddressOrCity } from './services/geocoding';
 import { fetchUserLeads, saveUserLead } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
+import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
 import BottomMenu from './components/BottomMenu';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
-import InteractiveMap, { MapBounds } from './components/InteractiveMap';
+import InteractiveMap, { MapBounds, RadarPinState } from './components/InteractiveMap';
+import { PinRadarControl } from './components/PinRadarControl';
 import BusinessCard from './components/BusinessCard';
 import BusinessDetailsModal from './components/BusinessDetailsModal';
 import LoadingScreen from './components/LoadingScreen';
@@ -30,6 +32,18 @@ export default function App() {
   const [businessesError, setBusinessesError] = useState<string | null>(null);
   const [isZoomTooLow, setIsZoomTooLow] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(14);
+
+  // Radar Pin State for Drag & Drop Real-time prospecting
+  const [radarPin, setRadarPin] = useState<{
+    active: boolean;
+    lat: number;
+    lng: number;
+    radiusMeters: number;
+    locationName?: string;
+  } | null>(null);
+  const [isPinPlacementMode, setIsPinPlacementMode] = useState(false);
+  const [filterOnlyInRadius, setFilterOnlyInRadius] = useState(false);
+  const [isPinSearching, setIsPinSearching] = useState(false);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
@@ -232,6 +246,131 @@ export default function App() {
     setCurrentRegionName(preset.name);
   };
 
+  // Toggle or Drop Pin at current screen center
+  const handleTogglePinMode = useCallback(() => {
+    if (radarPin && radarPin.active) {
+      // If already active, toggle off
+      setRadarPin(null);
+      setIsPinPlacementMode(false);
+      setFilterOnlyInRadius(false);
+    } else {
+      // Activate pin at current center
+      const lat = centerCoordinates.lat;
+      const lng = centerCoordinates.lng;
+      const radiusMeters = 1000;
+      setRadarPin({
+        active: true,
+        lat,
+        lng,
+        radiusMeters,
+        locationName: currentRegionName,
+      });
+      setIsPinPlacementMode(false);
+
+      // Trigger immediate dedicated search in that radius
+      setIsPinSearching(true);
+      mapCacheService
+        .fetchPinRadius(lat, lng, radiusMeters, (allPlaces) => {
+          const currentLeads = leadsMapRef.current;
+          const currentFavorites = favoritesMapRef.current;
+          const mergedPlaces = allPlaces.map((p) => ({
+            ...p,
+            isFavorite: Boolean(currentFavorites[p.id]),
+            leadStatus: currentLeads[p.id]?.status || 'NOVO',
+            notes: currentLeads[p.id]?.notes || '',
+          }));
+          setBusinesses(mergedPlaces);
+        })
+        .finally(() => {
+          setIsPinSearching(false);
+        });
+    }
+  }, [radarPin, centerCoordinates, currentRegionName]);
+
+  // Handle Dragging Pin in Real-time
+  const handleRadarPinDrag = useCallback((coords: { lat: number; lng: number }) => {
+    setRadarPin((prev) => (prev ? { ...prev, lat: coords.lat, lng: coords.lng } : null));
+  }, []);
+
+  // Handle Pin Drop (dragend, click, or right click)
+  const handleRadarPinDrop = useCallback((coords: { lat: number; lng: number }) => {
+    const radiusMeters = radarPin?.radiusMeters || 1000;
+    setRadarPin({
+      active: true,
+      lat: coords.lat,
+      lng: coords.lng,
+      radiusMeters,
+      locationName: `Localização (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+    });
+    setIsPinPlacementMode(false);
+
+    // Instant Search around dropped location
+    setIsPinSearching(true);
+    mapCacheService
+      .fetchPinRadius(coords.lat, coords.lng, radiusMeters, (allPlaces) => {
+        const currentLeads = leadsMapRef.current;
+        const currentFavorites = favoritesMapRef.current;
+        const mergedPlaces = allPlaces.map((p) => ({
+          ...p,
+          isFavorite: Boolean(currentFavorites[p.id]),
+          leadStatus: currentLeads[p.id]?.status || 'NOVO',
+          notes: currentLeads[p.id]?.notes || '',
+        }));
+        setBusinesses(mergedPlaces);
+      })
+      .finally(() => {
+        setIsPinSearching(false);
+      });
+  }, [radarPin?.radiusMeters]);
+
+  const handlePinRadiusChange = useCallback((newRadius: number) => {
+    if (!radarPin) return;
+    setRadarPin((prev) => (prev ? { ...prev, radiusMeters: newRadius } : null));
+
+    setIsPinSearching(true);
+    mapCacheService
+      .fetchPinRadius(radarPin.lat, radarPin.lng, newRadius, (allPlaces) => {
+        const currentLeads = leadsMapRef.current;
+        const currentFavorites = favoritesMapRef.current;
+        const mergedPlaces = allPlaces.map((p) => ({
+          ...p,
+          isFavorite: Boolean(currentFavorites[p.id]),
+          leadStatus: currentLeads[p.id]?.status || 'NOVO',
+          notes: currentLeads[p.id]?.notes || '',
+        }));
+        setBusinesses(mergedPlaces);
+      })
+      .finally(() => {
+        setIsPinSearching(false);
+      });
+  }, [radarPin]);
+
+  const handleClearPin = useCallback(() => {
+    setRadarPin(null);
+    setIsPinPlacementMode(false);
+    setFilterOnlyInRadius(false);
+  }, []);
+
+  const handleCenterOnPin = useCallback(() => {
+    if (radarPin) {
+      setCenterCoordinates({ lat: radarPin.lat, lng: radarPin.lng });
+    }
+  }, [radarPin]);
+
+  // Calculate businesses strictly inside the radar radius
+  const businessesInRadiusCount = useMemo(() => {
+    if (!radarPin || !radarPin.active) return 0;
+    return businesses.filter(
+      (b) =>
+        calculateDistanceInMeters(
+          radarPin.lat,
+          radarPin.lng,
+          b.latitude,
+          b.longitude
+        ) <= radarPin.radiusMeters
+    ).length;
+  }, [businesses, radarPin]);
+
   // Calculate opportunities count (businesses without website)
   const opportunitiesCount = useMemo(() => {
     return businesses.filter((b) => !b.website).length;
@@ -250,6 +389,19 @@ export default function App() {
   // Filter & Sort businesses
   const filteredBusinesses = useMemo(() => {
     let list = businesses.filter((biz) => {
+      // Pin Radar Filter: if enabled, only show businesses within the pin's radius
+      if (filterOnlyInRadius && radarPin && radarPin.active) {
+        const dist = calculateDistanceInMeters(
+          radarPin.lat,
+          radarPin.lng,
+          biz.latitude,
+          biz.longitude
+        );
+        if (dist > radarPin.radiusMeters) {
+          return false;
+        }
+      }
+
       // Multi-filter: Sem site
       if (activeFilters.semSite && biz.website) {
         return false;
@@ -405,6 +557,10 @@ export default function App() {
               setMapError(err.message);
             }}
             onBoundsChange={handleBoundsChange}
+            radarPin={radarPin}
+            onRadarPinDrag={handleRadarPinDrag}
+            onRadarPinDrop={handleRadarPinDrop}
+            isPinPlacementMode={isPinPlacementMode}
           />
       </div>
 
@@ -426,9 +582,31 @@ export default function App() {
                   totalOpportunitiesCount={opportunitiesCount}
                   totalBusinessesCount={filteredBusinesses.length}
                   onOpenFilters={() => setIsFiltersOpen(true)}
+                  isPinActive={Boolean(radarPin?.active)}
+                  onTogglePinMode={handleTogglePinMode}
                 />
               </div>
             </div>
+
+            {/* Floating Pin Radar Control Panel (Top Left below Header) */}
+            {radarPin?.active && (
+              <div className="absolute top-[135px] sm:top-[80px] left-4 z-30 pointer-events-none">
+                <PinRadarControl
+                  active={radarPin.active}
+                  pinCoordinates={{ lat: radarPin.lat, lng: radarPin.lng }}
+                  radiusMeters={radarPin.radiusMeters}
+                  onRadiusChange={handlePinRadiusChange}
+                  onClearPin={handleClearPin}
+                  onCenterOnPin={handleCenterOnPin}
+                  businessesInRadiusCount={businessesInRadiusCount}
+                  totalBusinessesCount={businesses.length}
+                  filterOnlyInRadius={filterOnlyInRadius}
+                  onToggleFilterOnlyInRadius={() => setFilterOnlyInRadius((prev) => !prev)}
+                  isSearching={isPinSearching}
+                  locationName={radarPin.locationName}
+                />
+              </div>
+            )}
 
             {/* Side Drawer for Filters - Glassmorphism */}
             <div 

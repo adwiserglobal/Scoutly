@@ -40,6 +40,7 @@ class MapCacheService {
   private placesMap: Map<string, Business> = new Map();
   private loadedTiles: Set<string> = new Set();
   private inFlightController: AbortController | null = null;
+  private pinInFlightController: AbortController | null = null;
   private prefetchController: AbortController | null = null;
   private prefetchTimer: any = null;
 
@@ -104,12 +105,70 @@ class MapCacheService {
       }
     }
 
-    // Memory guard: if memory contains over 15,000 places, prune oldest
-    if (this.placesMap.size > 15000) {
-      const keysToDelete = Array.from(this.placesMap.keys()).slice(0, 3000);
+    // Memory guard: if memory contains over 30,000 places, prune oldest
+    if (this.placesMap.size > 30000) {
+      const keysToDelete = Array.from(this.placesMap.keys()).slice(0, 5000);
       for (const k of keysToDelete) {
         this.placesMap.delete(k);
       }
+    }
+  }
+
+  /**
+   * Dedicated Pin Radar Search - Does NOT get aborted by casual viewport panning
+   */
+  public async fetchPinRadius(
+    lat: number,
+    lng: number,
+    radiusMeters: number,
+    onPlacesUpdated: (allPlaces: Business[], fromCache: boolean) => void
+  ): Promise<void> {
+    if (this.pinInFlightController) {
+      this.pinInFlightController.abort();
+    }
+    this.pinInFlightController = new AbortController();
+    const signal = this.pinInFlightController.signal;
+
+    // Calculate bounding box encompassing the radius with 20% margin
+    const deltaLat = radiusMeters / 110540;
+    const deltaLng = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
+    const bounds: MapBounds = {
+      north: lat + deltaLat * 1.2,
+      south: lat - deltaLat * 1.2,
+      east: lng + deltaLng * 1.2,
+      west: lng - deltaLng * 1.2,
+    };
+
+    const requiredTiles = getTilesForBounds(bounds, 14);
+
+    try {
+      // Fetch up to 3000 places for the pin area
+      const { places, cached, durationMs } = await fetchPlacesFromOverture(
+        bounds.west,
+        bounds.south,
+        bounds.east,
+        bounds.north,
+        3000,
+        signal,
+        15
+      );
+
+      this.addPlaces(places, requiredTiles);
+
+      if (import.meta.env.DEV) {
+        console.log(
+          `%c[Scoutly Pin Radar] ${cached ? 'Cache HIT' : 'Fetched'}%c | ${places.length} places in ${durationMs}ms for radius ${radiusMeters}m | Total in memory: ${this.placesMap.size}`,
+          cached ? 'color: #3B82F6; font-weight: bold;' : 'color: #FF4D00; font-weight: bold;',
+          'color: inherit;'
+        );
+      }
+
+      onPlacesUpdated(this.getAllPlaces(), cached);
+      this.pinInFlightController = null;
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      this.pinInFlightController = null;
+      throw err;
     }
   }
 

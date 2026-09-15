@@ -318,13 +318,25 @@ DIRETRIZES DA MENSAGEM:
   // GET /api/places - Query real places from Overture Maps via DuckDB
   app.get('/api/places', async (req, res) => {
     try {
-      const west = parseFloat(req.query.west as string);
-      const south = parseFloat(req.query.south as string);
-      const east = parseFloat(req.query.east as string);
-      const north = parseFloat(req.query.north as string);
+      let west = parseFloat(req.query.west as string);
+      let south = parseFloat(req.query.south as string);
+      let east = parseFloat(req.query.east as string);
+      let north = parseFloat(req.query.north as string);
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5000;
-
       const zoom = req.query.zoom ? parseFloat(req.query.zoom as string) : undefined;
+
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      const radius = parseFloat(req.query.radius as string);
+
+      if (!isNaN(lat) && !isNaN(lng) && !isNaN(radius)) {
+        const deltaLat = radius / 110540;
+        const deltaLng = radius / (111320 * Math.cos((lat * Math.PI) / 180));
+        north = lat + deltaLat * 1.15;
+        south = lat - deltaLat * 1.15;
+        east = lng + deltaLng * 1.15;
+        west = lng - deltaLng * 1.15;
+      }
 
       // Coordinate validations
       if (isNaN(west) || isNaN(south) || isNaN(east) || isNaN(north)) {

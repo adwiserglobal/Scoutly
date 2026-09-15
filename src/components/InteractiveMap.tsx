@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Business } from '../types';
 import { getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
+import { createGeoJSONCircle } from '../utils/geoUtils';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
 if (typeof window !== 'undefined' && maplibregl.setWorkerUrl) {
@@ -17,6 +18,13 @@ export interface MapBounds {
   south: number;
   east: number;
   north: number;
+}
+
+export interface RadarPinState {
+  active: boolean;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
 }
 
 interface InteractiveMapProps {
@@ -34,6 +42,10 @@ interface InteractiveMapProps {
   onMapLoad?: () => void;
   onMapError?: (err: Error) => void;
   onBoundsChange?: (bounds: MapBounds | null, zoom: number) => void;
+  radarPin?: RadarPinState | null;
+  onRadarPinDrag?: (coords: { lat: number; lng: number }) => void;
+  onRadarPinDrop?: (coords: { lat: number; lng: number }) => void;
+  isPinPlacementMode?: boolean;
 }
 
 function escapeHtml(str: string) {
@@ -55,6 +67,10 @@ function InteractiveMap({
   onMapLoad,
   onMapError,
   onBoundsChange,
+  radarPin,
+  onRadarPinDrag,
+  onRadarPinDrop,
+  isPinPlacementMode = false,
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -62,6 +78,18 @@ function InteractiveMap({
   const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const popupLeaveTimerRef = useRef<any>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const pinMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const isPinPlacementModeRef = useRef(isPinPlacementMode);
+  isPinPlacementModeRef.current = isPinPlacementMode;
+
+  const onRadarPinDropRef = useRef(onRadarPinDrop);
+  onRadarPinDropRef.current = onRadarPinDrop;
+
+  const onRadarPinDragRef = useRef(onRadarPinDrag);
+  onRadarPinDragRef.current = onRadarPinDrag;
+
+  const radarPinRef = useRef(radarPin);
+  radarPinRef.current = radarPin;
 
   // Keep fast O(1) lookup map in sync with current businesses
   useEffect(() => {
@@ -156,7 +184,7 @@ function InteractiveMap({
         setIsMapLoaded(true);
         onMapLoad?.();
 
-        // 1. Add GeoJSON Source
+        // 1. Add GeoJSON Source for Businesses
         map.addSource('businesses', {
           type: 'geojson',
           data: {
@@ -166,6 +194,39 @@ function InteractiveMap({
           cluster: true,
           clusterMaxZoom: 15,
           clusterRadius: 50,
+        });
+
+        // 1b. Add GeoJSON Source for Radar Circle Area
+        map.addSource('radar-circle', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        });
+
+        // 1c. Add Radar Circle Fill Layer (placed behind clusters and points)
+        map.addLayer({
+          id: 'radar-circle-fill',
+          type: 'fill',
+          source: 'radar-circle',
+          paint: {
+            'fill-color': '#FF4D00',
+            'fill-opacity': 0.15,
+          },
+        });
+
+        // 1d. Add Radar Circle Stroke/Border Layer
+        map.addLayer({
+          id: 'radar-circle-line',
+          type: 'line',
+          source: 'radar-circle',
+          paint: {
+            'line-color': '#FF4D00',
+            'line-width': 2.5,
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.9,
+          },
         });
 
         // 2. Add Cluster Circles Layer
@@ -396,6 +457,19 @@ function InteractiveMap({
           }, 300);
         });
 
+        // Right-click anywhere on the map to drop the prospecting pin immediately
+        map.on('contextmenu', (e) => {
+          e.preventDefault();
+          onRadarPinDropRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        });
+
+        // Click to drop pin when in pin placement mode
+        map.on('click', (e) => {
+          if (isPinPlacementModeRef.current) {
+            onRadarPinDropRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          }
+        });
+
         // Initial bounds notification
         triggerBoundsUpdate();
       });
@@ -502,6 +576,109 @@ function InteractiveMap({
       essential: true,
     });
   }, [selectedBusiness]);
+
+  // Handle Radar Pin Marker & Radius Circle updates
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isMapLoaded) return;
+
+    const circleSource = map.getSource('radar-circle') as maplibregl.GeoJSONSource | undefined;
+
+    if (radarPin && radarPin.active) {
+      // 1. Update Circle Source
+      if (circleSource) {
+        const circleFeature = createGeoJSONCircle(
+          [radarPin.lng, radarPin.lat],
+          radarPin.radiusMeters
+        );
+        circleSource.setData({
+          type: 'FeatureCollection',
+          features: [circleFeature],
+        });
+      }
+
+      // 2. Create or Update Marker
+      if (!pinMarkerRef.current) {
+        const markerEl = document.createElement('div');
+        markerEl.className = 'scoutly-draggable-pin-container group';
+        markerEl.style.cursor = 'grab';
+        markerEl.innerHTML = `
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: auto; user-select: none;">
+            <div style="background: rgba(24, 24, 27, 0.94); backdrop-filter: blur(8px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; margin-bottom: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); border: 1.5px solid rgba(255, 77, 0, 0.7); white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#FF4D00; box-shadow: 0 0 8px #FF4D00;"></span>
+              <span>Arraste o Pin 📍</span>
+            </div>
+            <div style="position: relative; width: 42px; height: 42px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #FF6A26, #E04400); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 8px 24px rgba(255, 77, 0, 0.6), 0 0 0 3px #ffffff; transition: transform 0.15s ease;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+            </div>
+            <div style="width: 3px; height: 8px; background: #E04400; margin-top: -1px; border-radius: 0 0 3px 3px;"></div>
+          </div>
+        `;
+
+        const marker = new maplibregl.Marker({
+          element: markerEl,
+          draggable: true,
+          anchor: 'bottom',
+        });
+
+        marker.on('drag', () => {
+          const lngLat = marker.getLngLat();
+          // Update circle in real-time while dragging
+          if (circleSource && radarPinRef.current) {
+            const tempCircle = createGeoJSONCircle(
+              [lngLat.lng, lngLat.lat],
+              radarPinRef.current.radiusMeters
+            );
+            circleSource.setData({
+              type: 'FeatureCollection',
+              features: [tempCircle],
+            });
+          }
+          onRadarPinDragRef.current?.({ lat: lngLat.lat, lng: lngLat.lng });
+        });
+
+        marker.on('dragend', () => {
+          const lngLat = marker.getLngLat();
+          onRadarPinDropRef.current?.({ lat: lngLat.lat, lng: lngLat.lng });
+        });
+
+        marker.setLngLat([radarPin.lng, radarPin.lat]).addTo(map);
+        pinMarkerRef.current = marker;
+      } else {
+        const currentPos = pinMarkerRef.current.getLngLat();
+        if (
+          Math.abs(currentPos.lat - radarPin.lat) > 0.00001 ||
+          Math.abs(currentPos.lng - radarPin.lng) > 0.00001
+        ) {
+          pinMarkerRef.current.setLngLat([radarPin.lng, radarPin.lat]);
+        }
+      }
+    } else {
+      // Clean up when deactivated
+      if (pinMarkerRef.current) {
+        pinMarkerRef.current.remove();
+        pinMarkerRef.current = null;
+      }
+      if (circleSource) {
+        circleSource.setData({
+          type: 'FeatureCollection',
+          features: [],
+        });
+      }
+    }
+  }, [radarPin, isMapLoaded]);
+
+  // Update cursor when pin placement mode is active
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const canvas = mapRef.current.getCanvas();
+    if (canvas) {
+      canvas.style.cursor = isPinPlacementMode ? 'crosshair' : '';
+    }
+  }, [isPinPlacementMode]);
 
   return (
     <div className="relative w-full h-full bg-[#FAF7F2]">

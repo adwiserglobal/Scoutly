@@ -1,5 +1,5 @@
 import { useState, FormEvent, memo } from 'react';
-import { Search, Navigation, SlidersHorizontal } from 'lucide-react';
+import { Search, Navigation, SlidersHorizontal, MapPin } from 'lucide-react';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -11,6 +11,8 @@ interface HeaderProps {
   totalOpportunitiesCount: number;
   totalBusinessesCount: number;
   onOpenFilters: () => void;
+  isPinActive?: boolean;
+  onTogglePinMode?: () => void;
 }
 
 function Header({
@@ -19,6 +21,8 @@ function Header({
   isLocating,
   totalBusinessesCount,
   onOpenFilters,
+  isPinActive = false,
+  onTogglePinMode,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
 
@@ -80,6 +84,25 @@ function Header({
           <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline-block">{isLocating ? 'LOCALIZANDO' : 'PERTO DE VOCÊ'}</span>
         </button>
+
+        {/* Button: Soltar Pin no Mapa (Draggable Radar Pin) */}
+        {onTogglePinMode && (
+          <button
+            type="button"
+            onClick={onTogglePinMode}
+            title={isPinActive ? 'Pin ativo no mapa (clique para remover ou reposicionar)' : 'Soltar pin arrastável no mapa para prospecção rápida'}
+            className={`h-full px-4 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition whitespace-nowrap active:scale-95 shadow-2xs flex items-center justify-center gap-2 cursor-pointer ${
+              isPinActive
+                ? 'bg-[#FF4D00] text-white border-2 border-[#FF4D00] shadow-md shadow-[#FF4D00]/30 animate-pulse'
+                : 'bg-white/90 border-2 border-stone-800 text-stone-900 hover:bg-stone-900 hover:text-white'
+            }`}
+          >
+            <MapPin className={`w-3.5 h-3.5 ${isPinActive ? 'text-white' : 'text-[#FF4D00]'}`} />
+            <span className="hidden sm:inline-block">
+              {isPinActive ? 'PIN ATIVO' : 'SOLTAR PIN'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Button: Filters */}

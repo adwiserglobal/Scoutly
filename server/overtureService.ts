@@ -116,7 +116,13 @@ export async function getDuckDB(): Promise<duckdb.Database> {
                       console.log('spatial loaded');
 
                       db.all(
-                        "SET s3_region='us-west-2'; SET enable_http_metadata_cache=true; SET enable_object_cache=true; PRAGMA threads=8; PRAGMA enable_progress_bar=false; " +
+                        "SET s3_region='us-west-2'; " +
+                        "PRAGMA threads=16; " +
+                        "SET enable_http_metadata_cache=true; " +
+                        "SET enable_object_cache=true; " +
+                        "SET preserve_insertion_order=false; " +
+                        "SET http_keep_alive=true; " +
+                        "SET http_timeout=35000; " +
                         "CREATE TABLE IF NOT EXISTS enrichment_cache (url VARCHAR PRIMARY KEY, data JSON, updated_at TIMESTAMP); " +
                         "CREATE TABLE IF NOT EXISTS user_leads (business_id VARCHAR PRIMARY KEY, status VARCHAR, notes VARCHAR, updated_at TIMESTAMP); " +
                         "CREATE TABLE IF NOT EXISTS overture_places_cache (" +
@@ -482,7 +488,7 @@ export async function queryPlacesInBBox(
       });
     });
 
-    if (localPlaces && localPlaces.length > 0) {
+    if (localPlaces && localPlaces.length >= 15) {
       if (process.env.NODE_ENV !== 'production') {
         console.log(
           `[Scoutly Perf] DuckDB Disk Cache HIT | ${localPlaces.length} places | Duration: ${Date.now() - startTime}ms`
@@ -493,7 +499,7 @@ export async function queryPlacesInBBox(
       return localPlaces;
     }
 
-    // 4. Area not yet in local cache: query Overture Parquet from S3
+    // 4. Area not yet sufficiently populated in local cache: query Overture Parquet from S3
     const s3Sql = `
       SELECT 
         id,
@@ -519,13 +525,13 @@ export async function queryPlacesInBBox(
       LIMIT ?;
     `;
 
-    return new Promise<OverturePlace[]>((resolve, reject) => {
+    return new Promise<OverturePlace[]>((resolve) => {
       db.all(s3Sql, west, east, south, north, safeLimit, async (err, rows) => {
         const fetchDuration = Date.now() - startTime;
         if (err) {
           console.error(`[Overture DuckDB S3] Query failed after ${fetchDuration}ms:`, err.message);
-          // If query fails, return empty array without crashing
-          resolve([]);
+          // Return any local places found or empty
+          resolve(localPlaces || []);
           return;
         }
 
@@ -540,6 +546,16 @@ export async function queryPlacesInBBox(
             `[Scoutly Perf] Overture S3 Fetched | ${normalized.length} places in ${fetchDuration}ms for bbox [${west.toFixed(3)}, ${south.toFixed(3)}, ${east.toFixed(3)}, ${north.toFixed(3)}]`
           );
         }
+
+        // Combine with any previously cached local places
+        const combinedMap = new Map<string, OverturePlace>();
+        if (localPlaces) {
+          for (const lp of localPlaces) combinedMap.set(lp.id, lp);
+        }
+        for (const np of normalized) {
+          combinedMap.set(np.id, np);
+        }
+        const finalResults = Array.from(combinedMap.values());
 
         // Asynchronously persist fetched places into DuckDB overture_places_cache for instant future queries
         if (normalized.length > 0) {
@@ -581,7 +597,7 @@ export async function queryPlacesInBBox(
               VALUES (?, ?, CURRENT_TIMESTAMP)
             `);
             for (const t of bboxTiles) {
-              tileStmt.run(t, normalized.length);
+              tileStmt.run(t, finalResults.length);
             }
             tileStmt.finalize();
           } catch (dbErr: any) {
@@ -594,9 +610,9 @@ export async function queryPlacesInBBox(
           const oldestKey = cache.keys().next().value;
           if (oldestKey) cache.delete(oldestKey);
         }
-        cache.set(cacheKey, { data: normalized, timestamp: Date.now() });
+        cache.set(cacheKey, { data: finalResults, timestamp: Date.now() });
 
-        resolve(normalized);
+        resolve(finalResults.length > 0 ? finalResults : (localPlaces || []));
       });
     });
   })();
