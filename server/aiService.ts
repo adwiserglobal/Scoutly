@@ -1,12 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
-import { queryPlacesInBBox, searchPlacesByKeyword, OverturePlace } from './overtureService';
+import { queryPlacesInBBox, searchPlacesByKeyword, OverturePlace } from './overtureService.js';
 import {
   interpretSearchIntent,
   parseSearchLocation,
   ParsedSearchIntent,
   PRESET_LOCATIONS,
   InterpretedLocation,
-} from './searchInterpreter';
+} from './searchInterpreter.js';
 import {
   getCNAEsForBusinessType,
   fetchCompaniesFromMinhaReceita,
@@ -14,8 +14,8 @@ import {
   isCompanyActive,
   isCNPJInRequestedRegion,
   MinhaReceitaCompany,
-} from './cnpjService';
-import { fetchBusinessesFromSerper } from './serperService';
+} from './cnpjService.js';
+import { fetchBusinessesFromSerper } from './serperService.js';
 
 export async function resolveGeographicArea(loc: InterpretedLocation): Promise<{
   bairro: string;
