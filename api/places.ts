@@ -19,6 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let north = parseFloat(req.query.north as string);
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5000;
 
+    const zoom = req.query.zoom ? parseFloat(req.query.zoom as string) : undefined;
+
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     const radius = parseFloat(req.query.radius as string);
@@ -40,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('overture query started');
-    const result = await queryPlacesInBBox(west, south, east, north, limit);
+    const result = await queryPlacesInBBox(west, south, east, north, limit, zoom);
     console.log('overture query finished');
 
     return res.status(200).json({

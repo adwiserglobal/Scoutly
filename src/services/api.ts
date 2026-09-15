@@ -11,19 +11,26 @@ export async function fetchPlacesFromOverture(
   zoom?: number
 ): Promise<{ places: Business[]; cached: boolean; durationMs: number }> {
   const params = new URLSearchParams({
-    west: west.toFixed(6),
-    south: south.toFixed(6),
-    east: east.toFixed(6),
-    north: north.toFixed(6),
+    west: String(west),
+    south: String(south),
+    east: String(east),
+    north: String(north),
     limit: limit.toString(),
   });
   if (zoom !== undefined) {
     params.set('zoom', zoom.toString());
   }
 
+  const timeoutSignal = AbortSignal.timeout(45000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
   const res = await fetch(`/api/places?${params.toString()}`, {
     method: 'GET',
-    signal,
+    signal: requestSignal,
+  }).catch((err) => {
+    if (timeoutSignal.aborted && !signal?.aborted) {
+      throw new Error('A busca demorou mais que o esperado. Tente novamente nesta área.');
+    }
+    throw err;
   });
 
   if (!res.ok) {

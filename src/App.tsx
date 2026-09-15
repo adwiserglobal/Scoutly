@@ -107,7 +107,10 @@ export default function App() {
 
   // Refs for debouncing and request cancellation
   const debounceTimerRef = useRef<any>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const viewportRequestRef = useRef(0);
+  const pinRequestRef = useRef(0);
+  const viewportCenterRef = useRef(centerCoordinates);
+  const [pinError, setPinError] = useState<string | null>(null);
   const leadsMapRef = useRef<Record<string, { status: LeadStatus; notes: string }>>({});
   leadsMapRef.current = userLeadsMap;
   const favoritesMapRef = useRef<Record<string, boolean>>({});
@@ -138,70 +141,50 @@ export default function App() {
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [businesses]);
 
-  // Handle map bounding box update (with 600ms debounce & request cancellation)
-  const handleBoundsChange = useCallback(
-    (bounds: MapBounds | null, zoom: number) => {
-      setCurrentZoom(zoom);
+  const mergePlaces = useCallback((places: Business[]) => {
+    setBusinesses(places.map((p) => ({
+      ...p,
+      isFavorite: Boolean(favoritesMapRef.current[p.id]),
+      leadStatus: leadsMapRef.current[p.id]?.status || 'NOVO',
+      notes: leadsMapRef.current[p.id]?.notes || '',
+    })));
+  }, []);
 
-      // Cancel any pending debounce timer
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-
-      // Check zoom constraint (supports zoom 11+ smoothly)
-      if (zoom < 11 || !bounds) {
-        setIsZoomTooLow(true);
-        mapCacheService.cancelOngoingRequests();
-        setIsBusinessesLoading(false);
-        return;
-      }
-
-      setIsZoomTooLow(false);
-
-      // Debounce the query between 200-350ms (280ms optimal for Google Maps-like fluidity)
-      debounceTimerRef.current = setTimeout(async () => {
-        setIsBusinessesLoading(true);
-        setBusinessesError(null);
-
-        try {
-          await mapCacheService.loadViewport(
-            bounds,
-            zoom,
-            (allPlaces, fromCache) => {
-              // Merge with persistent user leads and favorites from database
-              const currentLeads = leadsMapRef.current;
-              const currentFavorites = favoritesMapRef.current;
-              const mergedPlaces = allPlaces.map((p) => {
-                const saved = currentLeads[p.id];
-                const isFav = Boolean(currentFavorites[p.id]);
-                return {
-                  ...p,
-                  isFavorite: isFav,
-                  leadStatus: saved ? (saved.status as LeadStatus) : 'NOVO',
-                  notes: saved ? saved.notes : '',
-                };
-              });
-
-              // Progressive state update without clearing screen or flickering
-              setBusinesses(mergedPlaces);
-            }
-          );
-        } catch (err: any) {
-          if (err.name === 'AbortError') {
-            return;
-          }
-          console.warn('[Places Fetch Warning]:', err.message || err);
-          setBusinessesError(
-            err.message || 'Não foi possível obter dados para esta área.'
-          );
-        } finally {
-          setIsBusinessesLoading(false);
+  const handleBoundsChange = useCallback((bounds: MapBounds | null, zoom: number) => {
+    const requestId = ++viewportRequestRef.current;
+    setCurrentZoom(zoom);
+    clearTimeout(debounceTimerRef.current);
+    mapCacheService.cancelOngoingRequests();
+    if (zoom < 12 || !bounds) {
+      setIsZoomTooLow(true);
+      setIsBusinessesLoading(false);
+      return;
+    }
+    setIsZoomTooLow(false);
+    setIsBusinessesLoading(true);
+    setBusinessesError(null);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        await mapCacheService.loadViewport(bounds, zoom, (places) => {
+          if (requestId === viewportRequestRef.current) mergePlaces(places);
+        });
+      } catch (err: any) {
+        if (requestId === viewportRequestRef.current) {
+          setBusinessesError(err.message || 'Não foi possível obter dados para esta área.');
         }
-      }, 280);
-    },
-    []
-  );
+      } finally {
+        if (requestId === viewportRequestRef.current) setIsBusinessesLoading(false);
+      }
+    }, mapCacheService.isBoundsCovered(bounds, zoom >= 14 ? 2500 : 1500) ? 0 : 180);
+  }, [mergePlaces]);
+
+  useEffect(() => () => {
+    clearTimeout(debounceTimerRef.current);
+    ++viewportRequestRef.current;
+    ++pinRequestRef.current;
+    mapCacheService.cancelOngoingRequests();
+    mapCacheService.cancelPinRequest();
+  }, []);
 
   // Geocoding Search
   const handleSearch = async (query: string) => {
@@ -246,110 +229,68 @@ export default function App() {
     setCurrentRegionName(preset.name);
   };
 
-  // Toggle or Drop Pin at current screen center
-  const handleTogglePinMode = useCallback(() => {
-    if (radarPin && radarPin.active) {
-      // If already active, toggle off
-      setRadarPin(null);
-      setIsPinPlacementMode(false);
-      setFilterOnlyInRadius(false);
-    } else {
-      // Activate pin at current center
-      const lat = centerCoordinates.lat;
-      const lng = centerCoordinates.lng;
-      const radiusMeters = 1000;
-      setRadarPin({
-        active: true,
-        lat,
-        lng,
-        radiusMeters,
-        locationName: currentRegionName,
+  const searchPin = useCallback(async (lat: number, lng: number, radius: number) => {
+    const requestId = ++pinRequestRef.current;
+    setIsPinSearching(true);
+    setPinError(null);
+    try {
+      await mapCacheService.fetchPinRadius(lat, lng, radius, (places) => {
+        if (requestId === pinRequestRef.current) mergePlaces(places);
       });
-      setIsPinPlacementMode(false);
-
-      // Trigger immediate dedicated search in that radius
-      setIsPinSearching(true);
-      mapCacheService
-        .fetchPinRadius(lat, lng, radiusMeters, (allPlaces) => {
-          const currentLeads = leadsMapRef.current;
-          const currentFavorites = favoritesMapRef.current;
-          const mergedPlaces = allPlaces.map((p) => ({
-            ...p,
-            isFavorite: Boolean(currentFavorites[p.id]),
-            leadStatus: currentLeads[p.id]?.status || 'NOVO',
-            notes: currentLeads[p.id]?.notes || '',
-          }));
-          setBusinesses(mergedPlaces);
-        })
-        .finally(() => {
-          setIsPinSearching(false);
-        });
+    } catch (err: any) {
+      if (requestId === pinRequestRef.current) {
+        setPinError(err.message || 'Não foi possível buscar negócios neste pin.');
+      }
+    } finally {
+      if (requestId === pinRequestRef.current) setIsPinSearching(false);
     }
-  }, [radarPin, centerCoordinates, currentRegionName]);
-
-  // Handle Dragging Pin in Real-time
-  const handleRadarPinDrag = useCallback((coords: { lat: number; lng: number }) => {
-    setRadarPin((prev) => (prev ? { ...prev, lat: coords.lat, lng: coords.lng } : null));
-  }, []);
-
-  // Handle Pin Drop (dragend, click, or right click)
-  const handleRadarPinDrop = useCallback((coords: { lat: number; lng: number }) => {
-    const radiusMeters = radarPin?.radiusMeters || 1000;
-    setRadarPin({
-      active: true,
-      lat: coords.lat,
-      lng: coords.lng,
-      radiusMeters,
-      locationName: `Localização (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
-    });
-    setIsPinPlacementMode(false);
-
-    // Instant Search around dropped location
-    setIsPinSearching(true);
-    mapCacheService
-      .fetchPinRadius(coords.lat, coords.lng, radiusMeters, (allPlaces) => {
-        const currentLeads = leadsMapRef.current;
-        const currentFavorites = favoritesMapRef.current;
-        const mergedPlaces = allPlaces.map((p) => ({
-          ...p,
-          isFavorite: Boolean(currentFavorites[p.id]),
-          leadStatus: currentLeads[p.id]?.status || 'NOVO',
-          notes: currentLeads[p.id]?.notes || '',
-        }));
-        setBusinesses(mergedPlaces);
-      })
-      .finally(() => {
-        setIsPinSearching(false);
-      });
-  }, [radarPin?.radiusMeters]);
-
-  const handlePinRadiusChange = useCallback((newRadius: number) => {
-    if (!radarPin) return;
-    setRadarPin((prev) => (prev ? { ...prev, radiusMeters: newRadius } : null));
-
-    setIsPinSearching(true);
-    mapCacheService
-      .fetchPinRadius(radarPin.lat, radarPin.lng, newRadius, (allPlaces) => {
-        const currentLeads = leadsMapRef.current;
-        const currentFavorites = favoritesMapRef.current;
-        const mergedPlaces = allPlaces.map((p) => ({
-          ...p,
-          isFavorite: Boolean(currentFavorites[p.id]),
-          leadStatus: currentLeads[p.id]?.status || 'NOVO',
-          notes: currentLeads[p.id]?.notes || '',
-        }));
-        setBusinesses(mergedPlaces);
-      })
-      .finally(() => {
-        setIsPinSearching(false);
-      });
-  }, [radarPin]);
+  }, [mergePlaces]);
 
   const handleClearPin = useCallback(() => {
+    ++pinRequestRef.current;
+    mapCacheService.cancelPinRequest();
+    setIsPinSearching(false);
+    setPinError(null);
     setRadarPin(null);
     setIsPinPlacementMode(false);
     setFilterOnlyInRadius(false);
   }, []);
+
+  const handleTogglePinMode = useCallback(() => {
+    if (radarPin?.active) {
+      handleClearPin();
+      return;
+    }
+    // Use the actual visible map center after panning, not the last address search.
+    const { lat, lng } = viewportCenterRef.current;
+    setRadarPin({ active: true, lat, lng, radiusMeters: 1000 });
+    setIsPinPlacementMode(false);
+    void searchPin(lat, lng, 1000);
+  }, [radarPin, handleClearPin, searchPin]);
+
+  const handleRadarPinDrag = useCallback((coords: { lat: number; lng: number }) => {
+    ++pinRequestRef.current;
+    mapCacheService.cancelPinRequest();
+    setIsPinSearching(false);
+    setPinError(null);
+    setRadarPin((prev) => prev ? { ...prev, ...coords } : null);
+  }, []);
+
+  const handleRadarPinDrop = useCallback((coords: { lat: number; lng: number }) => {
+    const radiusMeters = radarPin?.radiusMeters || 1000;
+    setRadarPin({
+      active: true, ...coords, radiusMeters,
+      locationName: `Localização (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+    });
+    setIsPinPlacementMode(false);
+    void searchPin(coords.lat, coords.lng, radiusMeters);
+  }, [radarPin?.radiusMeters, searchPin]);
+
+  const handlePinRadiusChange = useCallback((radiusMeters: number) => {
+    if (!radarPin) return;
+    setRadarPin({ ...radarPin, radiusMeters });
+    void searchPin(radarPin.lat, radarPin.lng, radiusMeters);
+  }, [radarPin, searchPin]);
 
   const handleCenterOnPin = useCallback(() => {
     if (radarPin) {
@@ -452,7 +393,7 @@ export default function App() {
     }
 
     return list;
-  }, [businesses, activeFilters, selectedCategory, sortBy]);
+  }, [businesses, activeFilters, selectedCategory, sortBy, filterOnlyInRadius, radarPin]);
 
   // Progressive rendering slice for buttery smooth 60fps scrolling
   const displayedBusinesses = useMemo(() => {
@@ -557,6 +498,7 @@ export default function App() {
               setMapError(err.message);
             }}
             onBoundsChange={handleBoundsChange}
+            onCenterChange={(coords) => { viewportCenterRef.current = coords; }}
             radarPin={radarPin}
             onRadarPinDrag={handleRadarPinDrag}
             onRadarPinDrop={handleRadarPinDrop}
@@ -605,6 +547,14 @@ export default function App() {
                   isSearching={isPinSearching}
                   locationName={radarPin.locationName}
                 />
+                {pinError && (
+                  <div role="alert" className="mt-2 max-w-xs rounded-xl bg-red-950 p-3 text-xs text-white">
+                    <p>{pinError}</p>
+                    <button className="mt-2 underline" onClick={() => void searchPin(radarPin.lat, radarPin.lng, radarPin.radiusMeters)}>
+                      Tentar novamente
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
