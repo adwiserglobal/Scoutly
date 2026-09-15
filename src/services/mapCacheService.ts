@@ -11,8 +11,26 @@ export class MapCacheService {
   private coverage: Coverage[] = [];
   private inFlightController: AbortController | null = null;
   private pinInFlightController: AbortController | null = null;
+  private targetedSearchResults: Business[] | null = null;
+  private targetedSearchQuery: string | null = null;
 
   constructor(private fetchPlaces = fetchPlacesFromOverture) {}
+
+  public setTargetedSearchResults(places: Business[], query?: string): void {
+    this.cancelOngoingRequests();
+    this.targetedSearchResults = places;
+    this.targetedSearchQuery = query || null;
+    this.addPlaces(places);
+  }
+
+  public clearTargetedSearch(): void {
+    this.targetedSearchResults = null;
+    this.targetedSearchQuery = null;
+  }
+
+  public hasTargetedSearch(): boolean {
+    return this.targetedSearchResults !== null;
+  }
 
   public isBoundsCovered(bounds: MapBounds, limit = 2500): boolean {
     return this.coverage.some((entry) => {
@@ -97,16 +115,25 @@ export class MapCacheService {
   }
 
   public loadViewport(bounds: MapBounds, zoom: number, onPlacesUpdated: PlacesListener): Promise<void> {
+    if (this.targetedSearchResults !== null) {
+      if (import.meta.env.DEV) {
+        console.log(`[Scoutly Search] Keeping ${this.targetedSearchResults.length} targeted results for "${this.targetedSearchQuery || ''}"`);
+      }
+      onPlacesUpdated(this.targetedSearchResults, true);
+      return Promise.resolve();
+    }
     return this.load(bounds, zoom >= 14 ? 2500 : 1500, zoom, onPlacesUpdated, 'viewport');
   }
 
   public fetchPinRadius(lat: number, lng: number, radiusMeters: number, onPlacesUpdated: PlacesListener): Promise<void> {
+    this.clearTargetedSearch();
     return this.load(getBoundsForRadius(lat, lng, radiusMeters), 3000, 15, onPlacesUpdated, 'pin');
   }
 
   public clear(): void {
     this.cancelOngoingRequests();
     this.cancelPinRequest();
+    this.clearTargetedSearch();
     this.placesMap.clear();
     this.coverage = [];
   }
