@@ -43,6 +43,23 @@ class MapCacheService {
   private pinInFlightController: AbortController | null = null;
   private prefetchController: AbortController | null = null;
   private prefetchTimer: any = null;
+  private targetedSearchResults: Business[] | null = null;
+  private targetedSearchQuery: string | null = null;
+
+  public setTargetedSearchResults(places: Business[], query?: string): void {
+    this.cancelOngoingRequests();
+    this.targetedSearchResults = places;
+    this.targetedSearchQuery = query || null;
+  }
+
+  public clearTargetedSearch(): void {
+    this.targetedSearchResults = null;
+    this.targetedSearchQuery = null;
+  }
+
+  public isTargetedSearchActive(): boolean {
+    return this.targetedSearchResults !== null;
+  }
 
   /**
    * Check if all tiles covering the specified bounds have already been loaded
@@ -88,7 +105,6 @@ class MapCacheService {
       if (!this.placesMap.has(p.id)) {
         this.placesMap.set(p.id, p);
       } else {
-        // Keep existing user modifications (leadStatus, notes, etc.)
         const existing = this.placesMap.get(p.id)!;
         this.placesMap.set(p.id, {
           ...p,
@@ -105,7 +121,6 @@ class MapCacheService {
       }
     }
 
-    // Memory guard: if memory contains over 30,000 places, prune oldest
     if (this.placesMap.size > 30000) {
       const keysToDelete = Array.from(this.placesMap.keys()).slice(0, 5000);
       for (const k of keysToDelete) {
@@ -114,9 +129,6 @@ class MapCacheService {
     }
   }
 
-  /**
-   * Dedicated Pin Radar Search - Does NOT get aborted by casual viewport panning
-   */
   public async fetchPinRadius(
     lat: number,
     lng: number,
@@ -129,7 +141,6 @@ class MapCacheService {
     this.pinInFlightController = new AbortController();
     const signal = this.pinInFlightController.signal;
 
-    // Calculate bounding box encompassing the radius with 20% margin
     const deltaLat = radiusMeters / 110540;
     const deltaLng = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
     const bounds: MapBounds = {
@@ -142,7 +153,6 @@ class MapCacheService {
     const requiredTiles = getTilesForBounds(bounds, 14);
 
     try {
-      // Fetch up to 3000 places for the pin area
       const { places, cached, durationMs } = await fetchPlacesFromOverture(
         bounds.west,
         bounds.south,
@@ -172,9 +182,6 @@ class MapCacheService {
     }
   }
 
-  /**
-   * Cancel any pending active requests or prefetches
-   */
   public cancelOngoingRequests(): void {
     if (this.inFlightController) {
       this.inFlightController.abort();
@@ -190,19 +197,20 @@ class MapCacheService {
     }
   }
 
-  /**
-   * Load places for a viewport with intelligent geographic caching
-   */
   public async loadViewport(
     bounds: MapBounds,
     zoom: number,
     onPlacesUpdated: (allPlaces: Business[], fromCache: boolean) => void
   ): Promise<void> {
+    if (this.targetedSearchResults !== null) {
+      onPlacesUpdated(this.targetedSearchResults, true);
+      return;
+    }
+
     const t0 = performance.now();
     const requiredTiles = getTilesForBounds(bounds, 13);
     const isCovered = requiredTiles.length > 0 && requiredTiles.every((t) => this.loadedTiles.has(t));
 
-    // Instant local memory cache HIT
     if (isCovered && this.placesMap.size > 0) {
       const duration = performance.now() - t0;
       if (import.meta.env.DEV) {
@@ -217,7 +225,6 @@ class MapCacheService {
       return;
     }
 
-    // Abort previous in-flight request if user moved again
     if (this.inFlightController) {
       this.inFlightController.abort();
     }
@@ -225,7 +232,6 @@ class MapCacheService {
     const signal = this.inFlightController.signal;
 
     try {
-      // Allow higher limits (e.g. 2500 per fetch) to eliminate the 500 limit
       const queryLimit = zoom >= 14 ? 2500 : 1500;
       const { places, cached, durationMs } = await fetchPlacesFromOverture(
         bounds.west,
@@ -237,7 +243,6 @@ class MapCacheService {
         zoom
       );
 
-      // Merge into progressive spatial store
       this.addPlaces(places, requiredTiles);
 
       const totalTime = performance.now() - t0;
@@ -251,22 +256,14 @@ class MapCacheService {
 
       onPlacesUpdated(this.getAllPlaces(), false);
       this.inFlightController = null;
-
-      // Schedule low-priority silent prefetch of neighboring tiles
       this.scheduleSilentPrefetch(bounds, zoom);
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        // Normal cancellation on rapid pan, ignore
-        return;
-      }
+      if (err.name === 'AbortError') return;
       this.inFlightController = null;
       throw err;
     }
   }
 
-  /**
-   * Schedule silent background prefetch for surrounding geographic tiles
-   */
   public scheduleSilentPrefetch(bounds: MapBounds, zoom: number): void {
     if (this.prefetchTimer) {
       clearTimeout(this.prefetchTimer);
@@ -276,9 +273,7 @@ class MapCacheService {
       this.prefetchController = null;
     }
 
-    // Wait 350ms idle before prefetching surrounding area
     this.prefetchTimer = setTimeout(async () => {
-      // Expand bounds by 30% in each direction
       const dx = Math.max((bounds.east - bounds.west) * 0.3, 0.02);
       const dy = Math.max((bounds.north - bounds.south) * 0.3, 0.02);
       const expandedBounds: MapBounds = {
@@ -316,18 +311,15 @@ class MapCacheService {
           }
         }
       } catch (err: any) {
-        // Silently ignore prefetch abort or failure
       } finally {
         this.prefetchController = null;
       }
     }, 350);
   }
 
-  /**
-   * Clear the in-memory cache
-   */
   public clear(): void {
     this.cancelOngoingRequests();
+    this.clearTargetedSearch();
     this.placesMap.clear();
     this.loadedTiles.clear();
   }
