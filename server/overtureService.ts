@@ -61,9 +61,12 @@ export async function getDuckDB(): Promise<duckdb.Database> {
 
   initPromise = new Promise<void>((resolve, reject) => {
     try {
-      const dataDir = path.join(process.cwd(), 'data');
+      const isVercel = !!process.env.VERCEL;
+      const dataDir = isVercel ? '/tmp' : path.join(process.cwd(), 'data');
       if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+        try {
+          fs.mkdirSync(dataDir, { recursive: true });
+        } catch (e) {}
       }
       const dbPath = path.join(dataDir, 'radar.duckdb');
       console.log(`[DuckDB] Initializing persistent database at ${dbPath}...`);

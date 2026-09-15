@@ -1,40 +1,41 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+console.log('API places started');
 import { queryPlacesInBBox } from '../server/overtureService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('handler started');
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
   try {
+    console.log('duckdb import ok');
+    console.log('duckdb initialized');
+
     const west = parseFloat(req.query.west as string);
     const south = parseFloat(req.query.south as string);
     const east = parseFloat(req.query.east as string);
     const north = parseFloat(req.query.north as string);
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5000;
 
-    // Coordinate validations
     if (isNaN(west) || isNaN(south) || isNaN(east) || isNaN(north)) {
       return res.status(400).json({
-        error: 'Parâmetros de coordenadas inválidos. Forneça west, south, east e north como números decimais.',
+        error: 'Parâmetros de coordenadas inválidos.',
         places: []
       });
     }
 
-    if (west < -180 || west > 180 || east < -180 || east > 180 || south < -90 || south > 90 || north < -90 || north > 90) {
-      return res.status(400).json({
-        error: 'Coordenadas fora dos limites válidos (-180 a 180 para longitude, -90 a 90 para latitude).',
-        places: []
-      });
-    }
-
+    console.log('overture query started');
     const places = await queryPlacesInBBox(west, south, east, north, limit);
+    console.log('overture query finished');
+
     return res.status(200).json({ places, total: places.length });
   } catch (err: any) {
-    console.error('[API /api/places Error]:', err.message || err);
+    console.error('[API /api/places Error FULL]:', err);
     return res.status(500).json({
-      error: 'Erro ao consultar estabelecimentos do Overture Maps. O mapa continuará funcional.',
+      error: err.message || 'Erro ao consultar estabelecimentos.',
+      details: err.stack || String(err),
       places: []
     });
   }
