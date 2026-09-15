@@ -35,7 +35,6 @@ function Header({
 
   return (
     <div className="flex flex-col sm:flex-row items-center gap-3 w-full shrink-0 pointer-events-auto">
-      {/* Brand Logo - Enlarged, background removed */}
       <div className="flex items-center shrink-0 pr-1">
         <img
           src="/logo_white.png"
@@ -47,9 +46,7 @@ function Header({
         />
       </div>
 
-      {/* Enhanced Search & Location Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/70 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-white/40 h-auto sm:h-[52px]">
-        {/* Main Search Input */}
         <form
           onSubmit={handleSubmit}
           className="relative flex items-center flex-1 sm:w-72 lg:w-80 group h-full"
@@ -62,7 +59,7 @@ function Header({
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Pesquise cidade, bairro ou rua..."
+            placeholder="Empresa, segmento ou local..."
             className="w-full h-full bg-white/80 border-none rounded-full pl-10 pr-24 py-2.5 text-xs text-stone-900 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[#FF4D00]/50 transition shadow-inner"
           />
 
@@ -74,7 +71,6 @@ function Header({
           </button>
         </form>
 
-        {/* Button: Perto de você com contorno laranja */}
         <button
           type="button"
           onClick={onUseCurrentLocation}
@@ -85,7 +81,6 @@ function Header({
           <span className="hidden sm:inline-block">{isLocating ? 'LOCALIZANDO' : 'PERTO DE VOCÊ'}</span>
         </button>
 
-        {/* Button: Soltar Pin no Mapa (Draggable Radar Pin) */}
         {onTogglePinMode && (
           <button
             type="button"
@@ -105,7 +100,6 @@ function Header({
         )}
       </div>
 
-      {/* Button: Filters */}
       <button
         type="button"
         onClick={onOpenFilters}
@@ -115,7 +109,6 @@ function Header({
         <span>Filtros</span>
       </button>
 
-      {/* Business Counter Badge - Moved to right side after filters */}
       <div className="flex items-center gap-2 h-[52px] px-4 py-2 bg-white/70 backdrop-blur-md border border-white/40 rounded-full shadow-sm text-xs font-semibold text-stone-800 shrink-0">
         <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D00]"></span>
         <span className="tracking-tight whitespace-nowrap">
