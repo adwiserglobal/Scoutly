@@ -9,6 +9,8 @@ import {
   getCNAEsForBusinessType,
 } from './cnpjService.js';
 import { fetchBusinessesFromSerper } from './serperService.js';
+import { hasBrazilPlacesDatabase, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
+import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
 
 export interface BusinessSearchResult {
   query: string;
@@ -19,19 +21,20 @@ export interface BusinessSearchResult {
     bbox: { west: number; south: number; east: number; north: number };
   };
   businesses: BusinessSummary[];
+  precisionMode?: boolean;
 }
 
 const SEARCH_SYNONYMS: Record<string, string[]> = {
-  despachante: ['despachante', 'despachantes', 'documentalista', 'emplacamento', 'licenciamento', 'detran'],
+  despachante: ['despachante', 'despachantes', 'documentalista'],
   'agência de marketing': ['marketing', 'publicidade', 'propaganda', 'agencia', 'agência'],
   contabilidade: ['contabilidade', 'contador', 'contabil', 'contábil'],
   imobiliária: ['imobiliaria', 'imobiliária', 'imoveis', 'imóveis'],
   advocacia: ['advocacia', 'advogado', 'advogados'],
   floricultura: ['floricultura', 'flores', 'florist'],
   dentista: ['dentista', 'odontologia', 'odonto', 'dental'],
-  restaurante: ['restaurante', 'restaurant', 'pizzaria', 'lanchonete', 'bistro'],
-  academia: ['academia', 'fitness', 'gym', 'crossfit', 'pilates'],
-  padaria: ['padaria', 'panificadora', 'bakery', 'confeitaria'],
+  restaurante: ['restaurante', 'restaurant'],
+  academia: ['academia', 'fitness', 'gym'],
+  padaria: ['padaria', 'panificadora', 'bakery'],
   farmácia: ['farmacia', 'farmácia', 'drogaria', 'pharmacy', 'drugstore'],
   'clínica médica': ['clinica', 'clínica', 'consultorio', 'consultório', 'medical clinic'],
   mecânica: ['mecanica', 'mecânica', 'oficina', 'auto repair', 'automotivo'],
@@ -45,13 +48,7 @@ const SAO_PAULO_CITY = {
 };
 
 function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s_-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeSearchText(value).replace(/\s+/g, ' ').trim();
 }
 
 function extractBusinessPhrase(query: string): string {
@@ -59,7 +56,20 @@ function extractBusinessPhrase(query: string): string {
   return match?.[1]?.trim() || query.trim();
 }
 
-function getSearchTerms(query: string, businessType: string, keywords: string[]): string[] {
+function hasExplicitLocation(query: string): boolean {
+  return /\b(?:em|no|na|perto de|perto do|perto da)\s+.+$/i.test(query.trim());
+}
+
+function getSearchTerms(query: string, businessType: string, keywords: string[], profile?: SearchProfile | null): string[] {
+  if (profile) {
+    return Array.from(new Set([
+      ...profile.aliases,
+      ...profile.nameTerms,
+      businessType,
+      ...keywords,
+    ].map(normalizeText).filter((value) => value.length >= 3))).slice(0, 12);
+  }
+
   const phrase = extractBusinessPhrase(query);
   const normalizedType = normalizeText(businessType);
   const synonymKey = Object.keys(SEARCH_SYNONYMS).find((key) => {
@@ -82,7 +92,7 @@ function normalizeLocationAlias(query: string, parsed: InterpretedLocation): Int
   const locationMatch = query.match(/\b(?:em|no|na|perto de|perto do|perto da)\s+(.+)$/i);
   const rawLocation = normalizeText(locationMatch?.[1] || parsed.rawName || '');
 
-  if (rawLocation === 'sp' || rawLocation === 'sao paulo') {
+  if (rawLocation === 'sp' || rawLocation === 'sao paulo' || rawLocation === 'sao paulo sp') {
     return {
       bairro: '',
       cidade: SAO_PAULO_CITY.cidade,
@@ -143,6 +153,15 @@ function scorePlace(place: OverturePlace, terms: string[]): number {
   return score;
 }
 
+function scoreSummary(business: BusinessSummary, profile: SearchProfile): number {
+  return scoreAgainstProfile({
+    name: business.name,
+    category: business.category,
+    basicCategory: business.basicCategory,
+    taxonomyPrimary: business.taxonomyPrimary,
+  }, profile);
+}
+
 async function searchOvertureByTerms(
   terms: string[],
   bbox: { west: number; south: number; east: number; north: number },
@@ -195,63 +214,117 @@ async function searchOvertureByTerms(
 
 function resolveCnaes(businessType: string, keywords: string[]): string[] {
   const text = normalizeText(`${businessType} ${keywords.join(' ')}`);
-  if (/despachante|documentalista|emplacamento|licenciamento/.test(text)) return ['8299799'];
+  if (/despachante|documentalista/.test(text)) return ['8299799'];
   return getCNAEsForBusinessType(businessType, keywords);
 }
 
 export async function searchBusinesses(query: string, currentRegionName = 'São Paulo - SP'): Promise<BusinessSearchResult> {
   const intent = interpretSearchIntent(query, currentRegionName);
-  const parsedLocation = normalizeLocationAlias(query, parseSearchLocation(query));
+  const profile = resolveSearchProfile(extractBusinessPhrase(query), intent.businessType, ...(intent.keywords || []));
+
+  // If the user did not type a location, search the region currently open on the map.
+  const locationSource = hasExplicitLocation(query) ? query : currentRegionName;
+  const parsedLocation = normalizeLocationAlias(locationSource, parseSearchLocation(locationSource));
   const resolvedArea = await resolveGeographicArea(parsedLocation);
-  const terms = getSearchTerms(query, intent.businessType, intent.keywords);
+  const terms = getSearchTerms(query, intent.businessType, intent.keywords || [], profile);
+
   const results = new Map<string, BusinessSummary>();
+  const relevance = new Map<string, number>();
 
-  try {
-    const overture = await searchOvertureByTerms(terms, resolvedArea.bbox, 250);
-    overture
-      .map((place) => ({ place, score: scorePlace(place, terms) }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score || (b.place.confidence || 0) - (a.place.confidence || 0))
-      .forEach(({ place }) => results.set(place.id, placeToSummary(place)));
-  } catch (err: any) {
-    console.warn('[Business Search] Overture error:', err.message);
-  }
-
-  try {
-    const cnaes = resolveCnaes(intent.businessType, intent.keywords);
-    const companies = await fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query);
-    for (const company of companies.filter(isCompanyActive).filter((item) => isCNPJInRequestedRegion(item, resolvedArea))) {
-      const { business, matchedOvertureId } = processMinhaReceitaBusiness(company, Array.from(results.values()), intent.businessType);
-      if (matchedOvertureId && results.has(matchedOvertureId)) {
-        results.set(matchedOvertureId, { ...results.get(matchedOvertureId)!, ...business, id: matchedOvertureId });
-      } else if (business.id && !results.has(business.id)) {
-        results.set(business.id, business);
+  // Primary path in Grande SP: exact Scoutly taxonomy/category index.
+  if (profile && hasBrazilPlacesDatabase()) {
+    try {
+      const precise = await queryBrazilPlacesPrecise(
+        profile,
+        resolvedArea.bbox.west,
+        resolvedArea.bbox.south,
+        resolvedArea.bbox.east,
+        resolvedArea.bbox.north,
+        300
+      );
+      for (const place of precise.places) {
+        const summary = placeToSummary(place);
+        results.set(place.id, summary);
+        relevance.set(place.id, precise.relevanceById.get(place.id) || scoreSummary(summary, profile));
       }
+    } catch (err: any) {
+      console.warn('[Business Search] Precise Supabase search failed:', err.message);
     }
-  } catch (err: any) {
-    console.warn('[Business Search] CNPJ error:', err.message);
   }
 
-  try {
-    const serper = await fetchBusinessesFromSerper(
-      `${extractBusinessPhrase(query)} em ${resolvedArea.cidade}`,
-      resolvedArea.center.lat,
-      resolvedArea.center.lng
-    );
-    for (const business of serper) {
-      if (!results.has(business.id)) results.set(business.id, business);
+  // Unknown segments, areas outside the local index, or sparse precise results use Overture fallback.
+  if (!profile || results.size < 12) {
+    try {
+      const overture = await searchOvertureByTerms(terms, resolvedArea.bbox, 300);
+      overture
+        .map((place) => ({
+          place,
+          score: profile ? scoreAgainstProfile(place, profile) : scorePlace(place, terms),
+        }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score || (b.place.confidence || 0) - (a.place.confidence || 0))
+        .forEach(({ place, score }) => {
+          if (!results.has(place.id)) results.set(place.id, placeToSummary(place));
+          relevance.set(place.id, Math.max(relevance.get(place.id) || 0, score));
+        });
+    } catch (err: any) {
+      console.warn('[Business Search] Overture error:', err.message);
     }
-  } catch (err: any) {
-    console.warn('[Business Search] Serper error:', err.message);
+  }
+
+  // External enrichment is only used when the precise local index is sparse.
+  if (results.size < 12) {
+    try {
+      const cnaes = resolveCnaes(profile?.label || intent.businessType, intent.keywords || []);
+      const companies = await fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query);
+      for (const company of companies.filter(isCompanyActive).filter((item) => isCNPJInRequestedRegion(item, resolvedArea))) {
+        const { business, matchedOvertureId } = processMinhaReceitaBusiness(company, Array.from(results.values()), profile?.label || intent.businessType);
+        const score = profile ? scoreSummary(business, profile) : 1;
+        if (profile && score <= 0) continue;
+
+        if (matchedOvertureId && results.has(matchedOvertureId)) {
+          results.set(matchedOvertureId, { ...results.get(matchedOvertureId)!, ...business, id: matchedOvertureId });
+          relevance.set(matchedOvertureId, Math.max(relevance.get(matchedOvertureId) || 0, score));
+        } else if (business.id && !results.has(business.id)) {
+          results.set(business.id, business);
+          relevance.set(business.id, score);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Business Search] CNPJ error:', err.message);
+    }
+
+    try {
+      const serper = await fetchBusinessesFromSerper(
+        `${extractBusinessPhrase(query)} em ${resolvedArea.cidade}`,
+        resolvedArea.center.lat,
+        resolvedArea.center.lng
+      );
+      for (const business of serper) {
+        const score = profile ? scoreSummary(business, profile) : 1;
+        if (profile && score <= 0) continue;
+        if (!results.has(business.id)) results.set(business.id, business);
+        relevance.set(business.id, Math.max(relevance.get(business.id) || 0, score));
+      }
+    } catch (err: any) {
+      console.warn('[Business Search] Serper error:', err.message);
+    }
   }
 
   const businesses = Array.from(results.values())
     .filter((business) => business.hasCoordinates !== false && Number.isFinite(business.lat) && Number.isFinite(business.lng))
+    .filter((business) => !profile || scoreSummary(business, profile) > 0)
+    .sort((a, b) => {
+      const scoreDiff = (relevance.get(b.id) || scoreSummary(b, profile!)) - (relevance.get(a.id) || scoreSummary(a, profile!));
+      if (scoreDiff !== 0) return scoreDiff;
+      return (b.confidence || 0) - (a.confidence || 0);
+    })
     .slice(0, 300);
 
   return {
     query,
-    businessType: intent.businessType,
+    businessType: profile?.label || intent.businessType,
+    precisionMode: Boolean(profile),
     region: {
       name: `${resolvedArea.bairro ? resolvedArea.bairro + ', ' : ''}${resolvedArea.cidade} - ${resolvedArea.uf}`,
       center: resolvedArea.center,
