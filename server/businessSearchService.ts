@@ -1,6 +1,6 @@
 import { getDuckDB, normalizeOverturePlace, queryPlacesInBBox, OverturePlace } from './overtureService.js';
-import { parseSearchLocation, interpretSearchIntent, InterpretedLocation } from './searchInterpreter.js';
-import { resolveGeographicArea, BusinessSummary } from './aiService.js';
+import { interpretSearchIntent } from './searchInterpreter.js';
+import { BusinessSummary } from './aiService.js';
 import {
   fetchCompaniesFromMinhaReceita,
   processMinhaReceitaBusiness,
@@ -11,6 +11,7 @@ import {
 import { fetchBusinessesFromSerper } from './serperService.js';
 import { hasBrazilPlacesDatabase, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
 import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
+import { resolveSearchGeography, extractBusinessPhraseFromQuery } from './geographyService.js';
 
 export interface BusinessSearchResult {
   query: string;
@@ -40,35 +41,8 @@ const SEARCH_SYNONYMS: Record<string, string[]> = {
   mecânica: ['mecanica', 'mecânica', 'oficina', 'auto repair', 'automotivo'],
 };
 
-const SAO_PAULO_CITY = {
-  cidade: 'São Paulo',
-  uf: 'SP',
-  center: { lat: -23.5505, lng: -46.6333 },
-  bbox: { west: -46.8260, south: -24.0080, east: -46.3650, north: -23.3560 },
-};
-
-const SAO_PAULO_CENTER = {
-  bairro: 'Centro',
-  cidade: 'São Paulo',
-  uf: 'SP',
-  center: { lat: -23.5489, lng: -46.6388 },
-  // Downtown / centro expandido search window. Intentionally broader than Sé
-  // so queries such as "no centro de SP" cover the practical central region
-  // without falling back to the whole city.
-  bbox: { west: -46.6638, south: -23.5739, east: -46.6138, north: -23.5239 },
-};
-
 function normalizeText(value: string): string {
   return normalizeSearchText(value).replace(/\s+/g, ' ').trim();
-}
-
-function extractBusinessPhrase(query: string): string {
-  const match = query.trim().match(/^(.+?)\s+(?:em|no|na|perto de|perto do|perto da)\s+.+$/i);
-  return match?.[1]?.trim() || query.trim();
-}
-
-function hasExplicitLocation(query: string): boolean {
-  return /\b(?:em|no|na|perto de|perto do|perto da)\s+.+$/i.test(query.trim());
 }
 
 function getSearchTerms(query: string, businessType: string, keywords: string[], profile?: SearchProfile | null): string[] {
@@ -81,7 +55,7 @@ function getSearchTerms(query: string, businessType: string, keywords: string[],
     ].map(normalizeText).filter((value) => value.length >= 3))).slice(0, 12);
   }
 
-  const phrase = extractBusinessPhrase(query);
+  const phrase = extractBusinessPhraseFromQuery(query);
   const normalizedType = normalizeText(businessType);
   const synonymKey = Object.keys(SEARCH_SYNONYMS).find((key) => {
     const normalizedKey = normalizeText(key);
@@ -97,50 +71,6 @@ function getSearchTerms(query: string, businessType: string, keywords: string[],
       .map(normalizeText)
       .filter((value) => value.length >= 3 && !stopWords.has(value))
   )).slice(0, 12);
-}
-
-function normalizeLocationAlias(query: string, parsed: InterpretedLocation): InterpretedLocation {
-  const locationMatch = query.match(/\b(?:em|no|na|perto de|perto do|perto da)\s+(.+)$/i);
-  const rawLocation = normalizeText(locationMatch?.[1] || parsed.rawName || '');
-
-  if (rawLocation === 'sp' || rawLocation === 'sao paulo' || rawLocation === 'sao paulo sp') {
-    return {
-      bairro: '',
-      cidade: SAO_PAULO_CITY.cidade,
-      uf: SAO_PAULO_CITY.uf,
-      pais: 'Brasil',
-      query: 'São Paulo, SP, Brasil',
-      rawName: 'São Paulo - SP',
-      center: SAO_PAULO_CITY.center,
-      bbox: SAO_PAULO_CITY.bbox,
-    };
-  }
-
-  const centerAliases = new Set([
-    'centro de sp',
-    'centro sp',
-    'centro de sao paulo',
-    'centro sao paulo',
-    'centro de sao paulo sp',
-    'centro sao paulo sp',
-    'sao paulo centro',
-    'sao paulo centro sp',
-  ]);
-
-  if (centerAliases.has(rawLocation)) {
-    return {
-      bairro: SAO_PAULO_CENTER.bairro,
-      cidade: SAO_PAULO_CENTER.cidade,
-      uf: SAO_PAULO_CENTER.uf,
-      pais: 'Brasil',
-      query: 'Centro, São Paulo, SP, Brasil',
-      rawName: 'São Paulo - Centro',
-      center: SAO_PAULO_CENTER.center,
-      bbox: SAO_PAULO_CENTER.bbox,
-    };
-  }
-
-  return parsed;
 }
 
 function placeToSummary(place: OverturePlace): BusinessSummary {
@@ -195,6 +125,23 @@ function scoreSummary(business: BusinessSummary, profile: SearchProfile): number
     basicCategory: business.basicCategory,
     taxonomyPrimary: business.taxonomyPrimary,
   }, profile);
+}
+
+function isWithinBounds(
+  business: BusinessSummary,
+  bbox: { west: number; south: number; east: number; north: number }
+): boolean {
+  if (!Number.isFinite(business.lat) || !Number.isFinite(business.lng)) return false;
+  return business.lat >= bbox.south && business.lat <= bbox.north && business.lng >= bbox.west && business.lng <= bbox.east;
+}
+
+function distanceScore(
+  business: BusinessSummary,
+  center: { lat: number; lng: number }
+): number {
+  const latDelta = business.lat - center.lat;
+  const lngDelta = (business.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
+  return Math.sqrt(latDelta * latDelta + lngDelta * lngDelta);
 }
 
 async function searchOvertureByTerms(
@@ -255,20 +202,16 @@ function resolveCnaes(businessType: string, keywords: string[]): string[] {
 
 export async function searchBusinesses(query: string, currentRegionName = 'São Paulo - SP'): Promise<BusinessSearchResult> {
   const intent = interpretSearchIntent(query, currentRegionName);
-  const phrase = extractBusinessPhrase(query);
+  const phrase = extractBusinessPhraseFromQuery(query);
   const profile = resolveSearchProfile(phrase, intent.businessType, ...(intent.keywords || []));
-
-  // If the user did not type a location, search the region currently open on the map.
-  const locationSource = hasExplicitLocation(query) ? query : currentRegionName;
-  const parsedLocation = normalizeLocationAlias(locationSource, parseSearchLocation(locationSource));
-  const resolvedArea = await resolveGeographicArea(parsedLocation);
+  const resolvedArea = await resolveSearchGeography(query, currentRegionName);
   const terms = getSearchTerms(query, intent.businessType, intent.keywords || [], profile);
 
   const results = new Map<string, BusinessSummary>();
   const relevance = new Map<string, number>();
 
-  // Primary path in Grande SP: exact Scoutly taxonomy/category index, with
-  // a name-only second pass only for sparse or inconsistently categorized terms.
+  // Primary path: search only inside the geographic bbox resolved from the user's
+  // query. Category precision and geographic precision are intentionally separate.
   if (profile && hasBrazilPlacesDatabase()) {
     try {
       const precise = await queryBrazilPlacesPrecise(
@@ -282,6 +225,7 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
       );
       for (const place of precise.places) {
         const summary = placeToSummary(place);
+        if (!isWithinBounds(summary, resolvedArea.bbox)) continue;
         results.set(place.id, summary);
         relevance.set(place.id, precise.relevanceById.get(place.id) || scoreSummary(summary, profile));
       }
@@ -299,7 +243,7 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
           place,
           score: profile ? scoreAgainstProfile(place, profile) : scorePlace(place, terms),
         }))
-        .filter(({ score }) => score > 0)
+        .filter(({ place, score }) => score > 0 && isWithinBounds(placeToSummary(place), resolvedArea.bbox))
         .sort((a, b) => b.score - a.score || (b.place.confidence || 0) - (a.place.confidence || 0))
         .forEach(({ place, score }) => {
           if (!results.has(place.id)) results.set(place.id, placeToSummary(place));
@@ -310,13 +254,14 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
     }
   }
 
-  // External enrichment is only used when the precise local index is sparse.
+  // External enrichment is only used when the geographically precise result set is sparse.
   if (results.size < 12) {
     try {
       const cnaes = resolveCnaes(profile?.label || intent.businessType, intent.keywords || []);
       const companies = await fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query);
       for (const company of companies.filter(isCompanyActive).filter((item) => isCNPJInRequestedRegion(item, resolvedArea))) {
         const { business, matchedOvertureId } = processMinhaReceitaBusiness(company, Array.from(results.values()), profile?.label || intent.businessType);
+        if (!isWithinBounds(business, resolvedArea.bbox)) continue;
         const score = profile ? scoreSummary(business, profile) : 1;
         if (profile && score <= 0) continue;
 
@@ -334,11 +279,12 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
 
     try {
       const serper = await fetchBusinessesFromSerper(
-        `${phrase} em ${resolvedArea.cidade}`,
+        `${phrase} em ${resolvedArea.rawName}`,
         resolvedArea.center.lat,
         resolvedArea.center.lng
       );
       for (const business of serper) {
+        if (!isWithinBounds(business, resolvedArea.bbox)) continue;
         const score = profile ? scoreSummary(business, profile) : 1;
         if (profile && score <= 0) continue;
         if (!results.has(business.id)) results.set(business.id, business);
@@ -356,12 +302,14 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
   };
 
   const businesses = Array.from(results.values())
-    .filter((business) => business.hasCoordinates !== false && Number.isFinite(business.lat) && Number.isFinite(business.lng))
+    .filter((business) => business.hasCoordinates !== false && isWithinBounds(business, resolvedArea.bbox))
     .filter((business) => !profile || scoreSummary(business, profile) > 0)
     .sort((a, b) => {
       const scoreDiff = getResultScore(b) - getResultScore(a);
       if (scoreDiff !== 0) return scoreDiff;
-      return (b.confidence || 0) - (a.confidence || 0);
+      const confidenceDiff = (b.confidence || 0) - (a.confidence || 0);
+      if (confidenceDiff !== 0) return confidenceDiff;
+      return distanceScore(a, resolvedArea.center) - distanceScore(b, resolvedArea.center);
     })
     .slice(0, 300);
 
@@ -370,7 +318,7 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
     businessType: profile?.label || intent.businessType,
     precisionMode: Boolean(profile),
     region: {
-      name: `${resolvedArea.bairro ? resolvedArea.bairro + ', ' : ''}${resolvedArea.cidade} - ${resolvedArea.uf}`,
+      name: resolvedArea.rawName,
       center: resolvedArea.center,
       bbox: resolvedArea.bbox,
     },
