@@ -15,6 +15,7 @@ interface BusinessSearchApiResponse {
     center: { lat: number; lng: number };
   };
   businesses?: any[];
+  precisionMode?: boolean;
 }
 
 export const PRESET_REGIONS: GeocodedLocation[] = [
@@ -27,12 +28,16 @@ export const PRESET_REGIONS: GeocodedLocation[] = [
 ];
 
 const BUSINESS_TERMS = [
-  'despachante', 'mecanica', 'mecânica', 'oficina', 'dentista', 'odontologia',
-  'hospital', 'clinica', 'clínica', 'restaurante', 'pizzaria', 'academia', 'fitness',
-  'padaria', 'farmacia', 'farmácia', 'drogaria', 'marketing', 'publicidade', 'agencia',
-  'agência', 'contabilidade', 'contador', 'imobiliaria', 'imobiliária', 'advocacia',
-  'advogado', 'floricultura', 'pet shop', 'veterinario', 'veterinário', 'barbearia',
-  'salao', 'salão', 'autoescola', 'supermercado', 'mercado', 'loja',
+  'despachante', 'documentalista', 'mecanica', 'mecânica', 'oficina', 'auto center',
+  'borracharia', 'pneu', 'pneus', 'dentista', 'odontologia', 'hospital', 'clinica', 'clínica',
+  'restaurante', 'pizzaria', 'academia', 'fitness', 'padaria', 'farmacia', 'farmácia', 'drogaria',
+  'banco', 'agencia bancaria', 'agência bancária', 'marketing', 'publicidade', 'agencia de marketing',
+  'agência de marketing', 'contabilidade', 'contador', 'imobiliaria', 'imobiliária', 'advocacia',
+  'advogado', 'floricultura', 'pet shop', 'petshop', 'veterinario', 'veterinário', 'barbearia',
+  'salao de beleza', 'salão de beleza', 'autoescola', 'supermercado', 'mercado', 'posto de gasolina',
+  'posto de combustivel', 'posto de combustível', 'hotel', 'pousada', 'escola', 'colegio', 'colégio',
+  'laboratorio', 'laboratório', 'otica', 'ótica', 'autopecas', 'autopeças', 'lava rapido', 'lava-rápido',
+  'estacionamento',
 ];
 
 const LOCATION_PREFIXES = ['rua ', 'r. ', 'avenida ', 'av. ', 'alameda ', 'rodovia ', 'estrada ', 'bairro '];
@@ -46,13 +51,26 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+function isPresetLocation(query: string): GeocodedLocation | null {
+  const normalized = normalizeText(query);
+  const match = PRESET_REGIONS.find((p) => {
+    const preset = normalizeText(p.name);
+    return preset.includes(normalized) || normalized.includes(preset);
+  });
+  return match || null;
+}
+
+function looksLikeAddress(query: string): boolean {
+  const normalized = normalizeText(query);
+  return LOCATION_PREFIXES.some((prefix) => normalized.startsWith(normalizeText(prefix)));
+}
+
 function looksLikeBusinessSearch(query: string): boolean {
   const normalized = normalizeText(query);
   if (BUSINESS_TERMS.some((term) => normalized.includes(normalizeText(term)))) return true;
 
   const hasLocationClause = /\s+(em|no|na|perto de|perto do|perto da)\s+/.test(normalized);
-  const looksLikeAddress = LOCATION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
-  return hasLocationClause && !looksLikeAddress;
+  return hasLocationClause && !looksLikeAddress(query);
 }
 
 function toBusiness(raw: any): Business | null {
@@ -109,6 +127,7 @@ async function searchBusinesses(query: string, currentRegionName?: string): Prom
 
     const data: BusinessSearchApiResponse = await res.json();
     const businesses = (data.businesses || []).map(toBusiness).filter((b): b is Business => Boolean(b));
+    if (businesses.length === 0 && !data.region?.center) return null;
 
     mapCacheService.setTargetedSearchResults(businesses, query);
 
@@ -131,15 +150,19 @@ export async function searchAddressOrCity(query: string, currentRegionName?: str
   const trimmed = query.trim();
   if (!trimmed) return null;
 
+  // Known locations and explicit addresses should remain geocoding searches.
+  const matchedPreset = isPresetLocation(trimmed);
+  if (matchedPreset && !looksLikeBusinessSearch(trimmed)) {
+    mapCacheService.clearTargetedSearch();
+    return { ...matchedPreset, searchType: 'location' };
+  }
+
   if (looksLikeBusinessSearch(trimmed)) {
     const businessResult = await searchBusinesses(trimmed, currentRegionName);
     if (businessResult) return businessResult;
   }
 
   mapCacheService.clearTargetedSearch();
-
-  const matchedPreset = PRESET_REGIONS.find((p) => p.name.toLowerCase().includes(trimmed.toLowerCase()));
-  if (matchedPreset) return { ...matchedPreset, searchType: 'location' };
 
   try {
     const encoded = encodeURIComponent(trimmed);
@@ -157,6 +180,11 @@ export async function searchAddressOrCity(query: string, currentRegionName?: str
     }
   } catch (err) {
     console.warn('Falha na geocodificação externa:', err);
+  }
+
+  // A company name may not contain a known segment word. Try business search last.
+  if (!looksLikeAddress(trimmed)) {
+    return searchBusinesses(trimmed, currentRegionName);
   }
 
   return null;
