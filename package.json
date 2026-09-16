@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "import:brazil": "tsx scripts/import-brazil-overture.ts"
+    "import:gsp": "tsx scripts/import-brazil-overture.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
