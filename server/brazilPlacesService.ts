@@ -57,8 +57,6 @@ async function callPreciseRpc(
   north: number,
   exactCategories: string[],
   exactTaxonomies: string[],
-  broadCategories: string[],
-  nameTerms: string[],
   limit: number
 ): Promise<any[]> {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -78,8 +76,8 @@ async function callPreciseRpc(
       p_north: north,
       p_exact_categories: exactCategories,
       p_exact_taxonomies: exactTaxonomies,
-      p_broad_categories: broadCategories,
-      p_name_terms: nameTerms,
+      p_broad_categories: [],
+      p_name_terms: [],
       p_limit: limit,
     }),
     signal: AbortSignal.timeout(7500),
@@ -88,6 +86,44 @@ async function callPreciseRpc(
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     throw new Error(`Supabase precise search failed (${response.status}): ${body.slice(0, 300)}`);
+  }
+
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function callNameFallbackRpc(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  nameTerm: string,
+  limit: number
+): Promise<any[]> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serverKey = getServerKey();
+  if (!supabaseUrl || !serverKey) throw new Error('Brazil places database is not configured');
+
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/search_scoutly_places_name_precise`, {
+    method: 'POST',
+    headers: {
+      apikey: serverKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      p_west: west,
+      p_south: south,
+      p_east: east,
+      p_north: north,
+      p_name_term: nameTerm,
+      p_limit: limit,
+    }),
+    signal: AbortSignal.timeout(7500),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Supabase name fallback failed (${response.status}): ${body.slice(0, 300)}`);
   }
 
   const rows = await response.json();
@@ -145,10 +181,9 @@ export async function queryBrazilPlaces(
 /**
  * High precision local search.
  *
- * Pass 1 is deliberately category/taxonomy-only so Postgres can use the small
- * btree indexes and return common segments in milliseconds. We only fall back
- * to a name scan when the taxonomy is sparse or the segment (e.g. despachante)
- * is represented inconsistently in Overture.
+ * Pass 1 is category/taxonomy-only so Postgres can use the existing compact
+ * btree indexes. A name-only fallback is used only when exact taxonomy is
+ * sparse or unavailable, such as "despachante" in the Overture dataset.
  */
 export async function queryBrazilPlacesPrecise(
   profile: SearchProfile,
@@ -174,8 +209,6 @@ export async function queryBrazilPlacesPrecise(
       north,
       profile.exactCategories,
       profile.exactTaxonomies,
-      [],
-      [],
       safeLimit
     );
 
@@ -186,8 +219,7 @@ export async function queryBrazilPlacesPrecise(
     }
 
     // Common categories such as banks, hospitals, pharmacies and dentists are
-    // already highly reliable in Overture. Avoid an expensive name scan when
-    // the exact taxonomy has enough candidates.
+    // reliable enough to stop here. This avoids a table-wide text scan.
     const enoughExact = Math.min(40, safeLimit);
     if (rowsById.size >= enoughExact) {
       return {
@@ -200,29 +232,25 @@ export async function queryBrazilPlacesPrecise(
     }
   }
 
-  const fallbackTerms = Array.from(new Set([
-    profile.nameTerms[0],
-    preferredNameTerm?.trim(),
-  ].filter((term): term is string => Boolean(term && term.length >= 3)))).slice(0, 2);
+  // Use one strong canonical term for the slow path. Multiple LIKE terms made
+  // Postgres repeat work across the full table. The canonical term is usually
+  // the broadest reliable synonym, e.g. "despachante".
+  const canonicalTerm = profile.nameTerms[0]?.trim() || preferredNameTerm?.trim() || '';
 
-  if (fallbackTerms.length > 0 && rowsById.size < safeLimit) {
-    const fallbackRows = await callPreciseRpc(
+  if (canonicalTerm.length >= 3 && rowsById.size < safeLimit) {
+    const fallbackRows = await callNameFallbackRpc(
       west,
       south,
       east,
       north,
-      [],
-      [],
-      [],
-      fallbackTerms,
-      Math.min(500, safeLimit + 150)
+      canonicalTerm,
+      Math.min(750, safeLimit + 200)
     );
 
     for (const row of fallbackRows) {
       const place = rowToPlace(row);
-      // Broad-category guards are applied after the name scan. This keeps the
-      // DB query fast while still rejecting false positives such as a random
-      // business that merely contains a generic word in its name.
+      // Apply category guard in Node after the lean name query. That keeps the
+      // SQL path simple while preserving high precision.
       const score = scoreAgainstProfile(place, profile);
       if (score <= 0) continue;
       const id = String(row.id);
