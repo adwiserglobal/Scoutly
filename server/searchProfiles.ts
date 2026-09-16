@@ -72,14 +72,14 @@ export const SEARCH_PROFILES: SearchProfile[] = [
     ['medical_service', 'health_care'], ['clinica', 'clínica', 'consultorio', 'consultório']),
 
   p('mecanica', 'Oficina mecânica',
-    ['mecanica', 'mecânica', 'oficina mecanica', 'oficina mecânica', 'oficina', 'auto center', 'autocenter'],
-    ['automotive_service'], ['automotive_repair', 'auto_repair', 'mechanic'],
-    ['vehicle_service'], ['mecanica', 'mecânica', 'oficina', 'auto center', 'autocenter']),
+    ['mecanica', 'mecânica', 'oficina mecanica', 'oficina mecânica', 'auto center', 'autocenter'],
+    [], ['automotive_repair', 'auto_repair', 'mechanic'],
+    ['automotive_service', 'vehicle_service'], ['mecanica', 'mecânica', 'oficina', 'auto center', 'autocenter']),
 
   p('autoescola', 'Autoescola',
     ['autoescola', 'auto escola', 'escola de conducao', 'escola de condução'],
-    ['specialty_school'], ['driving_school', 'traffic_school'],
-    [], ['autoescola', 'auto escola']),
+    [], ['driving_school', 'traffic_school'],
+    ['specialty_school'], ['autoescola', 'auto escola']),
 
   p('restaurante', 'Restaurante',
     ['restaurante', 'restaurantes'],
@@ -118,8 +118,8 @@ export const SEARCH_PROFILES: SearchProfile[] = [
 
   p('veterinario', 'Veterinário',
     ['veterinario', 'veterinário', 'veterinaria', 'veterinária', 'clinica veterinaria', 'clínica veterinária'],
-    ['animal_or_pet_service'], ['veterinarian', 'veterinary_clinic'],
-    [], ['veterin', 'vet ']),
+    [], ['veterinarian', 'veterinary_clinic'],
+    ['animal_or_pet_service'], ['veterin', 'vet ']),
 
   p('supermercado', 'Supermercado',
     ['supermercado', 'supermercados', 'mercado', 'mercados', 'hipermercado'],
@@ -147,7 +147,7 @@ export const SEARCH_PROFILES: SearchProfile[] = [
     ['professional_service'], ['marketing', 'publicidade', 'propaganda']),
 
   p('posto_combustivel', 'Posto de combustível',
-    ['posto de gasolina', 'posto de combustivel', 'posto de combustível', 'posto', 'gasolina'],
+    ['posto de gasolina', 'posto de combustivel', 'posto de combustível', 'gasolina'],
     ['fueling_station'], ['gas_station', 'fueling_station'],
     [], ['posto', 'gasolina', 'combustivel', 'combustível']),
 
@@ -158,8 +158,8 @@ export const SEARCH_PROFILES: SearchProfile[] = [
 
   p('escola', 'Escola',
     ['escola', 'escolas', 'colegio', 'colégio'],
-    ['place_of_learning'], ['school', 'private_school', 'public_school'],
-    ['education'], ['escola', 'colegio', 'colégio']),
+    [], ['school', 'private_school', 'public_school'],
+    ['place_of_learning', 'education'], ['escola', 'colegio', 'colégio']),
 
   p('laboratorio', 'Laboratório',
     ['laboratorio', 'laboratório', 'laboratorios', 'laboratórios', 'laboratorio de analises', 'laboratório de análises'],
