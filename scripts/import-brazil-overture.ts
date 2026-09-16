@@ -2,13 +2,22 @@ import 'dotenv/config';
 import duckdb from 'duckdb';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE || '2026-08-19.0';
 const BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 500);
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY antes de importar.');
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+  throw new Error('Configure SUPABASE_URL e SUPABASE_SECRET_KEY (ou o legado SUPABASE_SERVICE_ROLE_KEY) antes de importar.');
 }
+
+// Grande São Paulo / RMSP. Bounding box propositalmente um pouco ampla para cobrir
+// os 39 municípios metropolitanos sem importar o estado inteiro.
+const GSP_BBOX = {
+  west: -47.20,
+  south: -24.20,
+  east: -45.65,
+  north: -23.15,
+};
 
 const db = new duckdb.Database(':memory:');
 
@@ -26,8 +35,7 @@ async function upsert(rows: any[]) {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY!,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: SUPABASE_SECRET_KEY!,
       'Content-Type': 'application/json',
       Prefer: 'resolution=merge-duplicates,return=minimal',
     },
@@ -42,11 +50,11 @@ async function main() {
   await exec("SET s3_region='us-west-2';");
   await exec('PRAGMA threads=8;');
 
-  // Brazil-first import. The bbox is intentionally slightly generous and then
-  // constrained by address country when available.
   const source = `s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}/theme=places/type=place/*`;
   let offset = 0;
   let imported = 0;
+
+  console.log('[Scoutly Import] Iniciando importação da Grande São Paulo...');
 
   while (true) {
     const rows = await all(`
@@ -66,8 +74,8 @@ async function main() {
         socials,
         addresses
       FROM read_parquet('${source}', filename=false)
-      WHERE bbox.xmin >= -74.0 AND bbox.xmax <= -34.0
-        AND bbox.ymin >= -34.0 AND bbox.ymax <= 6.0
+      WHERE bbox.xmin >= ${GSP_BBOX.west} AND bbox.xmax <= ${GSP_BBOX.east}
+        AND bbox.ymin >= ${GSP_BBOX.south} AND bbox.ymax <= ${GSP_BBOX.north}
       LIMIT ${BATCH_SIZE} OFFSET ${offset};
     `);
 
@@ -106,12 +114,12 @@ async function main() {
     await upsert(payload);
     imported += payload.length;
     offset += rows.length;
-    console.log(`[Scoutly Import] ${imported} negócios importados...`);
+    console.log(`[Scoutly Import] ${imported} negócios da Grande SP importados...`);
 
     if (rows.length < BATCH_SIZE) break;
   }
 
-  console.log(`[Scoutly Import] Finalizado. Total: ${imported}`);
+  console.log(`[Scoutly Import] Finalizado. Total Grande SP: ${imported}`);
   db.close();
 }
 
