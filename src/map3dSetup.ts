@@ -9,17 +9,13 @@ if (!proto.__scoutly3dPatched) {
   proto.addSource = function (id: string, source: any) {
     const result = originalAddSource.call(this, id, source);
 
-    // The Scoutly map adds this source only after the CARTO base style is loaded.
-    // That gives us a safe point to enable the subtle 3D treatment once per map.
     if (id === 'businesses' && !this.getLayer(MAP_3D_LAYER_ID) && this.getSource('carto')) {
       try {
-        this.setPitch(38);
-        this.setBearing(-12);
+        this.setPitch(48);
+        this.setBearing(-18);
 
-        const firstSymbolLayerId = this
-          .getStyle()
-          ?.layers
-          ?.find((layer: any) => layer.type === 'symbol')?.id;
+        const styleLayers = this.getStyle()?.layers || [];
+        const firstSymbolLayerId = styleLayers.find((layer: any) => layer.type === 'symbol')?.id;
 
         this.addLayer(
           {
@@ -27,20 +23,23 @@ if (!proto.__scoutly3dPatched) {
             type: 'fill-extrusion',
             source: 'carto',
             'source-layer': 'building',
-            minzoom: 14.5,
-            filter: ['!=', ['get', 'hide_3d'], true],
+            minzoom: 14,
             paint: {
-              'fill-extrusion-color': '#353535',
-              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.78,
+              // Use a guaranteed visible height first. CARTO's building source is
+              // OpenMapTiles-compatible, but not every building has height metadata.
+              'fill-extrusion-color': '#4a4a4a',
+              'fill-extrusion-height': 18,
+              'fill-extrusion-base': 0,
+              'fill-extrusion-opacity': 0.96,
               'fill-extrusion-vertical-gradient': true,
             },
           } as any,
           firstSymbolLayerId
         );
+
+        console.info('[Scoutly 3D] Building extrusion enabled');
       } catch (error) {
-        console.warn('[Scoutly 3D] Could not enable building extrusion:', error);
+        console.error('[Scoutly 3D] Could not enable building extrusion:', error);
       }
     }
 
