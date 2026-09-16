@@ -11,8 +11,10 @@ if (!proto.__scoutly3dPatched) {
 
     if (id === 'businesses' && !this.getLayer(MAP_3D_LAYER_ID) && this.getSource('carto')) {
       try {
-        this.setPitch(48);
-        this.setBearing(-18);
+        // Keep the 3D treatment present, but subtle enough that Scoutly's
+        // business markers remain the visual priority.
+        this.setPitch(40);
+        this.setBearing(-12);
 
         const styleLayers = this.getStyle()?.layers || [];
         const firstSymbolLayerId = styleLayers.find((layer: any) => layer.type === 'symbol')?.id;
@@ -23,14 +25,22 @@ if (!proto.__scoutly3dPatched) {
             type: 'fill-extrusion',
             source: 'carto',
             'source-layer': 'building',
-            minzoom: 14,
+            minzoom: 14.25,
             paint: {
-              // Use a guaranteed visible height first. CARTO's building source is
-              // OpenMapTiles-compatible, but not every building has height metadata.
-              'fill-extrusion-color': '#4a4a4a',
-              'fill-extrusion-height': 18,
+              'fill-extrusion-color': '#3d3d3d',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                14.25,
+                3,
+                15,
+                9,
+                17,
+                13,
+              ],
               'fill-extrusion-base': 0,
-              'fill-extrusion-opacity': 0.96,
+              'fill-extrusion-opacity': 0.8,
               'fill-extrusion-vertical-gradient': true,
             },
           } as any,
