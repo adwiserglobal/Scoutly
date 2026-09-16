@@ -220,7 +220,8 @@ function resolveCnaes(businessType: string, keywords: string[]): string[] {
 
 export async function searchBusinesses(query: string, currentRegionName = 'São Paulo - SP'): Promise<BusinessSearchResult> {
   const intent = interpretSearchIntent(query, currentRegionName);
-  const profile = resolveSearchProfile(extractBusinessPhrase(query), intent.businessType, ...(intent.keywords || []));
+  const phrase = extractBusinessPhrase(query);
+  const profile = resolveSearchProfile(phrase, intent.businessType, ...(intent.keywords || []));
 
   // If the user did not type a location, search the region currently open on the map.
   const locationSource = hasExplicitLocation(query) ? query : currentRegionName;
@@ -231,7 +232,8 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
   const results = new Map<string, BusinessSummary>();
   const relevance = new Map<string, number>();
 
-  // Primary path in Grande SP: exact Scoutly taxonomy/category index.
+  // Primary path in Grande SP: exact Scoutly taxonomy/category index, with
+  // a name-only second pass only for sparse or inconsistently categorized terms.
   if (profile && hasBrazilPlacesDatabase()) {
     try {
       const precise = await queryBrazilPlacesPrecise(
@@ -240,7 +242,8 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
         resolvedArea.bbox.south,
         resolvedArea.bbox.east,
         resolvedArea.bbox.north,
-        300
+        300,
+        phrase
       );
       for (const place of precise.places) {
         const summary = placeToSummary(place);
@@ -296,7 +299,7 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
 
     try {
       const serper = await fetchBusinessesFromSerper(
-        `${extractBusinessPhrase(query)} em ${resolvedArea.cidade}`,
+        `${phrase} em ${resolvedArea.cidade}`,
         resolvedArea.center.lat,
         resolvedArea.center.lng
       );
@@ -311,11 +314,17 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
     }
   }
 
+  const getResultScore = (business: BusinessSummary): number => {
+    const stored = relevance.get(business.id);
+    if (stored !== undefined) return stored;
+    return profile ? scoreSummary(business, profile) : 0;
+  };
+
   const businesses = Array.from(results.values())
     .filter((business) => business.hasCoordinates !== false && Number.isFinite(business.lat) && Number.isFinite(business.lng))
     .filter((business) => !profile || scoreSummary(business, profile) > 0)
     .sort((a, b) => {
-      const scoreDiff = (relevance.get(b.id) || scoreSummary(b, profile!)) - (relevance.get(a.id) || scoreSummary(a, profile!));
+      const scoreDiff = getResultScore(b) - getResultScore(a);
       if (scoreDiff !== 0) return scoreDiff;
       return (b.confidence || 0) - (a.confidence || 0);
     })
