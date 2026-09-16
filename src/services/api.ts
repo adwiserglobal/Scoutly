@@ -21,7 +21,7 @@ export async function fetchPlacesFromOverture(
     params.set('zoom', zoom.toString());
   }
 
-  const res = await fetch(`/api/places?${params.toString()}`, {
+  const res = await fetch(`/api/places-fast?${params.toString()}`, {
     method: 'GET',
     signal,
   });
@@ -112,16 +112,13 @@ export function getWhatsAppLink(phoneOrUrl?: string | null): string | null {
     }
   }
 
-  // Remove non-digit characters
   const digits = trimmed.replace(/\D/g, '');
   if (digits.length < 8) return null;
 
-  // If Brazilian format (10 or 11 digits without 55), prepend 55
   if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) {
     return `https://wa.me/55${digits}`;
   }
 
-  // If already starts with country code or other length >= 10
   if (digits.length >= 10) {
     return `https://wa.me/${digits}`;
   }
@@ -135,7 +132,6 @@ export function getTrustIcon(confidence?: number): string {
   if (val >= 0.70) return '/medium_trust.png';
   return '/low_trust.png';
 }
-
 
 export interface AIChatPayload {
   message: string;
@@ -237,5 +233,3 @@ export async function generateMessage(business: any): Promise<string> {
     throw error;
   }
 }
-
-
