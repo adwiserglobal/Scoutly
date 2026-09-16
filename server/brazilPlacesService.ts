@@ -113,7 +113,8 @@ export async function queryBrazilPlacesPrecise(
   south: number,
   east: number,
   north: number,
-  limit = 300
+  limit = 300,
+  _preferredNameTerm?: string
 ): Promise<PreciseSearchResult> {
   const startedAt = Date.now();
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
