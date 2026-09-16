@@ -11,8 +11,12 @@ function jsonArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
+function getServerKey(): string | undefined {
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 export function hasBrazilPlacesDatabase(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(process.env.SUPABASE_URL && getServerKey());
 }
 
 export async function queryBrazilPlaces(
@@ -24,9 +28,9 @@ export async function queryBrazilPlaces(
 ): Promise<SearchResult> {
   const startedAt = Date.now();
   const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serverKey = getServerKey();
 
-  if (!supabaseUrl || !serviceKey) {
+  if (!supabaseUrl || !serverKey) {
     throw new Error('Brazil places database is not configured');
   }
 
@@ -34,8 +38,7 @@ export async function queryBrazilPlaces(
   const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/search_scoutly_places`, {
     method: 'POST',
     headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
+      apikey: serverKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
