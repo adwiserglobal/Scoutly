@@ -47,6 +47,17 @@ const SAO_PAULO_CITY = {
   bbox: { west: -46.8260, south: -24.0080, east: -46.3650, north: -23.3560 },
 };
 
+const SAO_PAULO_CENTER = {
+  bairro: 'Centro',
+  cidade: 'São Paulo',
+  uf: 'SP',
+  center: { lat: -23.5489, lng: -46.6388 },
+  // Downtown / centro expandido search window. Intentionally broader than Sé
+  // so queries such as "no centro de SP" cover the practical central region
+  // without falling back to the whole city.
+  bbox: { west: -46.6638, south: -23.5739, east: -46.6138, north: -23.5239 },
+};
+
 function normalizeText(value: string): string {
   return normalizeSearchText(value).replace(/\s+/g, ' ').trim();
 }
@@ -102,6 +113,30 @@ function normalizeLocationAlias(query: string, parsed: InterpretedLocation): Int
       rawName: 'São Paulo - SP',
       center: SAO_PAULO_CITY.center,
       bbox: SAO_PAULO_CITY.bbox,
+    };
+  }
+
+  const centerAliases = new Set([
+    'centro de sp',
+    'centro sp',
+    'centro de sao paulo',
+    'centro sao paulo',
+    'centro de sao paulo sp',
+    'centro sao paulo sp',
+    'sao paulo centro',
+    'sao paulo centro sp',
+  ]);
+
+  if (centerAliases.has(rawLocation)) {
+    return {
+      bairro: SAO_PAULO_CENTER.bairro,
+      cidade: SAO_PAULO_CENTER.cidade,
+      uf: SAO_PAULO_CENTER.uf,
+      pais: 'Brasil',
+      query: 'Centro, São Paulo, SP, Brasil',
+      rawName: 'São Paulo - Centro',
+      center: SAO_PAULO_CENTER.center,
+      bbox: SAO_PAULO_CENTER.bbox,
     };
   }
 
