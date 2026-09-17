@@ -12,6 +12,7 @@
     { "src": "/api/ai/chat", "dest": "/api/ai/chat.ts" },
     { "src": "/api/ai/suggestions", "dest": "/api/ai/suggestions.ts" },
     { "src": "/api/enrich", "dest": "/api/enrich.ts" },
+    { "src": "/api/tracking-audit", "dest": "/api/tracking-audit.ts" },
     { "src": "/api/leads", "dest": "/api/leads.ts" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
