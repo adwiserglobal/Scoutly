@@ -109,9 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
-  const apiKey = process.env.GEOAPIFY_API_KEY;
+  const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
   if (!apiKey) {
-    return res.status(503).json({ error: 'Location autocomplete is not configured.', suggestions: [] });
+    console.warn('[Location Suggestions] GEOAPIFY_API_KEY missing in this deployment');
+    return res.status(503).json({
+      error: 'Location autocomplete is not configured in this deployment.',
+      code: 'GEOAPIFY_NOT_CONFIGURED',
+      suggestions: [],
+    });
   }
 
   const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
@@ -139,12 +144,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      console.warn('[Location Suggestions] Geoapify error', response.status, body.slice(0, 120));
-      return res.status(502).json({ error: 'Falha ao obter sugestões de local.', suggestions: [] });
+      console.warn('[Location Suggestions] Geoapify error', response.status, body.slice(0, 300));
+      return res.status(502).json({
+        error: 'Falha ao obter sugestões de local.',
+        code: 'GEOAPIFY_UPSTREAM_ERROR',
+        providerStatus: response.status,
+        suggestions: [],
+      });
     }
 
     const payload = await response.json();
-    const rawResults: GeoapifyResult[] = Array.isArray(payload?.results) ? payload.results : [];
+    // Geoapify currently returns { results: [...] } for format=json, but tolerate
+    // a top-level array as well so autocomplete does not silently break if the
+    // serialization shape changes.
+    const rawResults: GeoapifyResult[] = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.results)
+        ? payload.results
+        : [];
+
     const regionNeedle = normalize(currentRegionName);
     const fragmentNeedle = normalize(fragment);
 
@@ -170,6 +188,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ fragment, suggestions });
   } catch (error: any) {
     console.warn('[Location Suggestions] Error', error?.message || error);
-    return res.status(500).json({ error: 'Erro ao buscar sugestões de local.', suggestions: [] });
+    return res.status(500).json({
+      error: 'Erro ao buscar sugestões de local.',
+      code: 'LOCATION_SUGGESTIONS_ERROR',
+      suggestions: [],
+    });
   }
 }
