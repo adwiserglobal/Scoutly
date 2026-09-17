@@ -58,6 +58,15 @@ export async function enrichBusinessData(url: string) {
   return res.json();
 }
 
+export async function fetchTrackingAudit(url: string) {
+  const res = await fetch(`/api/tracking-audit?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao auditar tracking do site.');
+  }
+  return res.json();
+}
+
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string }>;
   favorites: Record<string, boolean>;
