@@ -4,6 +4,7 @@ import { Business, LeadStatus } from '../types';
 import { enrichBusinessData, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
+import TrackingAuditPanel from './TrackingAuditPanel';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -402,6 +403,10 @@ export default function BusinessDetailsModal({
                 )}
               </div>
             </div>
+
+            {enrichmentData?.trackingAudit && (
+              <TrackingAuditPanel audit={enrichmentData.trackingAudit} />
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Contatos */}
