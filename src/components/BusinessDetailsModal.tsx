@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { enrichBusinessData, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
+import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import TrackingAuditPanel from './TrackingAuditPanel';
@@ -30,6 +30,9 @@ export default function BusinessDetailsModal({
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentData, setEnrichmentData] = useState<any>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [trackingAudit, setTrackingAudit] = useState<any>(null);
+  const [isTrackingAuditLoading, setIsTrackingAuditLoading] = useState(false);
+  const [trackingAuditError, setTrackingAuditError] = useState<string | null>(null);
 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
@@ -41,6 +44,8 @@ export default function BusinessDetailsModal({
     setNotes(business.notes || '');
     setEnrichmentData(null);
     setEnrichError(null);
+    setTrackingAudit(null);
+    setTrackingAuditError(null);
     setGeneratedMessage('');
     setMessageError(null);
   }, [business]);
@@ -52,6 +57,40 @@ export default function BusinessDetailsModal({
   const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
     hasWebsite ? business.website : null
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setTrackingAudit(null);
+    setTrackingAuditError(null);
+
+    if (!business.website) {
+      setIsTrackingAuditLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsTrackingAuditLoading(true);
+
+    fetchTrackingAudit(business.website)
+      .then((audit) => {
+        if (!cancelled) setTrackingAudit(audit);
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          console.warn('[Scoutly Tracking Audit] Falha:', error);
+          setTrackingAuditError(error?.message || 'Não foi possível analisar o tracking deste site.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsTrackingAuditLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [business.id, business.website]);
 
   const handleToggleFavorite = () => {
     onToggleFavorite?.(business);
@@ -73,6 +112,10 @@ export default function BusinessDetailsModal({
     try {
       const data = await enrichBusinessData(business.website);
       setEnrichmentData(data);
+      if (data?.trackingAudit) {
+        setTrackingAudit(data.trackingAudit);
+        setTrackingAuditError(null);
+      }
     } catch (err: any) {
       setEnrichError(err.message || 'Falha ao enriquecer dados.');
     } finally {
@@ -404,8 +447,37 @@ export default function BusinessDetailsModal({
               </div>
             </div>
 
-            {enrichmentData?.trackingAudit && (
-              <TrackingAuditPanel audit={enrichmentData.trackingAudit} />
+            {hasWebsite && (
+              <>
+                {isTrackingAuditLoading && !trackingAudit && (
+                  <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
+                      <div>
+                        <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                          Tracking & Privacidade
+                        </span>
+                        <span className="block text-[11px] text-stone-600 mt-0.5">
+                          Analisando GA4, GTM, Meta Pixel e cookies...
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {trackingAudit && <TrackingAuditPanel audit={trackingAudit} />}
+
+                {trackingAuditError && !trackingAudit && !isTrackingAuditLoading && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                    <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                      Tracking & Privacidade
+                    </span>
+                    <span className="block text-[11px] text-amber-800 mt-1">
+                      Não foi possível concluir a análise automática deste site.
+                    </span>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
