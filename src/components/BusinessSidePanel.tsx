@@ -141,8 +141,9 @@ export default function BusinessSidePanel({
   const [isTrackingLoading, setIsTrackingLoading] = useState(false);
 
   const hasWebsite = Boolean(business.website);
+  const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const { data: pageSpeed, isLoading: isPageSpeedLoading } = usePageSpeed(
-    hasWebsite ? business.website : null
+    autoEnrichEnabled && hasWebsite ? business.website : null
   );
 
   useEffect(() => {
@@ -151,7 +152,7 @@ export default function BusinessSidePanel({
     setEnrichment(null);
     setTrackingAudit(null);
 
-    if (!business.website) {
+    if (!business.website || !autoEnrichEnabled) {
       setIsEnrichmentLoading(false);
       setIsTrackingLoading(false);
       return () => {
@@ -189,7 +190,7 @@ export default function BusinessSidePanel({
     return () => {
       cancelled = true;
     };
-  }, [business.id, business.website]);
+  }, [business.id, business.website, autoEnrichEnabled]);
 
   const verifiedWhatsapp = useMemo(() => {
     const items = Array.isArray(enrichment?.whatsapp) ? enrichment.whatsapp : [];
