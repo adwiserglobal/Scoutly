@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
@@ -235,19 +235,17 @@ export default function BusinessDetailsModal({
     team.push(item);
   });
 
-  const explicitDatasetWhatsapp = datasetPhones.find(
-    (value: string) =>
-      /^https?:\/\//i.test(String(value || '')) &&
-      /wa\.me|whatsapp\.com/i.test(String(value || ''))
-  );
-
-  // Never assume that a generic phone number is a WhatsApp account.
-  const whatsappTarget = whatsapps[0] || explicitDatasetWhatsapp || null;
-  let whatsappUrl = getWhatsAppLink(whatsappTarget);
+  // WhatsApp CTA is only shown when the current official website exposes an explicit WhatsApp link.
+  const verifiedWhatsappTarget = whatsapps[0] || null;
+  let whatsappUrl = getWhatsAppLink(verifiedWhatsappTarget);
 
   if (whatsappUrl && generatedMessage) {
     whatsappUrl = `${whatsappUrl}?text=${encodeURIComponent(generatedMessage)}`;
   }
+
+  const primaryVerifiedPhone = verifiedPhones.find(
+    (phone: string) => !whatsapps.some((wa: string) => normalizePhone(wa) === normalizePhone(phone))
+  ) || null;
 
   const contactCheckedAt = enrichmentData?.contactFreshness?.checkedAt
     ? new Date(enrichmentData.contactFreshness.checkedAt)
@@ -262,7 +260,7 @@ export default function BusinessDetailsModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl bg-white rounded-3xl border border-[#EDE8E0] shadow-2xl p-6 sm:p-8 my-auto max-h-[92vh] overflow-y-auto no-scrollbar cursor-default"
+        className="relative w-full max-w-5xl bg-white rounded-3xl border border-[#EDE8E0] shadow-2xl p-5 sm:p-6 my-auto max-h-[92vh] overflow-y-auto no-scrollbar cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button top-right */}
@@ -326,29 +324,40 @@ export default function BusinessDetailsModal({
             </p>
 
             {/* Quick Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
-              {/* Button: Ver site */}
+            <div className="flex flex-wrap items-center gap-2 mt-4">
               {hasWebsite && (
                 <a
                   href={business.website!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition active:scale-95 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
                 >
+                  <Globe2 className="w-3.5 h-3.5 text-stone-400" />
                   <span>Ver site</span>
                 </a>
               )}
 
-              {/* Button: Conversar no WhatsApp */}
               {whatsappUrl && (
                 <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition active:scale-95 shadow-2xs"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 transition shadow-2xs"
+                  title="WhatsApp confirmado no site oficial"
                 >
                   <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-4 h-4 object-contain" />
                   <span>Conversar no WhatsApp</span>
+                </a>
+              )}
+
+              {!whatsappUrl && primaryVerifiedPhone && (
+                <a
+                  href={`tel:${primaryVerifiedPhone}`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
+                  title="Telefone confirmado no site oficial"
+                >
+                  <Phone className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Ligar</span>
                 </a>
               )}
 
@@ -356,17 +365,17 @@ export default function BusinessDetailsModal({
                 type="button"
                 onClick={() => handleGenerateMessage(false)}
                 disabled={isGeneratingMessage}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-[#FF4D00] bg-white/40 hover:bg-white/60 backdrop-blur-md border border-white/60 shadow-[0_4px_12px_rgba(255,77,0,0.08)] transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-[#FF4D00] bg-white hover:bg-[#FFF7F3] border border-[#FF4D00]/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGeneratingMessage ? (
-                  <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="w-3.5 h-3.5 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
                 ) : (
-                  <Sparkles className="w-4 h-4 text-[#FF4D00]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#FF4D00]" />
                 )}
-                <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar Mensagem (IA)'}</span>
+                <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar mensagem'}</span>
               </button>
             </div>
-            
+
             {/* AI Generated Message Box */}
             {messageError && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
@@ -428,11 +437,90 @@ export default function BusinessDetailsModal({
           </div>
         </div>
 
+        {/* Resumo rápido */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-5">
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Globe2 className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Site</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {hasWebsite ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {hasWebsite ? 'Identificado' : 'Não identificado'}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Phone className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Contatos</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {whatsapps.length > 0 || verifiedPhones.length > 0 || verifiedEmails.length > 0 ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {whatsapps.length > 0
+                  ? 'WhatsApp confirmado'
+                  : verifiedPhones.length > 0 || verifiedEmails.length > 0
+                    ? 'Contato confirmado'
+                    : 'Não confirmado'}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Tracking</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {trackingAudit?.hasTracking ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {isTrackingAuditLoading
+                  ? 'Analisando'
+                  : trackingAudit?.hasTracking
+                    ? 'Detectado'
+                    : 'Não confirmado'}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Performance</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {pageSpeed ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {isSpeedLoading ? 'Medindo' : pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Informações Principais */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-5 mb-5">
           {/* Coluna Esquerda: Informações do Estabelecimento */}
-          <div className="space-y-3.5">
-            <h3 className="text-sm font-bold text-stone-900 border-b border-stone-100 pb-2">
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-stone-900 border-b border-stone-100 pb-2">
               Informações do Estabelecimento
             </h3>
             
@@ -508,16 +596,20 @@ export default function BusinessDetailsModal({
           </div>
 
           {/* Coluna Direita: Enriquecimento */}
-          <div className="space-y-3.5">
+          <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-stone-100 pb-2">
-              <h3 className="text-sm font-bold text-stone-900">Enriquecimento Digital</h3>
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">Enriquecimento Digital</h3>
+                <p className="text-[10px] text-stone-400 mt-0.5">Sinais atuais encontrados no site e nas fontes do negócio</p>
+              </div>
               {hasWebsite && (
                 <button
                   onClick={handleEnrich}
                   disabled={isEnriching}
-                  className="text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-lg bg-[#FF4D00] text-white hover:bg-[#E04400] disabled:opacity-50 transition"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-white text-stone-600 hover:text-stone-900 border border-stone-200 hover:border-stone-300 disabled:opacity-50 transition"
                 >
-                  {isEnriching ? 'Verificando...' : 'Atualizar Dados'}
+                  <RefreshCw className={`w-3 h-3 ${isEnriching ? 'animate-spin' : ''}`} />
+                  {isEnriching ? 'Verificando' : 'Verificar novamente'}
                 </button>
               )}
             </div>
@@ -528,42 +620,198 @@ export default function BusinessDetailsModal({
               </div>
             )}
 
-            {/* Site */}
-            <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-                Site Oficial
-              </span>
-              <div>
-                {hasWebsite ? (
-                  <a
-                    href={business.website!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-between gap-2 w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#FF4D00] bg-white border border-[#FF4D00]/30 hover:bg-[#FF4D00] hover:text-white transition shadow-2xs group"
-                  >
-                    <span className="truncate">{business.website}</span>
-                    <ArrowUpRight className="w-4 h-4 shrink-0 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                  </a>
-                ) : (
-                  <span className="text-xs font-medium text-stone-500 italic">
-                    Site não identificado
+            <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                    Site oficial
+                  </span>
+                  {hasWebsite ? (
+                    <a
+                      href={business.website!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-800 hover:text-[#FF4D00] min-w-0"
+                    >
+                      <Globe2 className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                      <span className="truncate">{business.website}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                    </a>
+                  ) : (
+                    <span className="text-xs text-stone-500 mt-1.5 block">Site não identificado</span>
+                  )}
+                </div>
+
+                {enrichmentData?.siteStatus === 'verified' && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500 shrink-0">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Online
                   </span>
                 )}
               </div>
             </div>
 
+            <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                    Contatos
+                  </span>
+                  <span className="block text-[10px] text-stone-400 mt-0.5">
+                    Contatos atuais têm prioridade sobre dados antigos da base
+                  </span>
+                </div>
+
+                {hasFreshContactEvidence && contactCheckedAt && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500 shrink-0"
+                    title={`Verificado em ${contactCheckedAt.toLocaleString('pt-BR')}`}
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Verificado agora
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
+                    <Phone className="w-3.5 h-3.5" />
+                    Telefone
+                  </div>
+
+                  {verifiedPhones.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      {verifiedPhones.slice(0, 2).map((phone: string, idx: number) => (
+                        <a
+                          key={`verified-ph-${idx}`}
+                          href={`tel:${phone}`}
+                          className="flex items-center justify-between gap-2 text-[11px] font-medium text-stone-800"
+                        >
+                          <span className="truncate">{phone}</span>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : datasetPhones.length > 0 ? (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-stone-700">
+                        <span className="truncate">{datasetPhones[0]}</span>
+                        <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                      </div>
+                      <span className="text-[9px] text-stone-400 mt-1 block">Não confirmado no site atual</span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </div>
+
+                  {whatsapps.length > 0 ? (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium text-stone-800 truncate">{whatsapps[0]}</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      </div>
+                      <a
+                        href={whatsappUrl || undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1.5 text-[10px] font-semibold text-white transition"
+                      >
+                        <img src="/whatsapp_icone.png" alt="" className="w-3.5 h-3.5 object-contain" />
+                        Abrir WhatsApp
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <span className="text-[10px] text-stone-500 block">Não confirmado</span>
+                      <span className="text-[9px] text-stone-400 mt-1 block">
+                        Um telefone comum não é tratado como WhatsApp sem evidência no site.
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
+                    <Mail className="w-3.5 h-3.5" />
+                    Email
+                  </div>
+
+                  {emails.length > 0 ? (
+                    <a
+                      href={`mailto:${emails[0]}`}
+                      className="mt-2 flex items-center justify-between gap-2 text-[11px] font-medium text-stone-800 hover:text-[#FF4D00]"
+                    >
+                      <span className="truncate">{emails[0]}</span>
+                      {verifiedEmailKeys.has(normalizeEmail(emails[0])) ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                      )}
+                    </a>
+                  ) : (
+                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
+                  <div className="text-[10px] font-semibold text-stone-500">CNPJ</div>
+                  {cnpj.length > 0 ? (
+                    <span className="mt-2 block truncate font-mono text-[10px] text-stone-700">{cnpj[0]}</span>
+                  ) : (
+                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                  )}
+                </div>
+              </div>
+
+              {(unverifiedDatasetPhones.length > 0 || unverifiedDatasetEmails.length > 0) && (
+                <details className="mt-3 border-t border-stone-100 pt-2.5">
+                  <summary className="cursor-pointer text-[9px] font-medium text-stone-400 hover:text-stone-600">
+                    Ver dados antigos ou ainda não confirmados da base
+                  </summary>
+                  <div className="mt-2 space-y-1.5">
+                    {unverifiedDatasetPhones.slice(0, 3).map((phone: string, idx: number) => (
+                      <div key={`old-phone-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-500">
+                        <span className="truncate">{phone}</span>
+                        <span className="inline-flex items-center gap-1 text-stone-400">
+                          <AlertCircle className="w-3 h-3" />
+                          Não confirmado
+                        </span>
+                      </div>
+                    ))}
+                    {unverifiedDatasetEmails.slice(0, 3).map((email: string, idx: number) => (
+                      <div key={`old-email-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-500">
+                        <span className="truncate">{email}</span>
+                        <span className="inline-flex items-center gap-1 text-stone-400">
+                          <AlertCircle className="w-3 h-3" />
+                          Não confirmado
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+
             {hasWebsite && (
               <>
                 {isTrackingAuditLoading && !trackingAudit && (
-                  <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
+                  <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
                     <div className="flex items-center gap-2.5">
                       <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
                       <div>
-                        <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                          Tracking & Privacidade
+                        <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                          Tracking e privacidade
                         </span>
-                        <span className="block text-[11px] text-stone-600 mt-0.5">
-                          Analisando GA4, GTM, Meta Pixel e cookies...
+                        <span className="block text-[10px] text-stone-500 mt-0.5">
+                          Analisando GA4, GTM, Meta Pixel e cookies
                         </span>
                       </div>
                     </div>
@@ -573,11 +821,11 @@ export default function BusinessDetailsModal({
                 {trackingAudit && <TrackingAuditPanel audit={trackingAudit} />}
 
                 {trackingAuditError && !trackingAudit && !isTrackingAuditLoading && (
-                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
-                    <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-                      Tracking & Privacidade
+                  <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                    <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                      Tracking e privacidade
                     </span>
-                    <span className="block text-[11px] text-amber-800 mt-1">
+                    <span className="block text-[10px] text-stone-500 mt-1">
                       Não foi possível concluir a análise automática deste site.
                     </span>
                   </div>
@@ -585,230 +833,50 @@ export default function BusinessDetailsModal({
               </>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Contatos */}
-              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                    Telefone / WhatsApp
-                  </span>
-
-                  {hasFreshContactEvidence && contactCheckedAt && (
-                    <span
-                      className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500"
-                      title={`Verificado em ${contactCheckedAt.toLocaleString('pt-BR')}`}
-                    >
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      Verificado no site
-                    </span>
-                  )}
-                </div>
-
-                {verifiedPhones.length > 0 || whatsapps.length > 0 ? (
-                  <div className="space-y-2">
-                    {whatsapps.map((w: string, idx: number) => {
-                      let waLink = getWhatsAppLink(w);
-                      if (waLink && generatedMessage) {
-                        waLink = `${waLink}?text=${encodeURIComponent(generatedMessage)}`;
-                      }
-
-                      return (
-                        <a
-                          key={`wa-${idx}`}
-                          href={waLink || undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-800 bg-white border border-stone-200 hover:border-stone-300 transition"
-                          title="WhatsApp encontrado no site oficial"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <img
-                              src="/whatsapp_icone.png"
-                              alt="WhatsApp"
-                              className="w-4 h-4 object-contain shrink-0"
-                            />
-                            <span className="truncate">{w}</span>
-                          </div>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        </a>
-                      );
-                    })}
-
-                    {verifiedPhones
-                      .filter((phone: string) => !whatsapps.some((w: string) => normalizePhone(w) === normalizePhone(phone)))
-                      .map((phone: string, idx: number) => (
-                        <a
-                          key={`verified-ph-${idx}`}
-                          href={`tel:${phone}`}
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-800 bg-white border border-stone-200 hover:border-stone-300 transition"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                            <span className="truncate">{phone}</span>
-                          </div>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        </a>
-                      ))}
-                  </div>
-                ) : unverifiedDatasetPhones.length > 0 ? (
-                  <div className="space-y-2">
-                    {unverifiedDatasetPhones.map((phone: string, idx: number) => (
-                      <a
-                        key={`dataset-ph-${idx}`}
-                        href={`tel:${phone}`}
-                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-700 bg-white border border-stone-200 transition"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                          <span className="truncate">{phone}</span>
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-[9px] text-stone-400 shrink-0">
-                          <AlertCircle className="w-3 h-3" />
-                          Não verificado
-                        </span>
-                      </a>
-                    ))}
-                    <p className="text-[9px] leading-relaxed text-stone-400">
-                      Este telefone veio da base de dados e não foi confirmado no site atual.
-                    </p>
-                  </div>
-                ) : (
-                  <span className="block text-xs font-medium text-stone-500 italic">
-                    Nenhum contato telefônico atual confirmado
-                  </span>
-                )}
-
-                {unverifiedDatasetPhones.length > 0 && verifiedPhones.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-[9px] font-medium text-stone-400">
-                      Ver {unverifiedDatasetPhones.length} contato(s) antigo(s) da base
-                    </summary>
-                    <div className="mt-2 space-y-1.5">
-                      {unverifiedDatasetPhones.map((phone: string, idx: number) => (
-                        <div
-                          key={`old-ph-${idx}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[10px] text-stone-500"
-                        >
-                          <span>{phone}</span>
-                          <span className="inline-flex items-center gap-1 text-stone-400">
-                            <AlertCircle className="w-3 h-3" />
-                            Não confirmado
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-
-              {/* Email & CNPJ */}
-              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                    Email & CNPJ
-                  </span>
-                  {verifiedEmails.length > 0 && (
-                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      Site atual
-                    </span>
-                  )}
-                </div>
-
-                {emails.length > 0 || cnpj.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {emails.map((email: string, idx: number) => {
-                      const verified = verifiedEmailKeys.has(normalizeEmail(email));
-                      return (
-                        <a
-                          key={`em-${idx}`}
-                          href={`mailto:${email}`}
-                          className="flex items-center justify-between gap-2 text-xs text-stone-800 hover:text-[#FF4D00] bg-white border border-[#EDE8E0] px-2.5 py-1.5 rounded-xl transition"
-                          title={email}
-                        >
-                          <span className="truncate">{email}</span>
-                          {verified ? (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          ) : (
-                            <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                          )}
-                        </a>
-                      );
-                    })}
-
-                    {cnpj.map((value: string, idx: number) => (
-                      <div
-                        key={`cn-${idx}`}
-                        className="text-xs font-mono text-stone-700 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-lg truncate"
-                      >
-                        CNPJ: {value}
-                      </div>
-                    ))}
-
-                    {verifiedEmails.length === 0 && unverifiedDatasetEmails.length > 0 && (
-                      <p className="text-[9px] leading-relaxed text-stone-400">
-                        Email da base ainda não confirmado no site atual.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <span className="block text-xs font-medium text-stone-500 italic">
-                    Email atual não identificado
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Redes Sociais do Site */}
-            {enrichmentData && Object.keys(enrichmentData.socials).length > 0 && (
-              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-                  Redes Sociais (Extraídas do Site)
+            {enrichmentData && Object.keys(enrichmentData.socials || {}).length > 0 && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                  Redes sociais confirmadas no site
                 </span>
-                <div className="flex flex-wrap gap-2 mt-1">
+                <div className="flex flex-wrap gap-2">
                   {Object.entries(enrichmentData.socials).map(([net, item]: any) => (
                     <a
                       key={net}
                       href={item.value}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-[#EDE8E0] hover:border-stone-400 transition shadow-2xs group max-w-full"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-stone-700 bg-[#FCFBF9] hover:bg-stone-50 border border-stone-200 transition"
                     >
-                      <span className="capitalize font-bold text-stone-900">{net}</span>
-                      <ArrowUpRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-900 shrink-0" />
+                      <span className="capitalize">{net}</span>
+                      <ArrowUpRight className="w-3 h-3 text-stone-400" />
                     </a>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Equipe Pública */}
-            <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
-                Equipe Pública Identificada
-              </span>
-              {team.length > 0 ? (
-                <div className="space-y-2 mt-2 max-h-32 overflow-y-auto">
-                  {team.map((t: any, idx) => (
-                    <div key={idx} className="text-xs">
-                      <span className="font-bold text-stone-800">{t.name}</span>
-                      {t.role && <span className="text-stone-500 ml-1">- {t.role}</span>}
+            {team.length > 0 && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                  Equipe pública
+                </span>
+                <div className="space-y-1.5">
+                  {team.slice(0, 4).map((member: any, idx: number) => (
+                    <div key={idx} className="text-[10px] text-stone-600">
+                      <span className="font-semibold text-stone-800">{member.name}</span>
+                      {member.role && <span className="ml-1 text-stone-400">{member.role}</span>}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <span className="text-xs font-medium text-stone-500 italic">
-                  Equipe não identificada publicamente
-                </span>
-              )}
-            </div>
+              </div>
+            )}
 
           </div>
         </div>
 
         {/* Google PageSpeed Insights Section (quando houver site) */}
         {hasWebsite && (
-          <div className="mb-6 p-4 sm:p-5 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0] space-y-3.5">
+          <div className="mb-5 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200 space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5">
                 <img src="/velocimetro.png" alt="Google PageSpeed" className="w-5 h-5 object-contain" />
