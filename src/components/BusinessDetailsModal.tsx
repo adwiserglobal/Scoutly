@@ -57,11 +57,12 @@ export default function BusinessDetailsModal({
   }, [business]);
 
   const hasWebsite = Boolean(business.website);
+  const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const isFavorited = Boolean(business.isFavorite);
 
   const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
-    hasWebsite ? business.website : null
+    autoEnrichEnabled && hasWebsite ? business.website : null
   );
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function BusinessDetailsModal({
     setTrackingAudit(null);
     setTrackingAuditError(null);
 
-    if (!business.website) {
+    if (!business.website || !autoEnrichEnabled) {
       setIsTrackingAuditLoading(false);
       return () => {
         cancelled = true;
@@ -96,12 +97,12 @@ export default function BusinessDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [business.id, business.website]);
+  }, [business.id, business.website, autoEnrichEnabled]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!business.website) return () => {
+    if (!business.website || !autoEnrichEnabled) return () => {
       cancelled = true;
     };
 
@@ -122,7 +123,7 @@ export default function BusinessDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [business.id, business.website]);
+  }, [business.id, business.website, autoEnrichEnabled]);
 
   const handleToggleFavorite = () => {
     onToggleFavorite?.(business);
