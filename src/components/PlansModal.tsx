@@ -71,7 +71,7 @@ export default function PlansModal({
                 <span className="mt-1 block text-sm font-semibold text-stone-900">
                   {billing.isExpired
                     ? 'Seu teste terminou'
-                    : \`Teste Pro · \${billing.daysRemaining} \${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}\`}
+                    : `Teste Pro · ${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
                 </span>
               </div>
               <span className="text-[11px] text-stone-500">
