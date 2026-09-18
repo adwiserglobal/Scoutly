@@ -68,6 +68,7 @@ export default function App() {
     comSite: false,
     comWhatsapp: false,
     comRedeSocial: false,
+    semRedeSocial: false,
   });
   const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
@@ -85,6 +86,7 @@ export default function App() {
         comSite: false,
         comWhatsapp: false,
         comRedeSocial: false,
+        semRedeSocial: false,
       });
       return;
     }
@@ -101,6 +103,10 @@ export default function App() {
         next.comWhatsapp = !prev.comWhatsapp;
       } else if (filterKey === 'comRedeSocial') {
         next.comRedeSocial = !prev.comRedeSocial;
+        if (next.comRedeSocial) next.semRedeSocial = false;
+      } else if (filterKey === 'semRedeSocial') {
+        next.semRedeSocial = !prev.semRedeSocial;
+        if (next.semRedeSocial) next.comRedeSocial = false;
       }
       return next;
     });
@@ -387,6 +393,11 @@ export default function App() {
     return businesses.filter((b) => Boolean(b.socials && b.socials.length > 0)).length;
   }, [businesses]);
 
+  // Calculate businesses without Social Networks
+  const noSocialsCount = useMemo(() => {
+    return businesses.filter((b) => !b.socials || b.socials.length === 0).length;
+  }, [businesses]);
+
   // Filter & Sort businesses
   const filteredBusinesses = useMemo(() => {
     let list = businesses.filter((biz) => {
@@ -426,6 +437,15 @@ export default function App() {
       if (
         activeFilters.comRedeSocial &&
         (!biz.socials || biz.socials.length === 0)
+      ) {
+        return false;
+      }
+
+      // Multi-filter: Sem rede social
+      if (
+        activeFilters.semRedeSocial &&
+        biz.socials &&
+        biz.socials.length > 0
       ) {
         return false;
       }
@@ -653,6 +673,7 @@ export default function App() {
                   opportunitiesCount={opportunitiesCount}
                   whatsappCount={whatsappCount}
                   socialsCount={socialsCount}
+                  noSocialsCount={noSocialsCount}
                 />
               </div>
             </div>
