@@ -69,6 +69,20 @@ export async function fetchTrackingAudit(url: string) {
   return res.json();
 }
 
+export async function checkBusinessSocials(url: string): Promise<{
+  hasSocial: boolean;
+  socials: string[];
+  siteStatus: 'verified' | 'unreachable' | 'unknown';
+  checkedAt?: string;
+}> {
+  const res = await fetch(`/api/social-check?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao verificar redes sociais.');
+  }
+  return res.json();
+}
+
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string }>;
   favorites: Record<string, boolean>;
