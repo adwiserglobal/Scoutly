@@ -14,6 +14,7 @@
     { "src": "/api/ai/generate-message", "dest": "/api/ai/generate-message.ts" },
     { "src": "/api/enrich", "dest": "/api/enrich.ts" },
     { "src": "/api/tracking-audit", "dest": "/api/tracking-audit.ts" },
+    { "src": "/api/social-check", "dest": "/api/social-check.ts" },
     { "src": "/api/pagespeed", "dest": "/api/pagespeed.ts" },
     { "src": "/api/leads", "dest": "/api/leads.ts" },
     { "src": "/(.*)", "dest": "/index.html" }
