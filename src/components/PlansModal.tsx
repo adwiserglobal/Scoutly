@@ -5,6 +5,7 @@ interface PlansModalProps {
   open: boolean;
   billing: BillingStatus;
   onClose: () => void;
+  onSignOut?: () => Promise<void> | void;
   forceOpen?: boolean;
 }
 
@@ -23,6 +24,7 @@ export default function PlansModal({
   open,
   billing,
   onClose,
+  onSignOut,
   forceOpen = false,
 }: PlansModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
@@ -169,9 +171,21 @@ export default function PlansModal({
             </div>
           )}
 
-          <p className="mt-5 text-center text-[10px] text-stone-400">
-            Não existe plano gratuito permanente. Após o teste, é necessário um plano ativo para continuar usando a Scoutly.
-          </p>
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <p className="text-center text-[10px] text-stone-400">
+              Não existe plano gratuito permanente. Após o teste, é necessário um plano ativo para continuar usando a Scoutly.
+            </p>
+
+            {forceOpen && onSignOut && (
+              <button
+                type="button"
+                onClick={() => onSignOut()}
+                className="text-[10px] font-medium text-stone-500 underline underline-offset-4 transition hover:text-stone-800"
+              >
+                Sair da conta
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
