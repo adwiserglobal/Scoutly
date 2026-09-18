@@ -4,7 +4,6 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
-  Cookie,
   ExternalLink,
   Gauge,
   Globe2,
@@ -12,7 +11,6 @@ import {
   MapPin,
   MessageCircle,
   Phone,
-  RefreshCw,
   Star,
   Tag,
   X,
@@ -28,19 +26,26 @@ interface BusinessSidePanelProps {
   onToggleFavorite?: (business: Business) => void;
 }
 
-function StatusIcon({ ok, loading = false }: { ok: boolean; loading?: boolean }) {
-  if (loading) {
-    return <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-stone-500" />;
-  }
-
-  return ok ? (
-    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-  ) : (
-    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+function LoaderRing({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+  return (
+    <span
+      className={`${size === 'md' ? 'h-4 w-4 border-2' : 'h-3.5 w-3.5 border-[1.5px]'} inline-block shrink-0 animate-spin rounded-full border-stone-300 border-t-[#FF4D00]`}
+      aria-label="Carregando"
+    />
   );
 }
 
-function SignalCard({
+function StatusIcon({ ok, loading = false }: { ok: boolean; loading?: boolean }) {
+  if (loading) return <LoaderRing />;
+
+  return ok ? (
+    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+  ) : (
+    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+  );
+}
+
+function SignalRow({
   icon,
   label,
   value,
@@ -57,23 +62,19 @@ function SignalCard({
 }) {
   return (
     <div
-      className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5"
+      className="flex items-center justify-between gap-3 py-3 border-b border-stone-200/70 last:border-b-0"
       title={title}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <span className="mt-0.5 text-stone-500">{icon}</span>
-          <div className="min-w-0">
-            <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-stone-500">
-              {label}
-            </span>
-            <span className="mt-1 block truncate text-[11px] font-semibold text-stone-100">
-              {loading ? 'Verificando' : value}
-            </span>
-          </div>
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="text-stone-400">{icon}</span>
+        <div className="min-w-0">
+          <span className="block text-[10px] font-medium text-stone-400">{label}</span>
+          <span className="mt-0.5 block truncate text-[11px] font-semibold text-stone-800">
+            {loading ? 'Verificando' : value}
+          </span>
         </div>
-        <StatusIcon ok={detected} loading={loading} />
       </div>
+      <StatusIcon ok={detected} loading={loading} />
     </div>
   );
 }
@@ -86,9 +87,9 @@ function DetailRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-white/5 last:border-b-0">
-      <span className="text-[10px] text-stone-500">{label}</span>
-      <span className="max-w-[62%] text-right text-[10px] font-medium text-stone-300">
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-stone-200/70 last:border-b-0">
+      <span className="text-[10px] text-stone-400">{label}</span>
+      <span className="max-w-[64%] text-right text-[10px] font-medium text-stone-700">
         {value}
       </span>
     </div>
@@ -105,9 +106,26 @@ function TrackingItem({
   loading?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/[0.025] px-2.5 py-2">
-      <span className="text-[10px] font-medium text-stone-300">{label}</span>
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5">
+      <span className="text-[10px] font-medium text-stone-600">{label}</span>
       <StatusIcon ok={ok} loading={loading} />
+    </div>
+  );
+}
+
+function SectionTitle({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <span className="text-[#FF4D00]">{icon}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+        {children}
+      </span>
     </div>
   );
 }
@@ -243,34 +261,36 @@ export default function BusinessSidePanel({
     isTrackingLoading,
   ]);
 
+  const isAnythingLoading = isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading;
+
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px] pointer-events-auto sm:bg-black/10"
+        className="fixed inset-0 z-40 bg-black/10 pointer-events-auto"
         onClick={onClose}
       />
 
-      <aside className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-white/10 bg-[#121212]/95 shadow-2xl backdrop-blur-2xl pointer-events-auto sm:w-[420px]">
-        <div className="shrink-0 border-b border-white/10 bg-white/[0.025] px-5 py-5">
-          <div className="mb-4 h-1 w-10 rounded-full bg-[#FF4D00]" />
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-[#E7E0D8] bg-[#FAF7F2] shadow-2xl pointer-events-auto sm:w-[420px]">
+        <div className="shrink-0 border-b border-[#E7E0D8] bg-[#FFFDFC] px-5 py-5">
+          <div className="mb-4 h-[3px] w-12 rounded-full bg-[#FF4D00]" />
 
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[18px] font-semibold tracking-tight text-white">
+                <h2 className="truncate text-[18px] font-semibold tracking-tight text-stone-950">
                   {business.name}
                 </h2>
                 <button
                   type="button"
                   onClick={() => onToggleFavorite?.(business)}
-                  className="shrink-0 rounded-lg p-1 text-stone-500 transition hover:bg-white/5 hover:text-stone-200"
+                  className="shrink-0 rounded-lg p-1 text-stone-300 transition hover:bg-stone-100 hover:text-stone-500"
                   title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 >
                   <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF4D00] text-[#FF4D00]' : ''}`} />
                 </button>
               </div>
 
-              <p className="mt-1 text-[11px] font-medium text-stone-400">
+              <p className="mt-1 text-[11px] font-medium text-stone-500">
                 {translateCategory(business.category)}
               </p>
             </div>
@@ -278,7 +298,7 @@ export default function BusinessSidePanel({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-xl p-2 text-stone-500 transition hover:bg-white/5 hover:text-white"
+              className="shrink-0 rounded-xl p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
               title="Fechar"
             >
               <X className="h-5 w-5" />
@@ -286,7 +306,7 @@ export default function BusinessSidePanel({
           </div>
 
           {business.address && (
-            <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-stone-400">
+            <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-stone-500">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF4D00]" />
               <span>{business.address}</span>
             </div>
@@ -298,11 +318,11 @@ export default function BusinessSidePanel({
                 href={business.website!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF4D00]/40 hover:bg-[#FF4D00]/10 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
               >
                 <Globe2 className="h-3.5 w-3.5 text-[#FF4D00]" />
                 Ver site
-                <ExternalLink className="h-3 w-3 text-stone-500" />
+                <ExternalLink className="h-3 w-3 text-stone-400" />
               </a>
             )}
 
@@ -312,9 +332,13 @@ export default function BusinessSidePanel({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-700"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-700"
               >
-                <MessageCircle className="h-3.5 w-3.5" />
+                <img
+                  src="/whatsapp_icone.png"
+                  alt=""
+                  className="h-4 w-4 object-contain"
+                />
                 WhatsApp
                 <CheckCircle2 className="h-3.5 w-3.5 text-white/90" />
               </a>
@@ -323,42 +347,37 @@ export default function BusinessSidePanel({
             {!whatsappUrl && verifiedPhone && (
               <a
                 href={`tel:${verifiedPhone}`}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF4D00]/40 hover:bg-[#FF4D00]/10"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
               >
                 <Phone className="h-3.5 w-3.5 text-[#FF4D00]" />
                 Ligar
               </a>
             )}
           </div>
+
+          {isAnythingLoading && (
+            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-400">
+              <LoaderRing />
+              Atualizando sinais do negócio
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 custom-scrollbar">
           <section>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[#FF4D00]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                  Visão rápida
-                </span>
-              </div>
+            <SectionTitle icon={<Activity className="h-4 w-4" />}>
+              Visão rápida
+            </SectionTitle>
 
-              {(isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading) && (
-                <span className="inline-flex items-center gap-1 text-[9px] text-stone-500">
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                  Analisando
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <SignalCard
+            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+              <SignalRow
                 icon={<Globe2 className="h-4 w-4" />}
                 label="Site"
                 value={hasWebsite ? 'Identificado' : 'Não identificado'}
                 detected={hasWebsite}
               />
 
-              <SignalCard
+              <SignalRow
                 icon={<MessageCircle className="h-4 w-4" />}
                 label="WhatsApp"
                 value={verifiedWhatsapp || 'Não confirmado'}
@@ -371,7 +390,7 @@ export default function BusinessSidePanel({
                 }
               />
 
-              <SignalCard
+              <SignalRow
                 icon={<Activity className="h-4 w-4" />}
                 label="Tracking"
                 value={trackingDetected ? 'Detectado' : 'Não confirmado'}
@@ -379,9 +398,9 @@ export default function BusinessSidePanel({
                 loading={hasWebsite && isTrackingLoading}
               />
 
-              <SignalCard
+              <SignalRow
                 icon={<Gauge className="h-4 w-4" />}
-                label="PageSpeed"
+                label="PageSpeed mobile"
                 value={pageSpeedDetected && pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
                 detected={pageSpeedDetected}
                 loading={hasWebsite && isPageSpeedLoading}
@@ -389,54 +408,47 @@ export default function BusinessSidePanel({
             </div>
           </section>
 
-          <section className="mt-6 border-t border-white/8 pt-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Phone className="h-4 w-4 text-[#FF4D00]" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                Contato atual
-              </span>
-            </div>
+          <section className="mt-6">
+            <SectionTitle icon={<Phone className="h-4 w-4" />}>
+              Contato atual
+            </SectionTitle>
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-3 rounded-lg px-1 py-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 shrink-0 text-stone-500" />
-                  <span className="truncate text-[11px] font-medium text-stone-300">
-                    {verifiedPhone || business.phone || 'Telefone não identificado'}
-                  </span>
-                </div>
-                <StatusIcon ok={Boolean(verifiedPhone)} loading={hasWebsite && isEnrichmentLoading} />
-              </div>
+            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+              <SignalRow
+                icon={<Phone className="h-4 w-4" />}
+                label="Telefone"
+                value={verifiedPhone || business.phone || 'Não identificado'}
+                detected={Boolean(verifiedPhone)}
+                loading={hasWebsite && isEnrichmentLoading}
+              />
 
-              <div className="flex items-center justify-between gap-3 rounded-lg px-1 py-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 shrink-0 text-stone-500" />
-                  <span className="truncate text-[11px] font-medium text-stone-300">
-                    {verifiedEmail || business.email || 'Email não identificado'}
-                  </span>
-                </div>
-                <StatusIcon ok={Boolean(verifiedEmail)} loading={hasWebsite && isEnrichmentLoading} />
-              </div>
+              <SignalRow
+                icon={<Mail className="h-4 w-4" />}
+                label="Email"
+                value={verifiedEmail || business.email || 'Não identificado'}
+                detected={Boolean(verifiedEmail)}
+                loading={hasWebsite && isEnrichmentLoading}
+              />
 
-              <div className="flex items-center justify-between gap-3 rounded-lg px-1 py-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <MessageCircle className="h-3.5 w-3.5 shrink-0 text-stone-500" />
-                  <span className="truncate text-[11px] font-medium text-stone-300">
-                    {verifiedWhatsapp || 'WhatsApp não confirmado'}
-                  </span>
-                </div>
-                <StatusIcon ok={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} />
-              </div>
+              <SignalRow
+                icon={<MessageCircle className="h-4 w-4" />}
+                label="WhatsApp"
+                value={verifiedWhatsapp || 'Não confirmado'}
+                detected={Boolean(verifiedWhatsapp)}
+                loading={hasWebsite && isEnrichmentLoading}
+                title={
+                  verifiedWhatsapp
+                    ? 'Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site'
+                    : undefined
+                }
+              />
             </div>
           </section>
 
-          <section className="mt-6 border-t border-white/8 pt-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Tag className="h-4 w-4 text-[#FF4D00]" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                Sinais digitais
-              </span>
-            </div>
+          <section className="mt-6">
+            <SectionTitle icon={<Tag className="h-4 w-4" />}>
+              Sinais digitais
+            </SectionTitle>
 
             <div className="grid grid-cols-2 gap-2">
               <TrackingItem
@@ -463,75 +475,74 @@ export default function BusinessSidePanel({
           </section>
 
           {pageSpeed && (
-            <section className="mt-6 border-t border-white/8 pt-5">
+            <section className="mt-6">
               <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Gauge className="h-4 w-4 text-[#FF4D00]" />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                    Performance mobile
-                  </span>
-                </div>
+                <SectionTitle icon={<Gauge className="h-4 w-4" />}>
+                  Performance mobile
+                </SectionTitle>
 
-                <span className="rounded-full border border-[#FF4D00]/30 bg-[#FF4D00]/10 px-2 py-1 text-[10px] font-semibold text-[#FF7A3D]">
+                <span className="mb-3 rounded-full border border-[#FF4D00]/20 bg-[#FFF3EC] px-2.5 py-1 text-[10px] font-semibold text-[#D94400]">
                   {pageSpeed.score}/100
                 </span>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  ['FCP', pageSpeed.fcp || '-'],
-                  ['LCP', pageSpeed.lcp || '-'],
-                  ['TBT', pageSpeed.tbt || '-'],
-                  ['CLS', pageSpeed.cls || '-'],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-white/8 bg-white/[0.025] px-2 py-2.5 text-center">
-                    <span className="block text-[8px] font-semibold text-stone-600">{label}</span>
-                    <span className="mt-1 block text-[10px] font-semibold text-stone-300">{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {pageSpeed.opportunityTitle && (
-                <div className="mt-3 rounded-xl border border-[#FF4D00]/20 bg-[#FF4D00]/[0.06] px-3 py-2.5">
-                  <span className="text-[10px] font-semibold text-stone-200">
-                    {pageSpeed.opportunityTitle}
-                  </span>
-                  {pageSpeed.opportunityDescription && (
-                    <p className="mt-1 text-[9px] leading-relaxed text-stone-500">
-                      {pageSpeed.opportunityDescription}
-                    </p>
-                  )}
+              <div className="rounded-2xl border border-[#E7E0D8] bg-white p-3.5">
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    ['FCP', pageSpeed.fcp || '-'],
+                    ['LCP', pageSpeed.lcp || '-'],
+                    ['TBT', pageSpeed.tbt || '-'],
+                    ['CLS', pageSpeed.cls || '-'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="text-center">
+                      <span className="block text-[8px] font-semibold text-stone-400">{label}</span>
+                      <span className="mt-1 block text-[10px] font-semibold text-stone-700">{value}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+
+                {pageSpeed.opportunityTitle && (
+                  <div className="mt-3 border-t border-stone-100 pt-3">
+                    <span className="text-[10px] font-semibold text-stone-800">
+                      {pageSpeed.opportunityTitle}
+                    </span>
+                    {pageSpeed.opportunityDescription && (
+                      <p className="mt-1 text-[9px] leading-relaxed text-stone-500">
+                        {pageSpeed.opportunityDescription}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
-          <section className="mt-6 border-t border-white/8 pt-5">
-            <div className="mb-2 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-[#FF4D00]" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                Dados do negócio
-              </span>
-            </div>
+          <section className="mt-6">
+            <SectionTitle icon={<Building2 className="h-4 w-4" />}>
+              Dados do negócio
+            </SectionTitle>
 
-            <div>
+            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
               <DetailRow label="Confiança da fonte" value={`${confidencePercent}%`} />
-              <DetailRow label="Status" value={business.openStatusText || business.operatingStatus || 'Não identificado'} />
+              <DetailRow
+                label="Status"
+                value={business.openStatusText || business.operatingStatus || 'Não identificado'}
+              />
               <DetailRow label="Fonte" value={business.source || 'Não identificada'} />
               {(business.cnpj || enrichment?.cnpj?.[0]?.value) && (
-                <DetailRow label="CNPJ" value={business.cnpj || enrichment.cnpj[0].value} />
+                <DetailRow
+                  label="CNPJ"
+                  value={business.cnpj || enrichment.cnpj[0].value}
+                />
               )}
             </div>
           </section>
 
           {socialLinks.length > 0 && (
-            <section className="mt-6 border-t border-white/8 pt-5">
-              <div className="mb-3 flex items-center gap-2">
-                <Globe2 className="h-4 w-4 text-[#FF4D00]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                  Presença digital
-                </span>
-              </div>
+            <section className="mt-6">
+              <SectionTitle icon={<Globe2 className="h-4 w-4" />}>
+                Presença digital
+              </SectionTitle>
 
               <div className="flex flex-wrap gap-2">
                 {socialLinks.map((item) => (
@@ -540,10 +551,10 @@ export default function BusinessSidePanel({
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[9px] font-medium text-stone-300 transition hover:border-[#FF4D00]/40 hover:bg-[#FF4D00]/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2DBD2] bg-white px-2.5 py-1.5 text-[9px] font-medium text-stone-600 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
                   >
                     {item.network}
-                    <ExternalLink className="h-3 w-3 text-stone-500" />
+                    <ExternalLink className="h-3 w-3 text-stone-400" />
                   </a>
                 ))}
               </div>
@@ -551,21 +562,18 @@ export default function BusinessSidePanel({
           )}
 
           {opportunities.length > 0 && (
-            <section className="mt-6 border-t border-white/8 pt-5 pb-3">
-              <div className="mb-3 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-[#FF4D00]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-stone-300">
-                  Oportunidades
-                </span>
-              </div>
+            <section className="mt-6 pb-3">
+              <SectionTitle icon={<AlertCircle className="h-4 w-4" />}>
+                Oportunidades
+              </SectionTitle>
 
-              <div className="space-y-2">
+              <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
                 {opportunities.map((item) => (
                   <div
                     key={item}
-                    className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.025] px-3 py-2 text-[10px] text-stone-300"
+                    className="flex items-center gap-2 py-2.5 border-b border-stone-200/70 last:border-b-0 text-[10px] text-stone-600"
                   >
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
                     <span>{item}</span>
                   </div>
                 ))}
