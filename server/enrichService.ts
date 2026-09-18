@@ -1,11 +1,12 @@
 import * as cheerio from 'cheerio';
 import dns from 'dns/promises';
-import { getDuckDB } from './overtureService';
 
 interface InfoItem {
   value: string;
-  source: string;
+  source: 'official_website';
   sourceUrl: string;
+  verifiedAt: string;
+  verification: 'verified_current_website';
 }
 
 interface TeamMember {
@@ -33,166 +34,312 @@ export interface EnrichmentResult {
   cnpj: InfoItem[];
   team: TeamMember[];
   openingHours?: string | null;
+  contactFreshness: {
+    checkedAt: string;
+    websiteReachable: boolean;
+    verifiedWhatsappCount: number;
+    verifiedPhoneCount: number;
+    verifiedEmailCount: number;
+  };
   updatedAt: string;
 }
 
-// In-memory DNS Cache (10 min TTL)
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const enrichmentCache = new Map<
+  string,
+  { expiresAt: number; data: EnrichmentResult }
+>();
+
 const dnsCache = new Map<string, { ips: string[]; expiresAt: number }>();
 
-function isPrivateIP(ip: string): boolean {
-  if (ip === '::1') return true;
-  if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true;
-  if (ip.toLowerCase().startsWith('fe8')) return true;
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, '');
+}
 
-  const parts = ip.split('.');
-  if (parts.length === 4) {
-    const p0 = parseInt(parts[0], 10);
-    const p1 = parseInt(parts[1], 10);
-    if (p0 === 10) return true;
-    if (p0 === 127) return true;
-    if (p0 === 192 && p1 === 168) return true;
-    if (p0 === 172 && p1 >= 16 && p1 <= 31) return true;
-    if (p0 === 169 && p1 === 254) return true;
-    if (p0 === 0) return true;
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isPrivateIP(ip: string): boolean {
+  const normalized = ip.toLowerCase();
+
+  if (normalized === '::1') return true;
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+  if (
+    normalized.startsWith('fe8') ||
+    normalized.startsWith('fe9') ||
+    normalized.startsWith('fea') ||
+    normalized.startsWith('feb')
+  ) return true;
+
+  const parts = ip.split('.').map((part) => Number(part));
+  if (parts.length === 4 && parts.every(Number.isFinite)) {
+    const [a, b] = parts;
+    if (a === 10 || a === 127 || a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
   }
+
   return false;
 }
 
 async function resolveHostSafe(host: string): Promise<string[]> {
   const now = Date.now();
   const cached = dnsCache.get(host);
-  if (cached && cached.expiresAt > now) {
-    return cached.ips;
+  if (cached && cached.expiresAt > now) return cached.ips;
+
+  const records = await Promise.race([
+    dns.lookup(host, { all: true }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS resolution timeout')), 1500)
+    ),
+  ]);
+
+  const ips = records.map((record) => record.address);
+  if (!ips.length || ips.some(isPrivateIP)) {
+    throw new Error('Private or invalid host');
   }
 
-  const dnsPromise = dns.resolve(host);
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('DNS resolution timeout')), 1200)
-  );
-
-  try {
-    const ips = await Promise.race([dnsPromise, timeoutPromise]);
-    if (ips && Array.isArray(ips) && ips.length > 0) {
-      dnsCache.set(host, { ips, expiresAt: now + 10 * 60 * 1000 });
-      return ips;
-    }
-  } catch (err) {
-    // If IPv4 resolve failed, try default lookup
-  }
-  
-  dnsCache.set(host, { ips: ['127.0.0.1'], expiresAt: now + 5000 }); // short penalty cache
-  throw new Error('DNS resolution failed');
+  dnsCache.set(host, { ips, expiresAt: now + 10 * 60 * 1000 });
+  return ips;
 }
 
 async function safeFetch(
   urlStr: string,
   redirects = 0,
-  timeoutMs = 3000
+  timeoutMs = 4500,
 ): Promise<{ content: string; finalUrl: string }> {
-  if (redirects > 2) {
-    throw new Error('Too many redirects');
-  }
+  if (redirects > 3) throw new Error('Too many redirects');
 
   const parsed = new URL(urlStr);
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error('Protocol not allowed');
   }
 
-  const host = parsed.hostname;
-  if (host === 'localhost' || host.endsWith('.localhost')) {
+  if (parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost')) {
     throw new Error('Localhost not allowed');
   }
 
-  let ips: string[];
-  try {
-    ips = await resolveHostSafe(host);
-  } catch (e: any) {
-    throw new Error(`DNS resolution failed: ${e.message}`);
+  await resolveHostSafe(parsed.hostname);
+
+  const res = await fetch(parsed.toString(), {
+    method: 'GET',
+    redirect: 'manual',
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36 ScoutlyEnrichment/1.1',
+      Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+      'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if ([301, 302, 303, 307, 308].includes(res.status)) {
+    const location = res.headers.get('location');
+    if (!location) throw new Error('Redirect without location header');
+    return safeFetch(new URL(location, parsed).toString(), redirects + 1, timeoutMs);
   }
 
-  const targetIp = ips[0];
-  if (isPrivateIP(targetIp)) {
-    throw new Error(`Access to private IP ${targetIp} blocked for SSRF protection`);
+  if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (
+    !contentType.includes('text/html') &&
+    !contentType.includes('application/xhtml+xml') &&
+    !contentType.includes('text/plain')
+  ) {
+    throw new Error('Not HTML content');
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const text = await res.text();
+  return {
+    content: text.length > 2 * 1024 * 1024 ? text.slice(0, 2 * 1024 * 1024) : text,
+    finalUrl: parsed.toString(),
+  };
+}
 
-  try {
-    const res = await fetch(urlStr, {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      redirect: 'manual',
-      signal: controller.signal,
-    });
+function makeInfo(value: string, sourceUrl: string, verifiedAt: string): InfoItem {
+  return {
+    value,
+    source: 'official_website',
+    sourceUrl,
+    verifiedAt,
+    verification: 'verified_current_website',
+  };
+}
 
-    if ([301, 302, 303, 307, 308].includes(res.status)) {
-      const location = res.headers.get('location');
-      if (!location) throw new Error('Redirect without location header');
-      const nextUrl = new URL(location, urlStr).toString();
-      clearTimeout(timeoutId);
-      return safeFetch(nextUrl, redirects + 1, timeoutMs);
-    }
+function addPhone(result: EnrichmentResult, value: string, sourceUrl: string, verifiedAt: string) {
+  const digits = normalizePhone(value);
+  if (digits.length < 8 || digits.length > 15) return;
 
-    if (!res.ok) {
-      throw new Error(`HTTP Error ${res.status}`);
-    }
-
-    const contentType = res.headers.get('content-type') || '';
-    if (
-      !contentType.includes('text/html') &&
-      !contentType.includes('application/xhtml+xml') &&
-      !contentType.includes('text/plain')
-    ) {
-      throw new Error('Not HTML content');
-    }
-
-    const text = await res.text();
-    if (text.length > 1.5 * 1024 * 1024) {
-      throw new Error('Response too large');
-    }
-
-    return { content: text, finalUrl: urlStr };
-  } finally {
-    clearTimeout(timeoutId);
+  if (!result.phones.some((item) => normalizePhone(item.value) === digits)) {
+    result.phones.push(makeInfo(value.trim(), sourceUrl, verifiedAt));
   }
 }
 
-export async function enrichBusinessWebsite(baseUrl: string): Promise<EnrichmentResult> {
-  const db = await getDuckDB();
+function addWhatsApp(result: EnrichmentResult, value: string, sourceUrl: string, verifiedAt: string) {
+  const digits = normalizePhone(value);
+  if (digits.length < 10 || digits.length > 15) return;
 
-  const cacheKey = baseUrl.toLowerCase().trim();
-  
-  // 1. DuckDB Cache Check (Fast)
-  try {
-    const rows = await new Promise<any[]>((resolve, reject) => {
-      db.all(
-        'SELECT data, updated_at FROM enrichment_cache WHERE url = ?',
-        cacheKey,
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
-        }
-      );
-    });
-
-    if (rows.length > 0) {
-      const updatedAt = new Date(rows[0].updated_at).getTime();
-      const ageDays = (Date.now() - updatedAt) / (1000 * 60 * 60 * 24);
-      if (ageDays <= 7) {
-        return JSON.parse(rows[0].data);
-      }
-    }
-  } catch (err) {
-    console.warn('[Enrich Cache Check Error]:', err);
+  if (!result.whatsapp.some((item) => normalizePhone(item.value) === digits)) {
+    result.whatsapp.push(makeInfo(digits, sourceUrl, verifiedAt));
   }
 
-  const result: EnrichmentResult = {
+  addPhone(result, digits, sourceUrl, verifiedAt);
+}
+
+function addEmail(result: EnrichmentResult, value: string, sourceUrl: string, verifiedAt: string) {
+  const email = normalizeEmail(value);
+  if (!email || !email.includes('@')) return;
+
+  const isAsset = /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(email);
+  const isDummy = /example|domain|sentry|bootstrap|wixpress|cloudflare/i.test(email);
+  if (isAsset || isDummy) return;
+
+  if (!result.emails.some((item) => normalizeEmail(item.value) === email)) {
+    result.emails.push(makeInfo(email, sourceUrl, verifiedAt));
+  }
+}
+
+function walkJsonLd(value: any, visitor: (item: any) => void) {
+  if (!value) return;
+
+  if (Array.isArray(value)) {
+    for (const item of value) walkJsonLd(item, visitor);
+    return;
+  }
+
+  if (typeof value !== 'object') return;
+
+  visitor(value);
+
+  for (const nested of Object.values(value)) {
+    if (nested && typeof nested === 'object') {
+      walkJsonLd(nested, visitor);
+    }
+  }
+}
+
+function extractDataFromPage(
+  $: cheerio.CheerioAPI,
+  sourceUrl: string,
+  result: EnrichmentResult,
+  verifiedAt: string,
+) {
+  const html = $.html();
+  const text = $('body').text();
+
+  // Explicit WhatsApp links are treated as high-confidence current evidence.
+  $('a[href]').each((_, element) => {
+    const href = ($(element).attr('href') || '').trim();
+    if (!href) return;
+
+    const waMatch = href.match(
+      /(?:wa\.me\/|api\.whatsapp\.com\/send\?[^#]*?phone=|whatsapp\.com\/send\?[^#]*?phone=|whatsapp:\/\/send\?[^#]*?phone=)(\+?[0-9][0-9().\s-]{8,})/i,
+    );
+    if (waMatch?.[1]) {
+      addWhatsApp(result, waMatch[1], sourceUrl, verifiedAt);
+    }
+  });
+
+  // Fallback for raw WhatsApp URLs embedded in scripts/markup.
+  const rawWaRegex =
+    /(?:wa\.me\/|api\.whatsapp\.com\/send\?[^"'<>\s]*?phone=|whatsapp\.com\/send\?[^"'<>\s]*?phone=)([0-9]{10,15})/gi;
+  let match: RegExpExecArray | null;
+  while ((match = rawWaRegex.exec(html)) !== null) {
+    addWhatsApp(result, match[1], sourceUrl, verifiedAt);
+  }
+
+  $('a[href^="tel:"]').each((_, element) => {
+    const href = $(element).attr('href') || '';
+    const raw = decodeURIComponent(href.replace(/^tel:/i, '').split('?')[0]).trim();
+    addPhone(result, raw, sourceUrl, verifiedAt);
+  });
+
+  $('a[href^="mailto:"]').each((_, element) => {
+    const href = $(element).attr('href') || '';
+    const raw = decodeURIComponent(href.replace(/^mailto:/i, '').split('?')[0]).trim();
+    addEmail(result, raw, sourceUrl, verifiedAt);
+  });
+
+  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+  while ((match = emailRegex.exec(text)) !== null) {
+    addEmail(result, match[1], sourceUrl, verifiedAt);
+  }
+
+  const cnpjRegex = /([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}\/?[0-9]{4}-?[0-9]{2})/g;
+  while ((match = cnpjRegex.exec(text)) !== null) {
+    const cnpj = match[1];
+    if (!result.cnpj.some((item) => normalizePhone(item.value) === normalizePhone(cnpj))) {
+      result.cnpj.push(makeInfo(cnpj, sourceUrl, verifiedAt));
+    }
+  }
+
+  $('a[href]').each((_, element) => {
+    const href = ($(element).attr('href') || '').trim();
+    if (!href) return;
+
+    if (href.includes('instagram.com/') && !result.socials.instagram && !href.includes('/p/')) {
+      result.socials.instagram = makeInfo(href, sourceUrl, verifiedAt);
+    }
+    if (href.includes('facebook.com/') && !result.socials.facebook) {
+      result.socials.facebook = makeInfo(href, sourceUrl, verifiedAt);
+    }
+    if (href.includes('tiktok.com/@') && !result.socials.tiktok) {
+      result.socials.tiktok = makeInfo(href, sourceUrl, verifiedAt);
+    }
+    if (href.includes('youtube.com/') && !result.socials.youtube) {
+      result.socials.youtube = makeInfo(href, sourceUrl, verifiedAt);
+    }
+    if (href.includes('linkedin.com/company/') && !result.socials.linkedin) {
+      result.socials.linkedin = makeInfo(href, sourceUrl, verifiedAt);
+    }
+  });
+
+  $('script[type="application/ld+json"]').each((_, element) => {
+    try {
+      const parsed = JSON.parse($(element).html() || '{}');
+
+      walkJsonLd(parsed, (item) => {
+        if (typeof item.telephone === 'string') {
+          addPhone(result, item.telephone, sourceUrl, verifiedAt);
+        }
+
+        const emails = Array.isArray(item.email) ? item.email : item.email ? [item.email] : [];
+        for (const email of emails) {
+          if (typeof email === 'string') addEmail(result, email, sourceUrl, verifiedAt);
+        }
+
+        if (!result.openingHours && item.openingHours) {
+          result.openingHours = Array.isArray(item.openingHours)
+            ? item.openingHours.join('; ')
+            : String(item.openingHours);
+        }
+
+        if (!result.openingHours && item.openingHoursSpecification) {
+          const specs = Array.isArray(item.openingHoursSpecification)
+            ? item.openingHoursSpecification
+            : [item.openingHoursSpecification];
+
+          const formatted = specs
+            .map((spec: any) => `${spec?.dayOfWeek || ''} ${spec?.opens || ''}-${spec?.closes || ''}`)
+            .filter((value: string) => value.trim())
+            .join('; ');
+
+          if (formatted) result.openingHours = formatted;
+        }
+      });
+    } catch {
+      // Ignore invalid JSON-LD blocks.
+    }
+  });
+}
+
+function buildEmptyResult(): EnrichmentResult {
+  const now = new Date().toISOString();
+
+  return {
     siteStatus: 'unknown',
     whatsapp: [],
     emails: [],
@@ -200,38 +347,54 @@ export async function enrichBusinessWebsite(baseUrl: string): Promise<Enrichment
     socials: {},
     cnpj: [],
     team: [],
-    updatedAt: new Date().toISOString(),
+    contactFreshness: {
+      checkedAt: now,
+      websiteReachable: false,
+      verifiedWhatsappCount: 0,
+      verifiedPhoneCount: 0,
+      verifiedEmailCount: 0,
+    },
+    updatedAt: now,
   };
+}
 
-  // Determine initial target URLs to try (https first)
-  let primaryUrl = baseUrl;
-  let secondaryFallbackUrl: string | null = null;
+export async function enrichBusinessWebsite(
+  baseUrl: string,
+  options: { force?: boolean } = {},
+): Promise<EnrichmentResult> {
+  const cacheKey = baseUrl.toLowerCase().trim();
+  const cached = enrichmentCache.get(cacheKey);
 
-  if (!primaryUrl.startsWith('http://') && !primaryUrl.startsWith('https://')) {
-    primaryUrl = 'https://' + primaryUrl;
-    secondaryFallbackUrl = 'http://' + baseUrl;
+  if (!options.force && cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
+  const result = buildEmptyResult();
+  const verifiedAt = result.updatedAt;
+
+  let primaryUrl = baseUrl.trim();
+  let secondaryUrl: string | null = null;
+
+  if (!/^https?:\/\//i.test(primaryUrl)) {
+    primaryUrl = `https://${primaryUrl}`;
+    secondaryUrl = `http://${baseUrl.trim()}`;
+  } else if (primaryUrl.startsWith('https://')) {
+    secondaryUrl = primaryUrl.replace(/^https:\/\//i, 'http://');
   }
 
   let homepageContent = '';
   let finalHomepageUrl = primaryUrl;
 
-  // 2. Fetch Homepage (3s timeout)
   try {
-    const res = await safeFetch(primaryUrl, 0, 3000);
-    homepageContent = res.content;
-    finalHomepageUrl = res.finalUrl;
-    result.siteStatus = 'verified';
-    result.finalUrl = finalHomepageUrl;
-    result.hasHttps = finalHomepageUrl.startsWith('https');
-  } catch (err) {
-    if (secondaryFallbackUrl) {
+    const response = await safeFetch(primaryUrl);
+    homepageContent = response.content;
+    finalHomepageUrl = response.finalUrl;
+  } catch (primaryError) {
+    if (secondaryUrl) {
       try {
-        const res = await safeFetch(secondaryFallbackUrl, 0, 2500);
-        homepageContent = res.content;
-        finalHomepageUrl = res.finalUrl;
-        result.siteStatus = 'verified';
-        result.finalUrl = finalHomepageUrl;
-        result.hasHttps = finalHomepageUrl.startsWith('https');
+        const response = await safeFetch(secondaryUrl, 0, 3500);
+        homepageContent = response.content;
+        finalHomepageUrl = response.finalUrl;
       } catch {
         result.siteStatus = 'unreachable';
       }
@@ -240,174 +403,75 @@ export async function enrichBusinessWebsite(baseUrl: string): Promise<Enrichment
     }
   }
 
-  if (result.siteStatus === 'unreachable' || !homepageContent) {
-    // Save unreachable status to cache briefly (1 day) so user isn't stuck waiting repeatedly
-    saveToCache(db, cacheKey, result);
+  if (!homepageContent) {
+    result.contactFreshness.checkedAt = new Date().toISOString();
+    enrichmentCache.set(cacheKey, {
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      data: result,
+    });
     return result;
   }
+
+  result.siteStatus = 'verified';
+  result.finalUrl = finalHomepageUrl;
+  result.hasHttps = finalHomepageUrl.startsWith('https://');
+  result.contactFreshness.websiteReachable = true;
 
   const $home = cheerio.load(homepageContent);
   result.title = $home('title').text().trim();
   result.metaDescription = $home('meta[name="description"]').attr('content')?.trim();
 
-  // Extract from Homepage
-  extractDataFromPage($home, finalHomepageUrl, result);
+  extractDataFromPage($home, finalHomepageUrl, result, verifiedAt);
 
-  // 3. Smart Subpage Discovery (Find up to 2 actual contact/about links from homepage)
   const discoveredSubpages: string[] = [];
   const baseHost = new URL(finalHomepageUrl).hostname.replace(/^www\./, '');
 
-  $home('a[href]').each((_, el) => {
-    if (discoveredSubpages.length >= 2) return;
-    const href = $home(el).attr('href')?.trim();
+  $home('a[href]').each((_, element) => {
+    if (discoveredSubpages.length >= 4) return;
+
+    const href = $home(element).attr('href')?.trim();
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
 
     try {
       const fullUrl = new URL(href, finalHomepageUrl);
       const host = fullUrl.hostname.replace(/^www\./, '');
-      if (host === baseHost) {
-        const pathname = fullUrl.pathname.toLowerCase();
-        if (
-          /contato|contact|sobre|about|quem-somos|equipe|team|fale-conosco/.test(pathname) &&
-          !discoveredSubpages.includes(fullUrl.toString()) &&
-          fullUrl.toString() !== finalHomepageUrl
-        ) {
-          discoveredSubpages.push(fullUrl.toString());
-        }
+      if (host !== baseHost) return;
+
+      const path = fullUrl.pathname.toLowerCase();
+      if (
+        /contato|contact|fale-conosco|atendimento|support|suporte|sobre|about|quem-somos|localizacao|location/.test(
+          path,
+        ) &&
+        fullUrl.toString() !== finalHomepageUrl &&
+        !discoveredSubpages.includes(fullUrl.toString())
+      ) {
+        discoveredSubpages.push(fullUrl.toString());
       }
     } catch {
-      // Ignore invalid URLs
+      // Ignore malformed links.
     }
   });
 
-  // 4. Fetch Discovered Subpages in PARALLEL (2s timeout max)
-  if (discoveredSubpages.length > 0) {
-    const subpagePromises = discoveredSubpages.map((url) =>
-      safeFetch(url, 0, 2000)
-        .then(({ content, finalUrl }) => {
-          const $sub = cheerio.load(content);
-          extractDataFromPage($sub, finalUrl, result);
-        })
-        .catch(() => {
-          // Ignore subpage failure
-        })
-    );
+  await Promise.allSettled(
+    discoveredSubpages.map(async (url) => {
+      const response = await safeFetch(url, 0, 3000);
+      extractDataFromPage(cheerio.load(response.content), response.finalUrl, result, verifiedAt);
+    }),
+  );
 
-    await Promise.allSettled(subpagePromises);
-  }
+  result.contactFreshness = {
+    checkedAt: new Date().toISOString(),
+    websiteReachable: true,
+    verifiedWhatsappCount: result.whatsapp.length,
+    verifiedPhoneCount: result.phones.length,
+    verifiedEmailCount: result.emails.length,
+  };
+  result.updatedAt = result.contactFreshness.checkedAt;
 
-  // 5. Save enriched result to DuckDB cache
-  saveToCache(db, cacheKey, result);
+  enrichmentCache.set(cacheKey, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    data: result,
+  });
 
   return result;
-}
-
-function saveToCache(db: any, cacheKey: string, result: EnrichmentResult) {
-  db.run(
-    'INSERT OR REPLACE INTO enrichment_cache (url, data, updated_at) VALUES (?, ?, ?)',
-    cacheKey,
-    JSON.stringify(result),
-    new Date().toISOString(),
-    (err: any) => {
-      if (err) console.warn('[DuckDB Save Cache Warning]:', err.message || err);
-    }
-  );
-}
-
-function extractDataFromPage($: cheerio.CheerioAPI, sourceUrl: string, result: EnrichmentResult) {
-  const text = $('body').text();
-  const html = $('body').html() || '';
-
-  // WhatsApp: Links wa.me or api.whatsapp.com
-  const waRegex = /(?:https?:\/\/)?(?:wa\.me|api\.whatsapp\.com\/send\?phone=)\/?([0-9]+)/gi;
-  let match;
-  while ((match = waRegex.exec(html)) !== null) {
-    const waNumber = match[1];
-    if (waNumber && waNumber.length >= 10 && !result.whatsapp.find((w) => w.value === waNumber)) {
-      result.whatsapp.push({ value: waNumber, source: 'official_website', sourceUrl });
-    }
-  }
-
-  // Tel: links for phones
-  $('a[href^="tel:"]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    const rawPhone = href.replace(/^tel:/i, '').trim();
-    const cleanDigits = rawPhone.replace(/\D/g, '');
-    if (cleanDigits.length >= 8 && !result.phones.find((p) => p.value.replace(/\D/g, '') === cleanDigits)) {
-      result.phones.push({ value: rawPhone, source: 'official_website', sourceUrl });
-    }
-  });
-
-  // Emails
-  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
-  while ((match = emailRegex.exec(text)) !== null) {
-    const email = match[1].toLowerCase();
-    const isImageExt = /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(email);
-    const isDummy = /example|domain|email|sentry|bootstrap/i.test(email);
-    if (!isImageExt && !isDummy && !result.emails.find((e) => e.value === email)) {
-      result.emails.push({ value: email, source: 'official_website', sourceUrl });
-    }
-  }
-
-  // CNPJ
-  const cnpjRegex = /([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}\/?[0-9]{4}-?[0-9]{2})/g;
-  while ((match = cnpjRegex.exec(text)) !== null) {
-    const cnpj = match[1];
-    if (!result.cnpj.find((c) => c.value === cnpj)) {
-      result.cnpj.push({ value: cnpj, source: 'official_website', sourceUrl });
-    }
-  }
-
-  // Socials
-  $('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    if (href.includes('instagram.com/') && !result.socials.instagram && !href.includes('/p/')) {
-      result.socials.instagram = { value: href, source: 'official_website', sourceUrl };
-    }
-    if (href.includes('facebook.com/') && !result.socials.facebook) {
-      result.socials.facebook = { value: href, source: 'official_website', sourceUrl };
-    }
-    if (href.includes('tiktok.com/@') && !result.socials.tiktok) {
-      result.socials.tiktok = { value: href, source: 'official_website', sourceUrl };
-    }
-    if (href.includes('youtube.com/') && !result.socials.youtube) {
-      result.socials.youtube = { value: href, source: 'official_website', sourceUrl };
-    }
-    if (href.includes('linkedin.com/company/') && !result.socials.linkedin) {
-      result.socials.linkedin = { value: href, source: 'official_website', sourceUrl };
-    }
-  });
-
-  // Schema.org JSON-LD opening hours extraction fallback
-  if (!result.openingHours) {
-    $('script[type="application/ld+json"]').each((_, el) => {
-      try {
-        const jsonText = $(el).html() || '';
-        const parsed = JSON.parse(jsonText);
-        const items = Array.isArray(parsed) ? parsed : [parsed];
-        for (const item of items) {
-          if (item.openingHours) {
-            result.openingHours = Array.isArray(item.openingHours)
-              ? item.openingHours.join('; ')
-              : String(item.openingHours);
-            break;
-          }
-          if (item.openingHoursSpecification) {
-            const specs = Array.isArray(item.openingHoursSpecification)
-              ? item.openingHoursSpecification
-              : [item.openingHoursSpecification];
-            const formatted = specs
-              .map((s: any) => `${s.dayOfWeek || ''} ${s.opens || ''}-${s.closes || ''}`)
-              .join('; ');
-            if (formatted.trim()) {
-              result.openingHours = formatted;
-              break;
-            }
-          }
-        }
-      } catch {
-        // Ignore invalid json
-      }
-    });
-  }
 }
