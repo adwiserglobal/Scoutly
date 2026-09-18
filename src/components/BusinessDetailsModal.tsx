@@ -588,27 +588,40 @@ export default function BusinessDetailsModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Contatos */}
               <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-                  Telefone / WhatsApp
-                </span>
-                {phones.length > 0 || whatsapps.length > 0 ? (
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Telefone / WhatsApp
+                  </span>
+
+                  {hasFreshContactEvidence && contactCheckedAt && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500"
+                      title={`Verificado em ${contactCheckedAt.toLocaleString('pt-BR')}`}
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Verificado no site
+                    </span>
+                  )}
+                </div>
+
+                {verifiedPhones.length > 0 || whatsapps.length > 0 ? (
                   <div className="space-y-2">
-                    {/* Botões de WhatsApp com ícone e ação direta */}
-                    {whatsapps.map((w: any, idx) => {
+                    {whatsapps.map((w: string, idx: number) => {
                       let waLink = getWhatsAppLink(w);
                       if (waLink && generatedMessage) {
                         waLink = `${waLink}?text=${encodeURIComponent(generatedMessage)}`;
                       }
+
                       return (
                         <a
                           key={`wa-${idx}`}
-                          href={waLink}
+                          href={waLink || undefined}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition shadow-2xs group"
-                          title="Abrir WhatsApp"
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-800 bg-white border border-stone-200 hover:border-stone-300 transition"
+                          title="WhatsApp encontrado no site oficial"
                         >
-                          <div className="flex items-center gap-2 truncate">
+                          <div className="flex items-center gap-2 min-w-0">
                             <img
                               src="/whatsapp_icone.png"
                               alt="WhatsApp"
@@ -616,68 +629,131 @@ export default function BusinessDetailsModal({
                             />
                             <span className="truncate">{w}</span>
                           </div>
-                          <span className="text-[10px] uppercase tracking-wider bg-emerald-200/80 group-hover:bg-emerald-300 text-emerald-950 font-bold px-1.5 py-0.5 rounded-md shrink-0">
-                            Abrir
-                          </span>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         </a>
                       );
                     })}
 
-                    {/* Telefones fixos / adicionais */}
-                    {phones
-                      .filter((p: any) => !whatsapps.includes(p))
-                      .map((p: any, idx) => (
+                    {verifiedPhones
+                      .filter((phone: string) => !whatsapps.some((w: string) => normalizePhone(w) === normalizePhone(phone)))
+                      .map((phone: string, idx: number) => (
                         <a
-                          key={`ph-${idx}`}
-                          href={`tel:${p}`}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium text-stone-800 bg-white hover:bg-stone-50 border border-[#EDE8E0] transition"
+                          key={`verified-ph-${idx}`}
+                          href={`tel:${phone}`}
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-800 bg-white border border-stone-200 hover:border-stone-300 transition"
                         >
-                          <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                          <span className="truncate">{p}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                            <span className="truncate">{phone}</span>
+                          </div>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         </a>
                       ))}
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    <span className="block text-xs font-medium text-stone-500 italic">
-                      Telefone não identificado
-                    </span>
-                    <span className="block text-xs font-medium text-stone-500 italic">
-                      WhatsApp não identificado
-                    </span>
+                ) : unverifiedDatasetPhones.length > 0 ? (
+                  <div className="space-y-2">
+                    {unverifiedDatasetPhones.map((phone: string, idx: number) => (
+                      <a
+                        key={`dataset-ph-${idx}`}
+                        href={`tel:${phone}`}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-medium text-stone-700 bg-white border border-stone-200 transition"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          <span className="truncate">{phone}</span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 text-[9px] text-stone-400 shrink-0">
+                          <AlertCircle className="w-3 h-3" />
+                          Não verificado
+                        </span>
+                      </a>
+                    ))}
+                    <p className="text-[9px] leading-relaxed text-stone-400">
+                      Este telefone veio da base de dados e não foi confirmado no site atual.
+                    </p>
                   </div>
+                ) : (
+                  <span className="block text-xs font-medium text-stone-500 italic">
+                    Nenhum contato telefônico atual confirmado
+                  </span>
+                )}
+
+                {unverifiedDatasetPhones.length > 0 && verifiedPhones.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[9px] font-medium text-stone-400">
+                      Ver {unverifiedDatasetPhones.length} contato(s) antigo(s) da base
+                    </summary>
+                    <div className="mt-2 space-y-1.5">
+                      {unverifiedDatasetPhones.map((phone: string, idx: number) => (
+                        <div
+                          key={`old-ph-${idx}`}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[10px] text-stone-500"
+                        >
+                          <span>{phone}</span>
+                          <span className="inline-flex items-center gap-1 text-stone-400">
+                            <AlertCircle className="w-3 h-3" />
+                            Não confirmado
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 )}
               </div>
 
               {/* Email & CNPJ */}
               <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-                  Email & CNPJ
-                </span>
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Email & CNPJ
+                  </span>
+                  {verifiedEmails.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Site atual
+                    </span>
+                  )}
+                </div>
+
                 {emails.length > 0 || cnpj.length > 0 ? (
                   <div className="space-y-1.5">
-                    {emails.map((e: any, idx) => (
-                      <a
-                        key={`em-${idx}`}
-                        href={`mailto:${e}`}
-                        className="block text-xs text-stone-800 hover:text-[#FF4D00] truncate bg-white border border-[#EDE8E0] px-2.5 py-1.5 rounded-xl transition"
-                        title={e}
-                      >
-                        {e}
-                      </a>
-                    ))}
-                    {cnpj.map((c: any, idx) => (
+                    {emails.map((email: string, idx: number) => {
+                      const verified = verifiedEmailKeys.has(normalizeEmail(email));
+                      return (
+                        <a
+                          key={`em-${idx}`}
+                          href={`mailto:${email}`}
+                          className="flex items-center justify-between gap-2 text-xs text-stone-800 hover:text-[#FF4D00] bg-white border border-[#EDE8E0] px-2.5 py-1.5 rounded-xl transition"
+                          title={email}
+                        >
+                          <span className="truncate">{email}</span>
+                          {verified ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          )}
+                        </a>
+                      );
+                    })}
+
+                    {cnpj.map((value: string, idx: number) => (
                       <div
                         key={`cn-${idx}`}
                         className="text-xs font-mono text-stone-700 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-lg truncate"
                       >
-                        CNPJ: {c}
+                        CNPJ: {value}
                       </div>
                     ))}
+
+                    {verifiedEmails.length === 0 && unverifiedDatasetEmails.length > 0 && (
+                      <p className="text-[9px] leading-relaxed text-stone-400">
+                        Email da base ainda não confirmado no site atual.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <span className="block text-xs font-medium text-stone-500 italic">
-                    Email não identificado
+                    Email atual não identificado
                   </span>
                 )}
               </div>
