@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { fetchUserLeads, saveUserLead } from './services/api';
+import { checkBusinessSocials, fetchUserLeads, saveUserLead } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -74,6 +74,14 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
 
+  const [socialVerification, setSocialVerification] = useState<
+    Record<string, 'checking' | 'has_social' | 'no_social' | 'failed'>
+  >({});
+  const [isSocialVerificationRunning, setIsSocialVerificationRunning] = useState(false);
+  const socialVerificationRef = useRef<
+    Record<string, 'checking' | 'has_social' | 'no_social' | 'failed'>
+  >({});
+
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(30);
@@ -119,6 +127,101 @@ export default function App() {
   leadsMapRef.current = userLeadsMap;
   const favoritesMapRef = useRef<Record<string, boolean>>({});
   favoritesMapRef.current = userFavoritesMap;
+
+  socialVerificationRef.current = socialVerification;
+
+  const businessIdSignature = useMemo(
+    () => businesses.map((business) => business.id).join('|'),
+    [businesses]
+  );
+
+  useEffect(() => {
+    if (!activeFilters.semRedeSocial) {
+      setIsSocialVerificationRunning(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const candidates = businesses.filter((business) => {
+      const hasKnownSocials = Boolean(business.socials && business.socials.length > 0);
+      const status = socialVerificationRef.current[business.id];
+
+      return !hasKnownSocials && Boolean(business.website) && !status;
+    });
+
+    if (candidates.length === 0) {
+      setIsSocialVerificationRunning(false);
+      return;
+    }
+
+    const nextVerification = { ...socialVerificationRef.current };
+    for (const business of candidates) {
+      nextVerification[business.id] = 'checking';
+    }
+    socialVerificationRef.current = nextVerification;
+    setSocialVerification(nextVerification);
+    setIsSocialVerificationRunning(true);
+
+    const queue = [...candidates];
+
+    const worker = async () => {
+      while (!cancelled && queue.length > 0) {
+        const business = queue.shift();
+        if (!business?.website) continue;
+
+        try {
+          const result = await checkBusinessSocials(business.website);
+          if (cancelled) return;
+
+          const nextStatus =
+            result.hasSocial && result.socials.length > 0
+              ? 'has_social'
+              : result.siteStatus === 'verified'
+                ? 'no_social'
+                : 'failed';
+
+          setSocialVerification((prev) => {
+            const next = { ...prev, [business.id]: nextStatus };
+            socialVerificationRef.current = next;
+            return next;
+          });
+
+          if (nextStatus === 'has_social') {
+            setBusinesses((prev) =>
+              prev.map((item) =>
+                item.id === business.id
+                  ? { ...item, socials: result.socials }
+                  : item
+              )
+            );
+          }
+        } catch (error) {
+          if (cancelled) return;
+          console.warn('[Scoutly Social Verification]:', business.name, error);
+
+          setSocialVerification((prev) => {
+            const next = { ...prev, [business.id]: 'failed' as const };
+            socialVerificationRef.current = next;
+            return next;
+          });
+        }
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(4, candidates.length) },
+      () => worker()
+    );
+
+    Promise.allSettled(workers).then(() => {
+      if (!cancelled) setIsSocialVerificationRunning(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilters.semRedeSocial, businessIdSignature]);
 
   // Load persistent user leads and favorites from database on mount
   useEffect(() => {
@@ -393,10 +496,26 @@ export default function App() {
     return businesses.filter((b) => Boolean(b.socials && b.socials.length > 0)).length;
   }, [businesses]);
 
-  // Calculate businesses without Social Networks
-  const noSocialsCount = useMemo(() => {
-    return businesses.filter((b) => !b.socials || b.socials.length === 0).length;
+  // Social-network filter uses live site verification to avoid stale dataset false positives.
+  const noSocialCandidatesCount = useMemo(() => {
+    return businesses.filter(
+      (business) =>
+        (!business.socials || business.socials.length === 0) &&
+        Boolean(business.website)
+    ).length;
   }, [businesses]);
+
+  const verifiedNoSocialCount = useMemo(() => {
+    return businesses.filter(
+      (business) =>
+        (!business.socials || business.socials.length === 0) &&
+        socialVerification[business.id] === 'no_social'
+    ).length;
+  }, [businesses, socialVerification]);
+
+  const noSocialsCount = activeFilters.semRedeSocial
+    ? verifiedNoSocialCount
+    : noSocialCandidatesCount;
 
   // Filter & Sort businesses
   const filteredBusinesses = useMemo(() => {
@@ -442,12 +561,16 @@ export default function App() {
       }
 
       // Multi-filter: Sem rede social
-      if (
-        activeFilters.semRedeSocial &&
-        biz.socials &&
-        biz.socials.length > 0
-      ) {
-        return false;
+      // Strict mode: only show businesses whose official website was checked
+      // and did not expose any social-network links.
+      if (activeFilters.semRedeSocial) {
+        if (biz.socials && biz.socials.length > 0) {
+          return false;
+        }
+
+        if (socialVerification[biz.id] !== 'no_social') {
+          return false;
+        }
       }
 
       // Filter: Category
@@ -473,7 +596,7 @@ export default function App() {
     }
 
     return list;
-  }, [businesses, activeFilters, selectedCategory, sortBy]);
+  }, [businesses, activeFilters, selectedCategory, sortBy, socialVerification]);
 
   // Progressive rendering slice for buttery smooth 60fps scrolling
   const displayedBusinesses = useMemo(() => {
@@ -674,6 +797,8 @@ export default function App() {
                   whatsappCount={whatsappCount}
                   socialsCount={socialsCount}
                   noSocialsCount={noSocialsCount}
+                  noSocialCandidatesCount={noSocialCandidatesCount}
+                  isNoSocialVerificationRunning={isSocialVerificationRunning}
                 />
               </div>
             </div>
