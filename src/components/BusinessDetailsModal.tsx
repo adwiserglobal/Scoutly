@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
@@ -36,6 +36,7 @@ export default function BusinessDetailsModal({
 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
+  const [messageVariation, setMessageVariation] = useState(0);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -47,6 +48,7 @@ export default function BusinessDetailsModal({
     setTrackingAudit(null);
     setTrackingAuditError(null);
     setGeneratedMessage('');
+    setMessageVariation(0);
     setMessageError(null);
   }, [business]);
 
@@ -123,14 +125,26 @@ export default function BusinessDetailsModal({
     }
   };
 
-  const handleGenerateMessage = async () => {
+  const handleGenerateMessage = async (isVariation = false) => {
     setIsGeneratingMessage(true);
     setMessageError(null);
+
     try {
-      // Ensure we pass the pageSpeedScore if we have it
-      const payload = { ...business, pageSpeedScore: pageSpeed?.score };
-      const msg = await generateMessage(payload);
+      const nextVariation = isVariation ? messageVariation + 1 : 0;
+      const payload = {
+        ...business,
+        pageSpeedScore: pageSpeed?.score,
+        pageSpeedDiagnostics: pageSpeed?.diagnostics || [],
+        trackingAudit,
+      };
+
+      const msg = await generateMessage(payload, {
+        variationIndex: nextVariation,
+        previousMessage: isVariation ? generatedMessage : '',
+      });
+
       setGeneratedMessage(msg);
+      setMessageVariation(nextVariation);
       setIsCopied(false);
     } catch (err: any) {
       setMessageError(err.message || 'Falha ao gerar mensagem.');
@@ -281,7 +295,7 @@ export default function BusinessDetailsModal({
 
               <button
                 type="button"
-                onClick={handleGenerateMessage}
+                onClick={() => handleGenerateMessage(false)}
                 disabled={isGeneratingMessage}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-[#FF4D00] bg-white/40 hover:bg-white/60 backdrop-blur-md border border-white/60 shadow-[0_4px_12px_rgba(255,77,0,0.08)] transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -303,17 +317,32 @@ export default function BusinessDetailsModal({
             
             {generatedMessage && (
               <div className="mt-4 p-4 bg-[#FF4D00]/5 border border-[#FF4D00]/20 rounded-2xl relative group">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between gap-3 mb-3">
                   <span className="text-[10px] font-bold text-[#FF4D00] uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" /> Mensagem Gerada
                   </span>
-                  <button
-                    onClick={handleCopyMessage}
-                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#FF4D00] hover:text-white bg-[#FF4D00]/10 hover:bg-[#FF4D00] px-2 py-1 rounded-lg transition"
-                  >
-                    {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    {isCopied ? 'Copiado!' : 'Copiar'}
-                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateMessage(true)}
+                      disabled={isGeneratingMessage}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 px-2.5 py-1.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Gerar outra abordagem"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isGeneratingMessage ? 'animate-spin' : ''}`} />
+                      {isGeneratingMessage ? 'Gerando...' : 'Nova variação'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyMessage}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-[#FF4D00] bg-[#FF4D00]/8 hover:bg-[#FF4D00]/12 px-2.5 py-1.5 rounded-lg transition"
+                    >
+                      {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {isCopied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xs text-stone-800 whitespace-pre-wrap leading-relaxed">
                   {generatedMessage}
