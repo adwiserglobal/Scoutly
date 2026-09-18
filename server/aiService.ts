@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { queryPlacesInBBox, OverturePlace } from './overtureService.js';
+import type { OverturePlace } from './overtureService.js';
+import { hasBrazilPlacesDatabase, queryBrazilPlaces } from './brazilPlacesService.js';
 import {
   interpretSearchIntent,
   parseSearchLocation,
@@ -231,13 +232,17 @@ export async function handleAIChat({
     // Standard Search: Overture + CNPJ + Serper merged
     let overtureSummaries: BusinessSummary[] = [];
     try {
-      const { places: rawPlaces } = await queryPlacesInBBox(
-        resolvedArea.bbox.west,
-        resolvedArea.bbox.south,
-        resolvedArea.bbox.east,
-        resolvedArea.bbox.north,
-        300
-      );
+      const rawPlaces = hasBrazilPlacesDatabase()
+        ? (
+            await queryBrazilPlaces(
+              resolvedArea.bbox.west,
+              resolvedArea.bbox.south,
+              resolvedArea.bbox.east,
+              resolvedArea.bbox.north,
+              300
+            )
+          ).places
+        : [];
       rawOvertureCount = rawPlaces.length;
 
       const inBBoxPlaces = rawPlaces.filter(
