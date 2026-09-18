@@ -19,10 +19,12 @@ import AIAssistantDrawer from './components/AIAssistantDrawer';
 import FavoritesView from './components/FavoritesView';
 import PipelineView from './components/PipelineView';
 import SettingsView from './components/SettingsView';
+import PlansModal from './components/PlansModal';
 import LoginView from './components/LoginView';
+import { getBillingStatus } from './lib/billing';
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavigationTab>('INICIO');
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [userLeadsMap, setUserLeadsMap] = useState<Record<string, { status: LeadStatus; notes: string }>>({});
@@ -58,6 +60,22 @@ export default function App() {
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [modalBusiness, setModalBusiness] = useState<Business | null>(null);
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
+
+  const [isPlansOpen, setIsPlansOpen] = useState(false);
+  const [billingStatus, setBillingStatus] = useState(() => getBillingStatus(user));
+
+  useEffect(() => {
+    const refreshBilling = () => setBillingStatus(getBillingStatus(user));
+    refreshBilling();
+
+    const interval = window.setInterval(refreshBilling, 60 * 1000);
+    window.addEventListener('focus', refreshBilling);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshBilling);
+    };
+  }, [user]);
 
   // Pagination / Progressive Rendering for High Performance (prevent DOM overload)
   const [visibleCount, setVisibleCount] = useState<number>(() => {
@@ -991,7 +1009,10 @@ export default function App() {
 
         {currentTab === 'CONFIGURACOES' && (
           <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
-            <SettingsView />
+            <SettingsView
+              billing={billingStatus}
+              onOpenPlans={() => setIsPlansOpen(true)}
+            />
           </div>
         )}
       </div>
@@ -1021,6 +1042,14 @@ export default function App() {
           onToggleFavorite={handleToggleFavorite}
         />
       )}
+
+      <PlansModal
+        open={isPlansOpen || billingStatus.isExpired}
+        billing={billingStatus}
+        forceOpen={billingStatus.isExpired}
+        onClose={() => setIsPlansOpen(false)}
+        onSignOut={signOut}
+      />
 
       {/* Business Details Modal */}
       <BusinessDetailsModal
