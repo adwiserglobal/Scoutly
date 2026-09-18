@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
@@ -37,6 +37,8 @@ export default function BusinessDetailsModal({
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
   const [messageVariation, setMessageVariation] = useState(0);
+  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | 'template' | null>(null);
+  const [messageModel, setMessageModel] = useState('');
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -49,6 +51,8 @@ export default function BusinessDetailsModal({
     setTrackingAuditError(null);
     setGeneratedMessage('');
     setMessageVariation(0);
+    setMessageSource(null);
+    setMessageModel('');
     setMessageError(null);
   }, [business]);
 
@@ -94,6 +98,32 @@ export default function BusinessDetailsModal({
     };
   }, [business.id, business.website]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!business.website) return () => {
+      cancelled = true;
+    };
+
+    enrichBusinessData(business.website)
+      .then((data) => {
+        if (cancelled) return;
+        setEnrichmentData(data);
+        if (data?.trackingAudit) {
+          setTrackingAudit(data.trackingAudit);
+          setTrackingAuditError(null);
+        }
+      })
+      .catch((error) => {
+        // Automatic freshness check is best-effort. Manual refresh below surfaces errors.
+        console.warn('[Scoutly Contact Freshness] Falha:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [business.id, business.website]);
+
   const handleToggleFavorite = () => {
     onToggleFavorite?.(business);
   };
@@ -112,7 +142,7 @@ export default function BusinessDetailsModal({
     setIsEnriching(true);
     setEnrichError(null);
     try {
-      const data = await enrichBusinessData(business.website);
+      const data = await enrichBusinessData(business.website, true);
       setEnrichmentData(data);
       if (data?.trackingAudit) {
         setTrackingAudit(data.trackingAudit);
@@ -138,12 +168,14 @@ export default function BusinessDetailsModal({
         trackingAudit,
       };
 
-      const msg = await generateMessage(payload, {
+      const result = await generateMessage(payload, {
         variationIndex: nextVariation,
         previousMessage: isVariation ? generatedMessage : '',
       });
 
-      setGeneratedMessage(msg);
+      setGeneratedMessage(result.message);
+      setMessageSource(result.source);
+      setMessageModel(result.model || '');
       setMessageVariation(nextVariation);
       setIsCopied(false);
     } catch (err: any) {
@@ -161,41 +193,68 @@ export default function BusinessDetailsModal({
     }
   };
 
-  // Merge Data Helpers (guarantee array safety)
-  const phones = Array.isArray(business.phones)
+  // Contact quality: current official website evidence wins over dataset contacts.
+  const normalizePhone = (value: string) => String(value || '').replace(/\D/g, '');
+  const normalizeEmail = (value: string) => String(value || '').trim().toLowerCase();
+
+  const datasetPhones = Array.isArray(business.phones)
     ? [...business.phones]
     : business.phone
-    ? [business.phone]
-    : [];
-  const emails = Array.isArray(business.emails) ? [...business.emails] : [];
-  const whatsapps: string[] = [];
+      ? [business.phone]
+      : [];
+  const datasetEmails = Array.isArray(business.emails) ? [...business.emails] : [];
+
+  const verifiedPhoneItems = Array.isArray(enrichmentData?.phones) ? enrichmentData.phones : [];
+  const verifiedEmailItems = Array.isArray(enrichmentData?.emails) ? enrichmentData.emails : [];
+  const verifiedWhatsappItems = Array.isArray(enrichmentData?.whatsapp) ? enrichmentData.whatsapp : [];
+
+  const verifiedPhones = verifiedPhoneItems.map((item: any) => item.value).filter(Boolean);
+  const verifiedEmails = verifiedEmailItems.map((item: any) => item.value).filter(Boolean);
+  const whatsapps = verifiedWhatsappItems.map((item: any) => item.value).filter(Boolean);
+
+  const verifiedPhoneKeys = new Set(verifiedPhones.map(normalizePhone));
+  const verifiedEmailKeys = new Set(verifiedEmails.map(normalizeEmail));
+
+  const unverifiedDatasetPhones = datasetPhones.filter(
+    (phone: string) => !verifiedPhoneKeys.has(normalizePhone(phone))
+  );
+  const unverifiedDatasetEmails = datasetEmails.filter(
+    (email: string) => !verifiedEmailKeys.has(normalizeEmail(email))
+  );
+
+  const phones = verifiedPhones.length > 0 ? verifiedPhones : datasetPhones;
+  const emails = verifiedEmails.length > 0 ? verifiedEmails : datasetEmails;
+
   const cnpj: string[] = [];
   const team: any[] = [];
 
-  if (enrichmentData) {
-    enrichmentData.phones?.forEach((p: any) => {
-      if (!phones.includes(p.value)) phones.push(p.value);
-    });
-    enrichmentData.emails?.forEach((e: any) => {
-      if (!emails.includes(e.value)) emails.push(e.value);
-    });
-    enrichmentData.whatsapp?.forEach((w: any) => {
-      whatsapps.push(w.value);
-    });
-    enrichmentData.cnpj?.forEach((c: any) => {
-      cnpj.push(c.value);
-    });
-    enrichmentData.team?.forEach((t: any) => {
-      team.push(t);
-    });
-  }
+  enrichmentData?.cnpj?.forEach((item: any) => {
+    if (item?.value && !cnpj.includes(item.value)) cnpj.push(item.value);
+  });
+  enrichmentData?.team?.forEach((item: any) => {
+    team.push(item);
+  });
 
-  // Calculate WhatsApp URL (prioritize explicitly verified WhatsApp, then fallback to phone)
-  const whatsappTarget = whatsapps.length > 0 ? whatsapps[0] : business.phone;
+  const explicitDatasetWhatsapp = datasetPhones.find(
+    (value: string) =>
+      /^https?:\/\//i.test(String(value || '')) &&
+      /wa\.me|whatsapp\.com/i.test(String(value || ''))
+  );
+
+  // Never assume that a generic phone number is a WhatsApp account.
+  const whatsappTarget = whatsapps[0] || explicitDatasetWhatsapp || null;
   let whatsappUrl = getWhatsAppLink(whatsappTarget);
+
   if (whatsappUrl && generatedMessage) {
     whatsappUrl = `${whatsappUrl}?text=${encodeURIComponent(generatedMessage)}`;
   }
+
+  const contactCheckedAt = enrichmentData?.contactFreshness?.checkedAt
+    ? new Date(enrichmentData.contactFreshness.checkedAt)
+    : null;
+  const hasFreshContactEvidence =
+    Boolean(enrichmentData?.contactFreshness?.websiteReachable) &&
+    (verifiedPhones.length > 0 || verifiedEmails.length > 0 || whatsapps.length > 0);
 
   return (
     <div
@@ -318,9 +377,26 @@ export default function BusinessDetailsModal({
             {generatedMessage && (
               <div className="mt-4 p-4 bg-[#FF4D00]/5 border border-[#FF4D00]/20 rounded-2xl relative group">
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-[10px] font-bold text-[#FF4D00] uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Mensagem Gerada
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[#FF4D00] uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" /> Mensagem Gerada
+                    </span>
+
+                    {messageSource === 'template' ? (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500">
+                        <AlertCircle className="w-3 h-3" />
+                        Fallback local
+                      </span>
+                    ) : messageSource ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500"
+                        title={messageModel || undefined}
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        IA ativa
+                      </span>
+                    ) : null}
+                  </div>
 
                   <div className="flex items-center gap-1.5">
                     <button
@@ -435,13 +511,13 @@ export default function BusinessDetailsModal({
           <div className="space-y-3.5">
             <div className="flex items-center justify-between border-b border-stone-100 pb-2">
               <h3 className="text-sm font-bold text-stone-900">Enriquecimento Digital</h3>
-              {hasWebsite && !enrichmentData && (
+              {hasWebsite && (
                 <button
                   onClick={handleEnrich}
                   disabled={isEnriching}
                   className="text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 rounded-lg bg-[#FF4D00] text-white hover:bg-[#E04400] disabled:opacity-50 transition"
                 >
-                  {isEnriching ? 'Buscando...' : 'Atualizar Dados'}
+                  {isEnriching ? 'Verificando...' : 'Atualizar Dados'}
                 </button>
               )}
             </div>
