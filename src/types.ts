@@ -10,6 +10,7 @@ export interface ActiveFilters {
   comSite: boolean;
   comWhatsapp: boolean;
   comRedeSocial: boolean;
+  semRedeSocial: boolean;
 }
 
 export type WebsiteFilter =
@@ -17,7 +18,8 @@ export type WebsiteFilter =
   | 'SITE_ENCONTRADO'
   | 'SITE_NAO_IDENTIFICADO'
   | 'COM_WHATSAPP'
-  | 'COM_REDE_SOCIAL';
+  | 'COM_REDE_SOCIAL'
+  | 'SEM_REDE_SOCIAL';
 
 export type LeadStatus =
   | 'NOVO'
