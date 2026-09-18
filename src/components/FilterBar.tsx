@@ -16,6 +16,8 @@ interface FilterBarProps {
   whatsappCount: number;
   socialsCount: number;
   noSocialsCount: number;
+  noSocialCandidatesCount: number;
+  isNoSocialVerificationRunning: boolean;
 }
 
 function FilterBar({
@@ -32,6 +34,8 @@ function FilterBar({
   whatsappCount,
   socialsCount,
   noSocialsCount,
+  noSocialCandidatesCount,
+  isNoSocialVerificationRunning,
 }: FilterBarProps) {
   const isAll =
     !activeFilters.semSite &&
@@ -172,29 +176,43 @@ function FilterBar({
           </button>
 
           {/* Button: Sem Rede Social */}
-          <button
-            type="button"
-            onClick={() => onToggleFilter('semRedeSocial')}
-            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
-              activeFilters.semRedeSocial
-                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
-                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-orange-400/40 hover:text-white shadow-sm'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.semRedeSocial ? 'bg-white' : 'bg-orange-500'}`} />
-              <span>Sem rede social</span>
-            </div>
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+          <div>
+            <button
+              type="button"
+              onClick={() => onToggleFilter('semRedeSocial')}
+              className={`w-full text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
                 activeFilters.semRedeSocial
-                  ? 'bg-white/20 text-white'
-                  : 'bg-orange-500/20 text-orange-300'
+                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                  : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-orange-400/40 hover:text-white shadow-sm'
               }`}
             >
-              {noSocialsCount}
-            </span>
-          </button>
+              <div className="flex items-center gap-2">
+                {activeFilters.semRedeSocial && isNoSocialVerificationRunning ? (
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                ) : (
+                  <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.semRedeSocial ? 'bg-white' : 'bg-orange-500'}`} />
+                )}
+                <span>Sem rede social</span>
+              </div>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  activeFilters.semRedeSocial
+                    ? 'bg-white/20 text-white'
+                    : 'bg-orange-500/20 text-orange-300'
+                }`}
+              >
+                {activeFilters.semRedeSocial ? noSocialsCount : noSocialCandidatesCount}
+              </span>
+            </button>
+
+            {activeFilters.semRedeSocial && (
+              <p className="px-1 pt-2 text-[9px] leading-relaxed text-stone-500">
+                {isNoSocialVerificationRunning
+                  ? 'Verificando os sites para remover falsos positivos...'
+                  : 'Resultados confirmados após checagem do site oficial.'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
