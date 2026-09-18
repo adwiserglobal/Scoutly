@@ -4,7 +4,6 @@ import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Business } from '../types';
-import { getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
 
@@ -379,8 +378,6 @@ function InteractiveMap({
           if (!biz) return;
 
           const hasWebsite = Boolean(biz.website);
-          const rawPhone = biz.phone || (biz.phones && biz.phones.length > 0 ? biz.phones[0] : null);
-          const waLink = getWhatsAppLink(rawPhone);
 
           const popupHtml = `
             <div class="scoutly-hover-card p-3.5 bg-white rounded-2xl border border-[#EDE8E0] shadow-xl text-stone-900 font-sans min-w-[240px] max-w-[280px]">
@@ -396,22 +393,14 @@ function InteractiveMap({
               
               <div class="flex items-center gap-1.5 pt-2 border-t border-stone-100">
                 ${
-                  waLink
-                    ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl text-[11px] font-bold transition shadow-2xs">
-                        <img src="/whatsapp_icone.png" class="w-3.5 h-3.5 object-contain" alt="WA" />
-                        <span>WhatsApp</span>
-                      </a>`
-                    : ''
-                }
-                ${
                   hasWebsite
                     ? `<a href="${escapeHtml(biz.website!)}" target="_blank" rel="noopener noreferrer" class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-800 rounded-xl text-[11px] font-bold transition shadow-2xs">
                         <span>Ver site</span>
                       </a>`
                     : ''
                 }
-                <button type="button" data-biz-id="${escapeHtml(biz.id)}" class="btn-scoutly-open-modal px-3 py-1.5 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-[11px] font-bold transition shadow-2xs shrink-0 cursor-pointer">
-                  Detalhes
+                <button type="button" data-biz-id="${escapeHtml(biz.id)}" class="btn-scoutly-open-panel flex-1 px-3 py-1.5 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-[11px] font-bold transition shadow-2xs shrink-0 cursor-pointer">
+                  Ver resumo
                 </button>
               </div>
             </div>
@@ -436,7 +425,7 @@ function InteractiveMap({
               }, 250);
             };
 
-            const detailsBtn = popupElement.querySelector('.btn-scoutly-open-modal');
+            const detailsBtn = popupElement.querySelector('.btn-scoutly-open-panel');
             if (detailsBtn) {
               detailsBtn.addEventListener('click', (ev) => {
                 ev.stopPropagation();
