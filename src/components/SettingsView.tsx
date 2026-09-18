@@ -1,297 +1,273 @@
-import { useState, memo } from 'react';
-import {
-  Settings,
-  Database,
-  Sparkles,
-  Download,
-  Trash2,
-  Check,
-  ShieldCheck,
-  MapPin,
-  Cpu,
-  Layers,
-  Globe,
-} from 'lucide-react';
-import { Business } from '../types';
+import { memo, useMemo, useState } from 'react';
+import { updateProfile } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
 
-interface SettingsViewProps {
-  businesses: Business[];
-  currentRegionName: string;
-  onClearLocalCache: () => void;
+function getInitialBatchSize() {
+  const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+  return [30, 60, 100].includes(raw) ? raw : 30;
 }
 
-function SettingsView({
-  businesses,
-  currentRegionName,
-  onClearLocalCache,
-}: SettingsViewProps) {
-  const [agencyName, setAgencyName] = useState(
-    localStorage.getItem('scoutly_agency_name') || 'Minha Agência / Consultoria'
-  );
-  const [defaultCity, setDefaultCity] = useState(
-    localStorage.getItem('scoutly_default_city') || 'Araguari, MG'
+function SettingsView() {
+  const { user, signOut } = useAuth();
+
+  const [displayName, setDisplayName] = useState(
+    user?.displayName || localStorage.getItem('scoutly_profile_name') || ''
   );
   const [autoEnrich, setAutoEnrich] = useState(
     localStorage.getItem('scoutly_auto_enrich') !== 'false'
   );
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [resultsBatchSize, setResultsBatchSize] = useState(getInitialBatchSize);
+  const [savedMessage, setSavedMessage] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  const handleSavePreferences = () => {
-    localStorage.setItem('scoutly_agency_name', agencyName);
-    localStorage.setItem('scoutly_default_city', defaultCity);
-    localStorage.setItem('scoutly_auto_enrich', String(autoEnrich));
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
+  const initials = useMemo(() => {
+    const source = displayName || user?.email || 'S';
+    return source
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+  }, [displayName, user?.email]);
+
+  const saveProfile = async () => {
+    if (!user) return;
+
+    const nextName = displayName.trim();
+    if (!nextName) return;
+
+    setIsSavingProfile(true);
+    setSavedMessage('');
+
+    try {
+      await updateProfile(user, { displayName: nextName });
+      localStorage.setItem('scoutly_profile_name', nextName);
+      setSavedMessage('Perfil atualizado');
+    } catch (error) {
+      console.error('[Scoutly Settings] Profile update failed:', error);
+      setSavedMessage('Não foi possível atualizar o nome');
+    } finally {
+      setIsSavingProfile(false);
+      window.setTimeout(() => setSavedMessage(''), 2200);
+    }
   };
 
-  const handleExportAllJSON = () => {
-    const dataStr =
-      'data:text/json;charset=utf-8,' +
-      encodeURIComponent(JSON.stringify(businesses, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute(
-      'download',
-      `scoutly-backup-completo-${new Date().toISOString().slice(0, 10)}.json`
-    );
-    dlAnchorElem.click();
+  const updateAutoEnrich = (enabled: boolean) => {
+    setAutoEnrich(enabled);
+    localStorage.setItem('scoutly_auto_enrich', String(enabled));
+    window.dispatchEvent(new Event('scoutly-preferences-updated'));
   };
 
-  const handleExportAllCSV = () => {
-    if (businesses.length === 0) return;
+  const updateBatchSize = (value: number) => {
+    setResultsBatchSize(value);
+    localStorage.setItem('scoutly_results_batch_size', String(value));
+    window.dispatchEvent(new Event('scoutly-preferences-updated'));
+  };
 
-    const headers = [
-      'ID',
-      'Nome',
-      'Categoria',
-      'Latitude',
-      'Longitude',
-      'Telefone',
-      'Website',
-      'Redes Sociais',
-      'Status do Lead',
-      'Endereço',
-      'Anotações',
-    ];
-
-    const rows = businesses.map((b) => [
-      `"${b.id}"`,
-      `"${b.name.replace(/"/g, '""')}"`,
-      `"${b.category.replace(/"/g, '""')}"`,
-      b.latitude,
-      b.longitude,
-      `"${b.phone || (b.phones && b.phones[0]) || ''}"`,
-      `"${b.website || ''}"`,
-      `"${(b.socials || []).join(', ')}"`,
-      `"${b.leadStatus || 'NOVO'}"`,
-      `"${b.address.replace(/"/g, '""')}"`,
-      `"${(b.notes || '').replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `scoutly-base-completa-${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleSignOut = async () => {
+    await signOut();
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-y-auto p-4 md:p-8">
-      <div className="max-w-4xl mx-auto w-full space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-stone-900 text-white rounded-2xl">
-            <Settings className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
-              Configurações & Preferências
-            </h1>
-            <p className="text-xs text-stone-500 font-medium">
-              Gerencie parâmetros de prospecção, dados de inteligência e exportações.
-            </p>
-          </div>
-        </div>
-
-        {/* Section 1: Preferências do Consultor */}
-        <div className="p-6 bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs space-y-5">
-          <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-            <ShieldCheck className="w-4 h-4 text-[#FF4D00]" />
-            <h2 className="text-sm font-bold text-stone-900">
-              Identidade & Região Padrão
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                Nome da Agência / Consultoria
-              </label>
-              <input
-                type="text"
-                value={agencyName}
-                onChange={(e) => setAgencyName(e.target.value)}
-                placeholder="Ex: Minha Empresa B2B"
-                className="w-full text-xs p-3 rounded-xl border border-[#EDE8E0] bg-[#FAF7F2] text-stone-900 focus:outline-none focus:border-[#FF4D00]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                Cidade / Polo de Prospecção Padrão
-              </label>
-              <input
-                type="text"
-                value={defaultCity}
-                onChange={(e) => setDefaultCity(e.target.value)}
-                placeholder="Ex: Araguari, MG"
-                className="w-full text-xs p-3 rounded-xl border border-[#EDE8E0] bg-[#FAF7F2] text-stone-900 focus:outline-none focus:border-[#FF4D00]"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="autoEnrich"
-                checked={autoEnrich}
-                onChange={(e) => setAutoEnrich(e.target.checked)}
-                className="w-4 h-4 rounded text-[#FF4D00] focus:ring-[#FF4D00] border-stone-300"
-              />
-              <label htmlFor="autoEnrich" className="text-xs font-medium text-stone-700">
-                Ativar raspador inteligente de contatos públicos em websites
-              </label>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSavePreferences}
-              className="px-4 py-2 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-            >
-              {savedSuccess ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Salvo!</span>
-                </>
-              ) : (
-                <span>Salvar Preferências</span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Section 2: Inteligência Artificial & Status do Motor */}
-        <div className="p-6 bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs space-y-4">
-          <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-            <Sparkles className="w-4 h-4 text-[#FF4D00]" />
-            <h2 className="text-sm font-bold text-stone-900">
-              Motor de IA & Copilot
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                Provedor Principal
-              </span>
-              <span className="text-xs font-bold text-stone-800 block mt-1">
-                OpenRouter AI Cascade
-              </span>
-              <span className="text-[11px] text-emerald-600 font-medium">
-                ● Modelos Gratuitos Ativos
-              </span>
-            </div>
-
-            <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                Fallback de Continuidade
-              </span>
-              <span className="text-xs font-bold text-stone-800 block mt-1">
-                Google Gemini + Local Parser
-              </span>
-              <span className="text-[11px] text-stone-500 font-medium">
-                Alta disponibilidade
-              </span>
-            </div>
-
-            <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                Região Atual Carregada
-              </span>
-              <span className="text-xs font-bold text-stone-800 block mt-1">
-                {currentRegionName}
-              </span>
-              <span className="text-[11px] text-stone-500 font-medium">
-                {businesses.length} negócios na memória
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Exportações & Backup de Dados */}
-        <div className="p-6 bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs space-y-4">
-          <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-            <Database className="w-4 h-4 text-[#FF4D00]" />
-            <h2 className="text-sm font-bold text-stone-900">
-              Exportação & Backup de Dados
-            </h2>
-          </div>
-
-          <p className="text-xs text-stone-600">
-            Você pode exportar toda a base de empresas carregadas em formato CSV ou JSON
-            para integração com CRM (HubSpot, RD Station, Pipedrive, ActiveCampaign) ou planilhas.
+    <div className="flex-1 h-full overflow-y-auto bg-[#FAF7F2] px-4 py-6 md:px-8 md:py-10">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-stone-950">
+            Configurações
+          </h1>
+          <p className="mt-1 text-sm text-stone-500">
+            Gerencie sua conta, preferências e plano.
           </p>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleExportAllCSV}
-              className="px-4 py-2.5 bg-white border border-[#EDE8E0] hover:bg-stone-50 text-stone-800 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-stone-600" />
-              <span>Exportar Todos em CSV ({businesses.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportAllJSON}
-              className="px-4 py-2.5 bg-white border border-[#EDE8E0] hover:bg-stone-50 text-stone-800 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-stone-600" />
-              <span>Backup Completo em JSON</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClearLocalCache}
-              className="px-4 py-2.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer ml-auto"
-            >
-              <Trash2 className="w-4 h-4 text-rose-600" />
-              <span>Limpar Cache Local</span>
-            </button>
-          </div>
         </div>
 
-        {/* Section 4: Fontes de Dados e Licença */}
-        <div className="p-5 bg-[#FAF7F2] rounded-3xl border border-[#EDE8E0] text-xs text-stone-500 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-stone-700">
-            <Globe className="w-4 h-4 text-stone-500" />
-            <span>Infraestrutura de Dados Abertos</span>
-          </div>
-          <p>
-            O <strong>Scoutly</strong> utiliza dados oficiais da <strong>Overture Maps Foundation</strong>{' '}
-            (Linux Foundation / Meta / Microsoft / AWS) processados via <strong>DuckDB</strong> de alta performance.
-          </p>
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+            <div className="mb-5">
+              <h2 className="text-sm font-semibold text-stone-900">Meu perfil</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Informações usadas na sua conta Scoutly.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="shrink-0">
+                {user?.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={displayName || user.email || 'Perfil'}
+                    className="h-16 w-16 rounded-full border border-stone-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-stone-200 bg-[#FAF7F2] text-sm font-semibold text-stone-600">
+                    {initials}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium text-stone-500">
+                    Nome
+                  </label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-900 outline-none transition focus:border-[#FF4D00]"
+                    placeholder="Seu nome"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium text-stone-500">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    readOnly
+                    className="w-full cursor-not-allowed rounded-xl border border-stone-200 bg-[#F7F4EF] px-3.5 py-2.5 text-sm text-stone-500 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between border-t border-stone-100 pt-4">
+              <span className="text-[11px] text-stone-400">
+                {savedMessage || 'A foto é sincronizada com seu provedor de login.'}
+              </span>
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={isSavingProfile || !displayName.trim()}
+                className="rounded-xl bg-stone-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#FF4D00] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSavingProfile ? 'Salvando...' : 'Salvar nome'}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+            <div className="mb-5">
+              <h2 className="text-sm font-semibold text-stone-900">Preferências</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Estas configurações são aplicadas imediatamente neste navegador.
+              </p>
+            </div>
+
+            <div className="divide-y divide-stone-100">
+              <div className="flex items-center justify-between gap-5 py-4 first:pt-0">
+                <div>
+                  <div className="text-sm font-medium text-stone-800">
+                    Analisar empresas automaticamente
+                  </div>
+                  <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-stone-500">
+                    Ao abrir uma empresa, a Scoutly verifica site, contatos públicos, tracking e outros sinais disponíveis.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoEnrich}
+                  onClick={() => updateAutoEnrich(!autoEnrich)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                    autoEnrich ? 'bg-[#FF4D00]' : 'bg-stone-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                      autoEnrich ? 'left-6' : 'left-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-5 py-4 last:pb-0">
+                <div>
+                  <div className="text-sm font-medium text-stone-800">
+                    Empresas carregadas por vez
+                  </div>
+                  <p className="mt-1 text-[11px] text-stone-500">
+                    Define quantos resultados aparecem inicialmente em “Ver empresas”.
+                  </p>
+                </div>
+
+                <select
+                  value={resultsBatchSize}
+                  onChange={(event) => updateBatchSize(Number(event.target.value))}
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 outline-none focus:border-[#FF4D00]"
+                >
+                  <option value={30}>30</option>
+                  <option value={60}>60</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+            <div className="mb-5">
+              <h2 className="text-sm font-semibold text-stone-900">Plano e pagamento</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Informações atuais da sua assinatura.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                  Plano atual
+                </span>
+                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                  Gratuito
+                </span>
+              </div>
+
+              <div>
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                  Status
+                </span>
+                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                  Ativo
+                </span>
+              </div>
+
+              <div>
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                  Cobrança
+                </span>
+                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                  R$ 0 / mês
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-stone-100 pt-4">
+              <p className="text-[11px] text-stone-500">
+                A gestão de planos e pagamentos será disponibilizada aqui quando a assinatura estiver conectada.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-stone-900">Sessão</h2>
+                <p className="mt-1 text-xs text-stone-500">
+                  Encerra o acesso da sua conta neste dispositivo.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-xs font-semibold text-stone-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                Sair da conta
+              </button>
+            </div>
+          </section>
         </div>
       </div>
     </div>
