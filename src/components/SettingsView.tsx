@@ -1,13 +1,19 @@
 import { memo, useMemo, useState } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
+import type { BillingStatus } from '../lib/billing';
 
 function getInitialBatchSize() {
   const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
   return [30, 60, 100].includes(raw) ? raw : 30;
 }
 
-function SettingsView() {
+interface SettingsViewProps {
+  billing: BillingStatus;
+  onOpenPlans: () => void;
+}
+
+function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const { user, signOut } = useAuth();
 
   const [displayName, setDisplayName] = useState(
@@ -210,7 +216,7 @@ function SettingsView() {
             <div className="mb-5">
               <h2 className="text-sm font-semibold text-stone-900">Plano e pagamento</h2>
               <p className="mt-1 text-xs text-stone-500">
-                Informações atuais da sua assinatura.
+                Seu acesso à Scoutly e informações de cobrança.
               </p>
             </div>
 
@@ -220,7 +226,7 @@ function SettingsView() {
                   Plano atual
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-stone-900">
-                  Gratuito
+                  {billing.planName}
                 </span>
               </div>
 
@@ -229,7 +235,9 @@ function SettingsView() {
                   Status
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-stone-900">
-                  Ativo
+                  {billing.isExpired
+                    ? 'Teste encerrado'
+                    : `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
                 </span>
               </div>
 
@@ -238,15 +246,23 @@ function SettingsView() {
                   Cobrança
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-stone-900">
-                  R$ 0 / mês
+                  Sem cobrança no teste
                 </span>
               </div>
             </div>
 
-            <div className="mt-5 border-t border-stone-100 pt-4">
-              <p className="text-[11px] text-stone-500">
-                A gestão de planos e pagamentos será disponibilizada aqui quando a assinatura estiver conectada.
+            <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-xl text-[11px] leading-relaxed text-stone-500">
+                O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Pro ou Agency para continuar usando a Scoutly.
               </p>
+
+              <button
+                type="button"
+                onClick={onOpenPlans}
+                className="shrink-0 rounded-xl bg-[#FF4D00] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#E04400]"
+              >
+                Ver planos
+              </button>
             </div>
           </section>
 
