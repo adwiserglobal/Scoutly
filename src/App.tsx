@@ -13,6 +13,7 @@ import InteractiveMap, { MapBounds, RadarPinState } from './components/Interacti
 import { PinRadarControl } from './components/PinRadarControl';
 import BusinessCard from './components/BusinessCard';
 import BusinessDetailsModal from './components/BusinessDetailsModal';
+import BusinessSidePanel from './components/BusinessSidePanel';
 import LoadingScreen from './components/LoadingScreen';
 import AIAssistantDrawer from './components/AIAssistantDrawer';
 import FavoritesView from './components/FavoritesView';
@@ -461,7 +462,6 @@ export default function App() {
 
   // Stable callbacks for BusinessCard memoization
   const handleCardSelect = useCallback((biz: Business) => {
-    setSelectedBusiness(biz);
     setModalBusiness(biz);
   }, []);
 
@@ -546,7 +546,7 @@ export default function App() {
             selectedBusiness={selectedBusiness}
             onSelectBusiness={(biz) => {
               setSelectedBusiness(biz);
-              setModalBusiness(biz);
+              setModalBusiness(null);
             }}
             centerCoordinates={centerCoordinates}
             zoom={14}
@@ -767,7 +767,11 @@ export default function App() {
         {currentTab === 'INICIO' && (
           <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500">
             <button
-              onClick={() => setIsListOpen(!isListOpen)}
+              onClick={() => {
+                const nextOpen = !isListOpen;
+                setIsListOpen(nextOpen);
+                if (nextOpen) setSelectedBusiness(null);
+              }}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-white/70 hover:bg-white text-stone-700 hover:text-stone-900 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all shadow-md border border-white/40 backdrop-blur-md cursor-pointer hover:scale-105 active:scale-95"
             >
               {isListOpen ? (
@@ -794,7 +798,6 @@ export default function App() {
             <FavoritesView
               businesses={businesses}
               onSelectBusiness={(biz) => {
-                setSelectedBusiness(biz);
                 setModalBusiness(biz);
               }}
               onUpdateLeadStatus={handleUpdateStatus}
@@ -810,7 +813,6 @@ export default function App() {
             <PipelineView
               businesses={businesses}
               onSelectBusiness={(biz) => {
-                setSelectedBusiness(biz);
                 setModalBusiness(biz);
               }}
               onUpdateLeadStatus={handleUpdateStatus}
@@ -853,6 +855,15 @@ export default function App() {
         </div>
       )}
 
+      {/* Compact map business side panel */}
+      {currentTab === 'INICIO' && selectedBusiness && !isListOpen && !modalBusiness && (
+        <BusinessSidePanel
+          business={selectedBusiness}
+          onClose={() => setSelectedBusiness(null)}
+          onToggleFavorite={handleToggleFavorite}
+        />
+      )}
+
       {/* Business Details Modal */}
       <BusinessDetailsModal
         business={modalBusiness}
@@ -882,7 +893,7 @@ export default function App() {
       />
 
       {/* Floating Action Button: Scoutly AI (Orange Liquid Glass Design) */}
-      {!isAIChatOpen && !isFiltersOpen && currentTab === 'INICIO' && (
+      {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && currentTab === 'INICIO' && (
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
