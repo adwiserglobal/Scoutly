@@ -22,7 +22,7 @@ import SettingsView from './components/SettingsView';
 import LoginView from './components/LoginView';
 
 export default function App() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavigationTab>('INICIO');
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [userLeadsMap, setUserLeadsMap] = useState<Record<string, { status: LeadStatus; notes: string }>>({});
@@ -60,7 +60,10 @@ export default function App() {
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
 
   // Pagination / Progressive Rendering for High Performance (prevent DOM overload)
-  const [visibleCount, setVisibleCount] = useState<number>(30);
+  const [visibleCount, setVisibleCount] = useState<number>(() => {
+    const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+    return [30, 60, 100].includes(stored) ? stored : 30;
+  });
 
   // Multi-select Filters (allows multiple simultaneous filters: e.g. sem site + com whatsapp)
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
@@ -84,8 +87,19 @@ export default function App() {
 
   // Reset pagination when filters change
   useEffect(() => {
-    setVisibleCount(30);
+    const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+    setVisibleCount([30, 60, 100].includes(stored) ? stored : 30);
   }, [activeFilters, selectedCategory, sortBy, businesses]);
+
+  useEffect(() => {
+    const syncPreferences = () => {
+      const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+      setVisibleCount([30, 60, 100].includes(stored) ? stored : 30);
+    };
+
+    window.addEventListener('scoutly-preferences-updated', syncPreferences);
+    return () => window.removeEventListener('scoutly-preferences-updated', syncPreferences);
+  }, []);
 
   const handleToggleFilter = useCallback((filterKey: keyof ActiveFilters | 'TODOS') => {
     if (filterKey === 'TODOS') {
@@ -888,7 +902,11 @@ export default function App() {
                       <div className="pt-2 pb-4 flex flex-col items-center gap-2 mt-2">
                         <button
                           type="button"
-                          onClick={() => setVisibleCount((prev) => Math.min(prev + 30, filteredBusinesses.length))}
+                          onClick={() => {
+                            const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+                            const batchSize = [30, 60, 100].includes(stored) ? stored : 30;
+                            setVisibleCount((prev) => Math.min(prev + batchSize, filteredBusinesses.length));
+                          }}
                           className="w-full py-3 px-4 rounded-2xl bg-white border border-[#EDE8E0] hover:border-[#FF4D00] text-stone-800 hover:text-[#FF4D00] text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <span>Carregar mais 30 estabelecimentos</span>
@@ -973,16 +991,7 @@ export default function App() {
 
         {currentTab === 'CONFIGURACOES' && (
           <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
-            <SettingsView
-              businesses={businesses}
-              currentRegionName={currentRegionName}
-              onClearLocalCache={() => {
-                localStorage.clear();
-                mapCacheService.clear();
-                setUserLeadsMap({});
-                setBusinesses([]);
-              }}
-            />
+            <SettingsView />
           </div>
         )}
       </div>
