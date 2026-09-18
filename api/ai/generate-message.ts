@@ -160,60 +160,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const prompt = buildPrompt(business, variationIndex, previousMessage);
   let message = '';
-  let source = 'template';
+  let source: 'gemini' | 'openrouter' | 'template' = 'template';
+  let model = '';
 
-  if (process.env.GEMINI_API_KEY) {
+  const geminiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_AI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
+
+  if (process.env.OPENROUTER_API_KEY) {
+    const candidateModels = [
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'mistralai/mistral-7b-instruct:free',
+      'openrouter/auto',
+    ];
+
+    for (const candidate of candidateModels) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'HTTP-Referer': process.env.APP_URL || 'https://scoutly.pro',
+            'X-Title': 'Scoutly',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: candidate,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: variationIndex > 0 ? 0.9 : 0.76,
+            max_tokens: 360,
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const text = data?.choices?.[0]?.message?.content?.trim() || '';
+
+        if (text.length >= 30) {
+          message = text;
+          source = 'openrouter';
+          model = data?.model || candidate;
+          break;
+        }
+      } catch (error: any) {
+        console.warn(`[Generate Message] OpenRouter ${candidate} failed:`, error?.message || error);
+      }
+    }
+  }
+
+  if (!message && geminiKey) {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-        config: { temperature: variationIndex > 0 ? 0.85 : 0.72 },
+        config: { temperature: variationIndex > 0 ? 0.9 : 0.76 },
       });
 
       const text = response.text?.trim() || '';
       if (text.length >= 30) {
         message = text;
         source = 'gemini';
+        model = 'gemini-2.5-flash';
       }
     } catch (error: any) {
       console.warn('[Generate Message] Gemini failed:', error?.message || error);
     }
   }
 
-  if (!message && process.env.OPENROUTER_API_KEY) {
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-exp:free',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: variationIndex > 0 ? 0.85 : 0.72,
-          max_tokens: 320,
-        }),
-        signal: AbortSignal.timeout(9000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const text = data?.choices?.[0]?.message?.content?.trim() || '';
-        if (text.length >= 30) {
-          message = text;
-          source = 'openrouter';
-        }
-      }
-    } catch (error: any) {
-      console.warn('[Generate Message] OpenRouter failed:', error?.message || error);
-    }
-  }
-
   if (!message) {
     message = buildFallbackMessage(business, variationIndex);
+    source = 'template';
+    model = 'scoutly-local-fallback';
   }
 
-  return res.status(200).json({ message, source, variationIndex });
+  return res.status(200).json({
+    message,
+    source,
+    model,
+    variationIndex,
+  });
 }
