@@ -581,7 +581,10 @@ export default function App() {
                   isLocating={isLocating}
                   totalOpportunitiesCount={opportunitiesCount}
                   totalBusinessesCount={filteredBusinesses.length}
-                  onOpenFilters={() => setIsFiltersOpen(true)}
+                  onOpenFilters={() => {
+                    setSelectedBusiness(null);
+                    setIsFiltersOpen(true);
+                  }}
                   isPinActive={Boolean(radarPin?.active)}
                   onTogglePinMode={handleTogglePinMode}
                 />
