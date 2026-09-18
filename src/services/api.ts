@@ -49,8 +49,10 @@ export async function fetchPlacesFromOverture(
   };
 }
 
-export async function enrichBusinessData(url: string) {
-  const res = await fetch(`/api/enrich?url=${encodeURIComponent(url)}`);
+export async function enrichBusinessData(url: string, force = false) {
+  const params = new URLSearchParams({ url });
+  if (force) params.set('force', '1');
+  const res = await fetch(`/api/enrich?${params.toString()}`);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Erro ao enriquecer dados.');
@@ -225,10 +227,17 @@ export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
   return res.json();
 }
 
+export interface GenerateMessageResult {
+  message: string;
+  source: 'gemini' | 'openrouter' | 'template';
+  model?: string;
+  variationIndex?: number;
+}
+
 export async function generateMessage(
   business: any,
   options?: { variationIndex?: number; previousMessage?: string }
-): Promise<string> {
+): Promise<GenerateMessageResult> {
   try {
     const res = await fetch('/api/ai/generate-message', {
       method: 'POST',
@@ -244,7 +253,12 @@ export async function generateMessage(
       throw new Error(data.error || 'Falha ao gerar mensagem com a API');
     }
     const data = await res.json();
-    return data.message || '';
+    return {
+      message: data.message || '',
+      source: data.source || 'template',
+      model: data.model,
+      variationIndex: data.variationIndex,
+    };
   } catch (error) {
     console.error('Failed to generate message:', error);
     throw error;
