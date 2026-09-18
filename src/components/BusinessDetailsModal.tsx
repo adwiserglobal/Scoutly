@@ -25,6 +25,7 @@ export default function BusinessDetailsModal({
     business.leadStatus || 'NOVO'
   );
   const [notes, setNotes] = useState(business.notes || '');
+  const [isSpeedDetailsExpanded, setIsSpeedDetailsExpanded] = useState(false);
 
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentData, setEnrichmentData] = useState<any>(null);
@@ -342,14 +343,10 @@ export default function BusinessDetailsModal({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 transition shadow-2xs"
-                  title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
+                  title="WhatsApp confirmado no site oficial"
                 >
                   <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-4 h-4 object-contain" />
                   <span>Conversar no WhatsApp</span>
-                  <CheckCircle2
-                    className="w-3.5 h-3.5 text-white/90"
-                    aria-label="WhatsApp verificado"
-                  />
                 </a>
               )}
 
@@ -441,52 +438,82 @@ export default function BusinessDetailsModal({
         </div>
 
         {/* Resumo rápido */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5 px-1 text-[10px] text-stone-500">
-          <span className="inline-flex items-center gap-1.5">
-            {hasWebsite ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
-            )}
-            {hasWebsite ? 'Site identificado' : 'Site não identificado'}
-          </span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-5">
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Globe2 className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Site</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {hasWebsite ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {hasWebsite ? 'Identificado' : 'Não identificado'}
+              </span>
+            </div>
+          </div>
 
-          <span className="inline-flex items-center gap-1.5">
-            {whatsapps.length > 0 ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : verifiedPhones.length > 0 || verifiedEmails.length > 0 ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
-            )}
-            {whatsapps.length > 0
-              ? 'WhatsApp verificado'
-              : verifiedPhones.length > 0 || verifiedEmails.length > 0
-                ? 'Contato verificado'
-                : 'Contato não confirmado'}
-          </span>
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Phone className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Contatos</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {whatsapps.length > 0 || verifiedPhones.length > 0 || verifiedEmails.length > 0 ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {whatsapps.length > 0
+                  ? 'WhatsApp confirmado'
+                  : verifiedPhones.length > 0 || verifiedEmails.length > 0
+                    ? 'Contato confirmado'
+                    : 'Não confirmado'}
+              </span>
+            </div>
+          </div>
 
-          <span className="inline-flex items-center gap-1.5">
-            {trackingAudit?.hasTracking ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
-            )}
-            {isTrackingAuditLoading
-              ? 'Tracking em análise'
-              : trackingAudit?.hasTracking
-                ? 'Tracking detectado'
-                : 'Tracking não confirmado'}
-          </span>
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Tracking</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {trackingAudit?.hasTracking ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {isTrackingAuditLoading
+                  ? 'Analisando'
+                  : trackingAudit?.hasTracking
+                    ? 'Detectado'
+                    : 'Não confirmado'}
+              </span>
+            </div>
+          </div>
 
-          <span className="inline-flex items-center gap-1.5">
-            {pageSpeed ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
-            )}
-            {isSpeedLoading ? 'Performance em análise' : pageSpeed ? `PageSpeed ${pageSpeed.score}/100` : 'Performance indisponível'}
-          </span>
+          <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider">Performance</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              {pageSpeed ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span className="text-[11px] font-semibold text-stone-700">
+                {isSpeedLoading ? 'Medindo' : pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Informações Principais */}
@@ -687,16 +714,19 @@ export default function BusinessDetailsModal({
 
                   {whatsapps.length > 0 ? (
                     <div className="mt-2">
-                      <div
-                        className="flex items-center justify-between gap-2"
-                        title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
-                      >
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium text-stone-800 truncate">{whatsapps[0]}</span>
-                        <span className="inline-flex items-center gap-1 text-[9px] font-medium text-stone-500 shrink-0">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Verificado
-                        </span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       </div>
+                      <a
+                        href={whatsappUrl || undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1.5 text-[10px] font-semibold text-white transition"
+                      >
+                        <img src="/whatsapp_icone.png" alt="" className="w-3.5 h-3.5 object-contain" />
+                        Abrir WhatsApp
+                      </a>
                     </div>
                   ) : (
                     <div className="mt-2">
@@ -771,205 +801,216 @@ export default function BusinessDetailsModal({
             </div>
 
             {hasWebsite && (
-              <details className="group rounded-2xl border border-stone-200 bg-white overflow-hidden">
-                <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Activity className="w-4 h-4 text-stone-400 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="block text-[11px] font-semibold text-stone-800">Tracking e privacidade</span>
-                      <span className="block text-[9px] text-stone-400 mt-0.5 truncate">
-                        GA4, GTM, Meta Pixel e consentimento de cookies
-                      </span>
+              <>
+                {isTrackingAuditLoading && !trackingAudit && (
+                  <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
+                      <div>
+                        <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                          Tracking e privacidade
+                        </span>
+                        <span className="block text-[10px] text-stone-500 mt-0.5">
+                          Analisando GA4, GTM, Meta Pixel e cookies
+                        </span>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="inline-flex items-center gap-1 text-[9px] font-medium text-stone-500">
-                      {isTrackingAuditLoading ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin" />
-                          Analisando
-                        </>
-                      ) : trackingAudit?.hasTracking ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Detectado
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-3 h-3 text-stone-400" />
-                          Não confirmado
-                        </>
-                      )}
+                {trackingAudit && <TrackingAuditPanel audit={trackingAudit} />}
+
+                {trackingAuditError && !trackingAudit && !isTrackingAuditLoading && (
+                  <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                    <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                      Tracking e privacidade
                     </span>
-                    <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
-                  </div>
-                </summary>
-
-                <div className="border-t border-stone-100 p-3.5">
-                  {isTrackingAuditLoading && !trackingAudit && (
-                    <div className="flex items-center gap-2 text-[10px] text-stone-500">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#FF4D00]" />
-                      Analisando sinais de tracking
-                    </div>
-                  )}
-
-                  {trackingAudit && <TrackingAuditPanel audit={trackingAudit} />}
-
-                  {trackingAuditError && !trackingAudit && !isTrackingAuditLoading && (
-                    <div className="text-[10px] text-stone-500">
+                    <span className="block text-[10px] text-stone-500 mt-1">
                       Não foi possível concluir a análise automática deste site.
-                    </div>
-                  )}
-                </div>
-              </details>
+                    </span>
+                  </div>
+                )}
+              </>
             )}
 
-            {(enrichmentData && Object.keys(enrichmentData.socials || {}).length > 0) || team.length > 0 ? (
-              <details className="group rounded-2xl border border-stone-200 bg-white overflow-hidden">
-                <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <Globe2 className="w-4 h-4 text-stone-400" />
-                    <div>
-                      <span className="block text-[11px] font-semibold text-stone-800">Mais dados digitais</span>
-                      <span className="block text-[9px] text-stone-400 mt-0.5">Redes sociais e equipe pública</span>
-                    </div>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
-                </summary>
-
-                <div className="border-t border-stone-100 p-3.5 space-y-3">
-                  {enrichmentData && Object.keys(enrichmentData.socials || {}).length > 0 && (
-                    <div>
-                      <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
-                        Redes sociais confirmadas no site
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(enrichmentData.socials).map(([net, item]: any) => (
-                          <a
-                            key={net}
-                            href={item.value}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-stone-700 bg-[#FCFBF9] hover:bg-stone-50 border border-stone-200 transition"
-                          >
-                            <span className="capitalize">{net}</span>
-                            <ArrowUpRight className="w-3 h-3 text-stone-400" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {team.length > 0 && (
-                    <div>
-                      <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
-                        Equipe pública
-                      </span>
-                      <div className="space-y-1.5">
-                        {team.slice(0, 4).map((member: any, idx: number) => (
-                          <div key={idx} className="text-[10px] text-stone-600">
-                            <span className="font-semibold text-stone-800">{member.name}</span>
-                            {member.role && <span className="ml-1 text-stone-400">{member.role}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+            {enrichmentData && Object.keys(enrichmentData.socials || {}).length > 0 && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                  Redes sociais confirmadas no site
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(enrichmentData.socials).map(([net, item]: any) => (
+                    <a
+                      key={net}
+                      href={item.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-stone-700 bg-[#FCFBF9] hover:bg-stone-50 border border-stone-200 transition"
+                    >
+                      <span className="capitalize">{net}</span>
+                      <ArrowUpRight className="w-3 h-3 text-stone-400" />
+                    </a>
+                  ))}
                 </div>
-              </details>
-            ) : null}
+              </div>
+            )}
+
+            {team.length > 0 && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
+                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                  Equipe pública
+                </span>
+                <div className="space-y-1.5">
+                  {team.slice(0, 4).map((member: any, idx: number) => (
+                    <div key={idx} className="text-[10px] text-stone-600">
+                      <span className="font-semibold text-stone-800">{member.name}</span>
+                      {member.role && <span className="ml-1 text-stone-400">{member.role}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
 
-        {/* Google PageSpeed Insights */}
+        {/* Google PageSpeed Insights Section (quando houver site) */}
         {hasWebsite && (
-          <details className="group mb-4 rounded-2xl border border-stone-200 bg-white overflow-hidden">
-            <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <img src="/velocimetro.png" alt="Google PageSpeed" className="w-4 h-4 object-contain shrink-0" />
-                <div className="min-w-0">
-                  <span className="block text-[11px] font-semibold text-stone-800">Performance do site</span>
-                  <span className="block text-[9px] text-stone-400 mt-0.5">Google PageSpeed e Core Web Vitals</span>
+          <div className="mb-5 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <img src="/velocimetro.png" alt="Google PageSpeed" className="w-5 h-5 object-contain" />
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+                    Google PageSpeed Insights
+                  </h4>
+                  <p className="text-[11px] text-stone-500">
+                    Métricas reais de velocidade mobile e Core Web Vitals
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-semibold text-stone-600">
-                  {isSpeedLoading ? 'Medindo' : pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
-                </span>
-                <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
-              </div>
-            </summary>
-
-            <div className="border-t border-stone-100 p-4 space-y-3">
-              {isSpeedLoading && (
-                <div className="flex items-center gap-2 text-[10px] text-stone-500">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#FF4D00]" />
-                  Medindo performance
+              {/* Score upfront */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                    isSpeedLoading
+                      ? 'bg-stone-100 text-stone-600 border-stone-200 animate-pulse'
+                      : pageSpeed
+                      ? pageSpeed.score >= 90
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : pageSpeed.score >= 50
+                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                      : 'bg-stone-100 text-stone-600 border-stone-200'
+                  }`}
+                >
+                  <img src="/velocimetro.png" alt="Speed" className="w-4 h-4 object-contain" />
+                  <span>
+                    {isSpeedLoading
+                      ? 'Medindo...'
+                      : pageSpeed
+                      ? `Score: ${pageSpeed.score}/100 • ${
+                          pageSpeed.score >= 90
+                            ? 'Rápido'
+                            : pageSpeed.score >= 50
+                            ? 'Médio'
+                            : 'Crítico'
+                        }`
+                      : 'Score indisponível'}
+                  </span>
                 </div>
-              )}
 
-              {pageSpeed && (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      ['FCP', pageSpeed.fcp || '-'],
-                      ['LCP', pageSpeed.lcp || '-'],
-                      ['TBT', pageSpeed.tbt || '-'],
-                      ['CLS', pageSpeed.cls || '-'],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-2.5">
-                        <span className="block text-[9px] font-semibold text-stone-400">{label}</span>
-                        <span className="mt-1 block text-[11px] font-semibold text-stone-800">{value}</span>
-                      </div>
-                    ))}
+                <button
+                  type="button"
+                  onClick={() => setIsSpeedDetailsExpanded(!isSpeedDetailsExpanded)}
+                  className="text-xs font-bold text-[#FF4D00] hover:text-[#E04400] flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-stone-200/60 transition cursor-pointer"
+                >
+                  <span>{isSpeedDetailsExpanded ? 'Recolher' : 'Ver mais informações'}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isSpeedDetailsExpanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            {pageSpeed && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">FCP (1ª Pintura)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.fcp || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">LCP (Maior Conteúdo)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.lcp || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">TBT (Bloqueio)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.tbt || '-'}</span>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-stone-200">
+                  <span className="block text-[10px] text-stone-400 font-bold uppercase">CLS (Estabilidade)</span>
+                  <span className="text-xs font-black text-stone-800">{pageSpeed.cls || '-'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Expandable Details (recolhido por padrão) */}
+            {isSpeedDetailsExpanded && pageSpeed && (
+              <div className="pt-2 space-y-3 border-t border-stone-200/80">
+                {/* Commercial Opportunity Pitch */}
+                <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
+                    <Sparkles className="w-4 h-4 text-[#FF4D00]" />
+                    <span>Oportunidade Comercial para Prospecção</span>
                   </div>
+                  <strong className="text-xs text-stone-800 block">
+                    {pageSpeed.opportunityTitle}
+                  </strong>
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    {pageSpeed.opportunityDescription}
+                  </p>
+                </div>
 
-                  <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
-                    <span className="block text-[10px] font-semibold text-stone-800">{pageSpeed.opportunityTitle}</span>
-                    <p className="mt-1 text-[10px] leading-relaxed text-stone-500">{pageSpeed.opportunityDescription}</p>
-                  </div>
-
-                  {pageSpeed.diagnostics && pageSpeed.diagnostics.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="block text-[9px] font-semibold uppercase tracking-wider text-stone-400">
-                        Diagnósticos
-                      </span>
-                      {pageSpeed.diagnostics.slice(0, 4).map((diag, i) => (
+                {/* Diagnostics list */}
+                {pageSpeed.diagnostics && pageSpeed.diagnostics.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                      Diagnósticos Técnicos Recomendados
+                    </span>
+                    <div className="space-y-1">
+                      {pageSpeed.diagnostics.map((diag, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-[10px]"
+                          className="flex items-center justify-between text-xs bg-white px-3 py-2 rounded-lg border border-stone-200"
                         >
-                          <span className="text-stone-600">{diag.title}</span>
-                          <span className="shrink-0 font-semibold text-stone-400">{diag.impact}</span>
+                          <span className="text-stone-700">{diag.title}</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              diag.impact === 'Crítico'
+                                ? 'bg-rose-100 text-rose-800'
+                                : diag.impact === 'Alto'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-stone-100 text-stone-700'
+                            }`}
+                          >
+                            Impacto {diag.impact}
+                          </span>
                         </div>
                       ))}
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-          </details>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Gestão de Prospecção */}
-        <details className="group rounded-2xl border border-stone-200 bg-white overflow-hidden">
-          <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5">
-            <div>
-              <span className="block text-[11px] font-semibold text-stone-800">Funil de vendas e anotações</span>
-              <span className="block text-[9px] text-stone-400 mt-0.5">Status comercial e histórico deste lead</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-medium text-stone-500">
-                {currentLeadStatus === 'NOVO' ? 'Fora do funil' : currentLeadStatus.replaceAll('_', ' ')}
-              </span>
-              <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
-            </div>
-          </summary>
-          <div className="border-t border-stone-100 p-4">
-
+        {/* Gestão de Prospecção (Pipeline e Anotações) */}
+        <div className="border-t border-stone-100 pt-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
             <div>
               <span className="text-xs font-bold text-stone-900 uppercase tracking-wider block">
@@ -1028,9 +1069,7 @@ export default function BusinessDetailsModal({
               </button>
             </div>
           </div>
-        
-          </div>
-        </details>
+        </div>
       </div>
     </div>
   );
