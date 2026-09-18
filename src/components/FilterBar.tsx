@@ -15,6 +15,7 @@ interface FilterBarProps {
   opportunitiesCount: number;
   whatsappCount: number;
   socialsCount: number;
+  noSocialsCount: number;
 }
 
 function FilterBar({
@@ -30,12 +31,14 @@ function FilterBar({
   opportunitiesCount,
   whatsappCount,
   socialsCount,
+  noSocialsCount,
 }: FilterBarProps) {
   const isAll =
     !activeFilters.semSite &&
     !activeFilters.comSite &&
     !activeFilters.comWhatsapp &&
-    !activeFilters.comRedeSocial;
+    !activeFilters.comRedeSocial &&
+    !activeFilters.semRedeSocial;
 
   return (
     <div className="flex flex-col gap-6 w-full shrink-0 pb-8">
@@ -165,6 +168,31 @@ function FilterBar({
               }`}
             >
               {socialsCount}
+            </span>
+          </button>
+
+          {/* Button: Sem Rede Social */}
+          <button
+            type="button"
+            onClick={() => onToggleFilter('semRedeSocial')}
+            className={`text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+              activeFilters.semRedeSocial
+                ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-orange-400/40 hover:text-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.semRedeSocial ? 'bg-white' : 'bg-orange-500'}`} />
+              <span>Sem rede social</span>
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.semRedeSocial
+                  ? 'bg-white/20 text-white'
+                  : 'bg-orange-500/20 text-orange-300'
+              }`}
+            >
+              {noSocialsCount}
             </span>
           </button>
         </div>
