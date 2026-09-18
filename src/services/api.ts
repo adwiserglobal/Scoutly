@@ -225,15 +225,23 @@ export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
   return res.json();
 }
 
-export async function generateMessage(business: any): Promise<string> {
+export async function generateMessage(
+  business: any,
+  options?: { variationIndex?: number; previousMessage?: string }
+): Promise<string> {
   try {
     const res = await fetch('/api/ai/generate-message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business })
+      body: JSON.stringify({
+        business,
+        variationIndex: options?.variationIndex || 0,
+        previousMessage: options?.previousMessage || '',
+      }),
     });
     if (!res.ok) {
-      throw new Error('Falha ao gerar mensagem com a API');
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Falha ao gerar mensagem com a API');
     }
     const data = await res.json();
     return data.message || '';
