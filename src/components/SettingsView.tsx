@@ -253,7 +253,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
 
             <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-xl text-[11px] leading-relaxed text-stone-500">
-                O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Pro ou Agency para continuar usando a Scoutly.
+                O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Go, Pro ou Agency para continuar usando a Scoutly.
               </p>
 
               <button
