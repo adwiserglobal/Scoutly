@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 
-export type ScoutlyPlan = 'trial' | 'pro' | 'agency' | 'expired';
+export type ScoutlyPlan = 'trial' | 'go' | 'pro' | 'agency' | 'expired';
 
 export interface BillingStatus {
   plan: ScoutlyPlan;
@@ -13,6 +13,19 @@ export interface BillingStatus {
   hasAccess: boolean;
   monthlyPrice: number | null;
   includedSeats: number;
+}
+
+export interface ScoutlyPlanDefinition {
+  id: 'go' | 'pro' | 'agency';
+  name: string;
+  monthlyPrice: number;
+  includedSeats: number;
+  monthlyAnalysisLimit: number | null;
+  monthlyAiMessageLimit: number | null;
+  advancedFilters: boolean;
+  bulkExport: boolean;
+  teamWorkspace: boolean;
+  additionalSeatPrice?: number;
 }
 
 const TRIAL_DAYS = 7;
@@ -49,18 +62,39 @@ export function getBillingStatus(user: User | null): BillingStatus {
   };
 }
 
-export const SCOUTLY_PLANS = {
+export const SCOUTLY_PLANS: Record<'go' | 'pro' | 'agency', ScoutlyPlanDefinition> = {
+  go: {
+    id: 'go',
+    name: 'Go',
+    monthlyPrice: 39.9,
+    includedSeats: 1,
+    monthlyAnalysisLimit: 100,
+    monthlyAiMessageLimit: 50,
+    advancedFilters: false,
+    bulkExport: false,
+    teamWorkspace: false,
+  },
   pro: {
-    id: 'pro' as const,
+    id: 'pro',
     name: 'Pro',
     monthlyPrice: 69.9,
     includedSeats: 1,
+    monthlyAnalysisLimit: null,
+    monthlyAiMessageLimit: null,
+    advancedFilters: true,
+    bulkExport: true,
+    teamWorkspace: false,
   },
   agency: {
-    id: 'agency' as const,
+    id: 'agency',
     name: 'Agency',
     monthlyPrice: 299,
     includedSeats: 5,
+    monthlyAnalysisLimit: null,
+    monthlyAiMessageLimit: null,
+    advancedFilters: true,
+    bulkExport: true,
+    teamWorkspace: true,
     additionalSeatPrice: 39.9,
   },
 };
