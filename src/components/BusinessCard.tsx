@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
-import { Star, ChevronDown } from 'lucide-react';
+import { Star, ChevronDown, Check, Copy } from 'lucide-react';
 import { Business } from '../types';
-import { getWhatsAppLink, getTrustIcon } from '../services/api';
+import { getGoogleBusinessLink, getWhatsAppLink, getTrustIcon } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 
@@ -22,10 +22,20 @@ function BusinessCard({
   onToggleFavorite,
 }: BusinessCardProps) {
   const [isSpeedExpanded, setIsSpeedExpanded] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
   const hasWebsite = Boolean(business.website);
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const whatsappUrl = getWhatsAppLink(business.phone);
   const isFavorited = Boolean(business.isFavorite);
+  const googleBusinessUrl = getGoogleBusinessLink(business);
+
+  const handleCopyPhone = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!business.phone) return;
+    await navigator.clipboard.writeText(business.phone);
+    setCopiedPhone(true);
+    window.setTimeout(() => setCopiedPhone(false), 1600);
+  };
 
   const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
     hasWebsite ? business.website : null
@@ -145,11 +155,21 @@ function BusinessCard({
       {/* Contact Info Pills */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         {/* Phone */}
-        <div className="px-2.5 py-1 bg-[#FAF7F2] rounded-lg border border-[#EDE8E0] text-stone-600 truncate max-w-[200px]">
+        <div className="flex max-w-[220px] items-center gap-1 rounded-lg border border-[#EDE8E0] bg-[#FAF7F2] px-2.5 py-1 text-stone-600">
           {business.phone ? (
-            <span className="font-medium text-stone-800">{business.phone}</span>
+            <>
+              <span className="truncate font-medium text-stone-800">{business.phone}</span>
+              <button
+                type="button"
+                onClick={handleCopyPhone}
+                className="shrink-0 rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
+                title={copiedPhone ? 'Número copiado' : 'Copiar número'}
+              >
+                {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+            </>
           ) : (
-            <span className="text-stone-400 italic">Telefone não identificado</span>
+            <span className="truncate text-stone-400 italic">Telefone não identificado</span>
           )}
         </div>
 
@@ -264,6 +284,17 @@ function BusinessCard({
       {/* Action Buttons & Details */}
       <div className="mt-3.5 pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={googleBusinessUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 hover:text-stone-900 transition active:scale-95 shadow-2xs"
+            title="Abrir este negócio no Google Maps"
+          >
+            <span>Ver no Google</span>
+          </a>
+
           {/* Button: Ver site (Sem seta) */}
           {hasWebsite && (
             <a

@@ -127,6 +127,16 @@ export async function saveUserLead(
   }
 }
 
+export function getGoogleBusinessLink(
+  business: Pick<Business, 'name' | 'address' | 'latitude' | 'longitude'>
+): string {
+  const name = String(business.name || '').trim();
+  const address = String(business.address || '').trim();
+  const query = [name, address].filter(Boolean).join(' ');
+  const fallback = `${business.latitude},${business.longitude}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || fallback)}`;
+}
+
 export function getWhatsAppLink(phoneOrUrl?: string | null): string | null {
   if (!phoneOrUrl) return null;
   

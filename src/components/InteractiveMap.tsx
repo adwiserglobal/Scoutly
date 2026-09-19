@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Business } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
+import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
 if (typeof window !== 'undefined' && maplibregl.setWorkerUrl) {
@@ -77,6 +78,9 @@ function InteractiveMap({
   const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const popupLeaveTimerRef = useRef<any>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<Set<string>>(
+    () => new Set(getRecentlyViewedBusinessIds())
+  );
   const pinMarkerRef = useRef<maplibregl.Marker | null>(null);
   const isPinPlacementModeRef = useRef(isPinPlacementMode);
   isPinPlacementModeRef.current = isPinPlacementMode;
@@ -98,6 +102,22 @@ function InteractiveMap({
     }
     businessesMapRef.current = map;
   }, [businesses]);
+
+  useEffect(() => {
+    const syncRecentlyViewed = (event?: Event) => {
+      const customEvent = event as CustomEvent<{ ids?: string[] }>;
+      const ids = customEvent?.detail?.ids || getRecentlyViewedBusinessIds();
+      setRecentlyViewedIds(new Set(ids));
+    };
+
+    window.addEventListener(RECENTLY_VIEWED_EVENT, syncRecentlyViewed as EventListener);
+    window.addEventListener('storage', syncRecentlyViewed);
+
+    return () => {
+      window.removeEventListener(RECENTLY_VIEWED_EVENT, syncRecentlyViewed as EventListener);
+      window.removeEventListener('storage', syncRecentlyViewed);
+    };
+  }, []);
 
   // Stable callback ref for onSelectBusiness inside popup event listeners
   const onSelectBusinessRef = useRef(onSelectBusiness);
@@ -292,6 +312,29 @@ function InteractiveMap({
             'circle-radius': ['get', 'markerRadius'],
             'circle-stroke-width': ['get', 'outlineWidth'],
             'circle-stroke-color': ['get', 'outlineColor'],
+          },
+        });
+
+        // 4a. Recently viewed label. The dark halo reads like a discreet map badge
+        // without introducing another heavy DOM marker layer.
+        map.addLayer({
+          id: 'recently-viewed-label',
+          type: 'symbol',
+          source: 'businesses',
+          filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'recentlyViewed'], true]],
+          layout: {
+            'text-field': 'Visto recentemente',
+            'text-size': 9,
+            'text-offset': [0, -1.9],
+            'text-anchor': 'bottom',
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+          },
+          paint: {
+            'text-color': '#FFF7F2',
+            'text-halo-color': 'rgba(28, 25, 23, 0.92)',
+            'text-halo-width': 5,
+            'text-halo-blur': 1,
           },
         });
 
@@ -507,7 +550,8 @@ function InteractiveMap({
       const geojson: GeoJSON.FeatureCollection = {
         type: 'FeatureCollection',
         features: businesses.map((biz) => {
-          let markerColor = '#FF4D00';
+          const isRecentlyViewed = recentlyViewedIds.has(biz.id);
+          let markerColor = isRecentlyViewed ? '#FF7A45' : '#FF4D00';
           let outlineColor = '#ffffff';
           let outlineWidth = 2;
           let markerRadius = 7;
@@ -547,6 +591,7 @@ function InteractiveMap({
               outlineWidth,
               markerRadius,
               showWhatsappIcon,
+              recentlyViewed: isRecentlyViewed,
             },
           };
         }),
@@ -554,17 +599,10 @@ function InteractiveMap({
 
       source.setData(geojson);
     }
-  }, [businesses, activeFilters, isMapLoaded]);
+  }, [businesses, activeFilters, isMapLoaded, recentlyViewedIds]);
 
-  // Pan to selected business
-  useEffect(() => {
-    if (!mapRef.current || !selectedBusiness) return;
-    mapRef.current.flyTo({
-      center: [selectedBusiness.longitude, selectedBusiness.latitude],
-      zoom: Math.max(mapRef.current.getZoom() || zoom, 16),
-      essential: true,
-    });
-  }, [selectedBusiness]);
+  // Selecting a business must not change the map position or zoom.
+  // Search/location changes still use centerCoordinates above.
 
   // Handle Radar Pin Marker & Radius Circle updates
   useEffect(() => {

@@ -3,7 +3,9 @@ import {
   Activity,
   AlertCircle,
   Building2,
+  Check,
   CheckCircle2,
+  Copy,
   ExternalLink,
   Gauge,
   Globe2,
@@ -11,14 +13,17 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  RefreshCw,
+  Sparkles,
   Star,
   Tag,
   X,
 } from 'lucide-react';
 import { Business } from '../types';
-import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink } from '../services/api';
+import { enrichBusinessData, fetchTrackingAudit, generateMessage, getGoogleBusinessLink, getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
+import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -52,6 +57,7 @@ function SignalRow({
   detected,
   loading,
   title,
+  action,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -59,6 +65,7 @@ function SignalRow({
   detected: boolean;
   loading?: boolean;
   title?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div
@@ -74,7 +81,10 @@ function SignalRow({
           </span>
         </div>
       </div>
-      <StatusIcon ok={detected} loading={loading} />
+      <div className="flex shrink-0 items-center gap-1.5">
+        {action}
+        <StatusIcon ok={detected} loading={loading} />
+      </div>
     </div>
   );
 }
@@ -139,12 +149,31 @@ export default function BusinessSidePanel({
   const [trackingAudit, setTrackingAudit] = useState<any>(null);
   const [isEnrichmentLoading, setIsEnrichmentLoading] = useState(false);
   const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [messageVariation, setMessageVariation] = useState(0);
+  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | 'template' | null>(null);
+  const [messageModel, setMessageModel] = useState('');
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  const [isMessageCopied, setIsMessageCopied] = useState(false);
 
   const hasWebsite = Boolean(business.website);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const { data: pageSpeed, isLoading: isPageSpeedLoading } = usePageSpeed(
     autoEnrichEnabled && hasWebsite ? business.website : null
   );
+
+  useEffect(() => {
+    markBusinessRecentlyViewed(business.id);
+    setCopiedPhone(false);
+    setGeneratedMessage('');
+    setMessageVariation(0);
+    setMessageSource(null);
+    setMessageModel('');
+    setMessageError(null);
+    setIsMessageCopied(false);
+  }, [business.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,6 +264,8 @@ export default function BusinessSidePanel({
   }, [enrichment, business.socials]);
 
   const whatsappUrl = verifiedWhatsapp ? getWhatsAppLink(verifiedWhatsapp) : null;
+  const phoneToCopy = verifiedPhone || business.phone || business.phones?.[0] || null;
+  const googleBusinessUrl = getGoogleBusinessLink(business);
   const trackingDetected = Boolean(trackingAudit?.hasTracking);
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
@@ -263,6 +294,52 @@ export default function BusinessSidePanel({
   ]);
 
   const isAnythingLoading = isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading;
+
+  const handleCopyPhone = async () => {
+    if (!phoneToCopy) return;
+    await navigator.clipboard.writeText(phoneToCopy);
+    setCopiedPhone(true);
+    window.setTimeout(() => setCopiedPhone(false), 1600);
+  };
+
+  const handleGenerateApproach = async (isVariation = false) => {
+    setIsGeneratingMessage(true);
+    setMessageError(null);
+
+    try {
+      const nextVariation = isVariation ? messageVariation + 1 : 0;
+      const result = await generateMessage(
+        {
+          ...business,
+          pageSpeedScore: pageSpeed?.score,
+          pageSpeedDiagnostics: pageSpeed?.diagnostics || [],
+          trackingAudit,
+          opportunities,
+        },
+        {
+          variationIndex: nextVariation,
+          previousMessage: isVariation ? generatedMessage : '',
+        }
+      );
+
+      setGeneratedMessage(result.message);
+      setMessageVariation(nextVariation);
+      setMessageSource(result.source);
+      setMessageModel(result.model || '');
+      setIsMessageCopied(false);
+    } catch (error: any) {
+      setMessageError(error?.message || 'Não foi possível gerar a abordagem.');
+    } finally {
+      setIsGeneratingMessage(false);
+    }
+  };
+
+  const handleCopyMessage = async () => {
+    if (!generatedMessage) return;
+    await navigator.clipboard.writeText(generatedMessage);
+    setIsMessageCopied(true);
+    window.setTimeout(() => setIsMessageCopied(false), 1600);
+  };
 
   return (
     <>
@@ -314,6 +391,18 @@ export default function BusinessSidePanel({
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              href={googleBusinessUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
+              title="Abrir este negócio no Google Maps"
+            >
+              <MapPin className="h-3.5 w-3.5 text-[#FF4D00]" />
+              Ver no Google
+              <ExternalLink className="h-3 w-3 text-stone-400" />
+            </a>
+
             {hasWebsite && (
               <a
                 href={business.website!}
@@ -418,9 +507,21 @@ export default function BusinessSidePanel({
               <SignalRow
                 icon={<Phone className="h-4 w-4" />}
                 label="Telefone"
-                value={verifiedPhone || business.phone || 'Não identificado'}
+                value={phoneToCopy || 'Não identificado'}
                 detected={Boolean(verifiedPhone)}
                 loading={hasWebsite && isEnrichmentLoading}
+                action={
+                  phoneToCopy ? (
+                    <button
+                      type="button"
+                      onClick={handleCopyPhone}
+                      className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-[#FF4D00]"
+                      title={copiedPhone ? 'Número copiado' : 'Copiar número'}
+                    >
+                      {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  ) : undefined
+                }
               />
 
               <SignalRow
@@ -443,6 +544,68 @@ export default function BusinessSidePanel({
                     : undefined
                 }
               />
+            </div>
+          </section>
+
+          <section className="mt-6">
+            <SectionTitle icon={<Sparkles className="h-4 w-4" />}>
+              Gerar abordagem
+            </SectionTitle>
+
+            <div className="rounded-2xl border border-[#E7E0D8] bg-white p-3.5">
+              {!generatedMessage && !messageError && (
+                <p className="text-[10px] leading-relaxed text-stone-500">
+                  Crie uma primeira mensagem usando os sinais encontrados para este negócio.
+                </p>
+              )}
+
+              {messageError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-[10px] text-red-600">
+                  {messageError}
+                </p>
+              )}
+
+              {generatedMessage && (
+                <div className="rounded-xl border border-[#FF4D00]/15 bg-[#FFF8F4] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span
+                      className="text-[9px] font-semibold uppercase tracking-wider text-[#D94400]"
+                      title={messageModel || undefined}
+                    >
+                      {messageSource === 'template' ? 'Fallback local' : 'Abordagem com IA'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyMessage}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-500 transition hover:bg-white hover:text-[#FF4D00]"
+                    >
+                      {isMessageCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {isMessageCopied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                  <p className="whitespace-pre-wrap text-[10px] leading-relaxed text-stone-700">
+                    {generatedMessage}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleGenerateApproach(Boolean(generatedMessage))}
+                  disabled={isGeneratingMessage}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FF4D00] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isGeneratingMessage ? (
+                    <LoaderRing />
+                  ) : generatedMessage ? (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  {isGeneratingMessage ? 'Gerando' : generatedMessage ? 'Nova variação' : 'Gerar abordagem'}
+                </button>
+              </div>
             </div>
           </section>
 

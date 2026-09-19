@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail, MapPin } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { enrichBusinessData, fetchTrackingAudit, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
+import { enrichBusinessData, fetchTrackingAudit, getGoogleBusinessLink, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import TrackingAuditPanel from './TrackingAuditPanel';
+import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -41,6 +42,7 @@ export default function BusinessDetailsModal({
   const [messageModel, setMessageModel] = useState('');
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState('');
 
   useEffect(() => {
     setCurrentLeadStatus(business.leadStatus || 'NOVO');
@@ -54,12 +56,15 @@ export default function BusinessDetailsModal({
     setMessageSource(null);
     setMessageModel('');
     setMessageError(null);
+    setCopiedPhone('');
+    markBusinessRecentlyViewed(business.id);
   }, [business]);
 
   const hasWebsite = Boolean(business.website);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const isFavorited = Boolean(business.isFavorite);
+  const googleBusinessUrl = getGoogleBusinessLink(business);
 
   const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
     autoEnrichEnabled && hasWebsite ? business.website : null
@@ -194,6 +199,13 @@ export default function BusinessDetailsModal({
     }
   };
 
+  const handleCopyPhone = async (phone: string) => {
+    if (!phone) return;
+    await navigator.clipboard.writeText(phone);
+    setCopiedPhone(phone);
+    setTimeout(() => setCopiedPhone(''), 1600);
+  };
+
   // Contact quality: current official website evidence wins over dataset contacts.
   const normalizePhone = (value: string) => String(value || '').replace(/\D/g, '');
   const normalizeEmail = (value: string) => String(value || '').trim().toLowerCase();
@@ -326,6 +338,17 @@ export default function BusinessDetailsModal({
 
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap items-center gap-2 mt-4">
+              <a
+                href={googleBusinessUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
+                title="Abrir este negócio no Google Maps"
+              >
+                <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                <span>Ver no Google</span>
+              </a>
+
               {hasWebsite && (
                 <a
                   href={business.website!}
@@ -684,21 +707,42 @@ export default function BusinessDetailsModal({
                   {verifiedPhones.length > 0 ? (
                     <div className="mt-2 space-y-1.5">
                       {verifiedPhones.slice(0, 2).map((phone: string, idx: number) => (
-                        <a
+                        <div
                           key={`verified-ph-${idx}`}
-                          href={`tel:${phone}`}
                           className="flex items-center justify-between gap-2 text-[11px] font-medium text-stone-800"
                         >
-                          <span className="truncate">{phone}</span>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        </a>
+                          <a href={`tel:${phone}`} className="truncate hover:text-[#FF4D00]">
+                            {phone}
+                          </a>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPhone(phone)}
+                              className="rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
+                              title={copiedPhone === phone ? 'Número copiado' : 'Copiar número'}
+                            >
+                              {copiedPhone === phone ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : datasetPhones.length > 0 ? (
                     <div className="mt-2">
                       <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-stone-700">
                         <span className="truncate">{datasetPhones[0]}</span>
-                        <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPhone(datasetPhones[0])}
+                            className="rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
+                            title={copiedPhone === datasetPhones[0] ? 'Número copiado' : 'Copiar número'}
+                          >
+                            {copiedPhone === datasetPhones[0] ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                          <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                        </div>
                       </div>
                       <span className="text-[9px] text-stone-400 mt-1 block">Não confirmado no site atual</span>
                     </div>
