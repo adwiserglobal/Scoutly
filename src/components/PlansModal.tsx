@@ -9,7 +9,7 @@ interface PlansModalProps {
   forceOpen?: boolean;
 }
 
-type PlanId = 'pro' | 'agency';
+type PlanId = 'go' | 'pro' | 'agency';
 
 function Feature({ children }: { children: React.ReactNode }) {
   return (
@@ -38,7 +38,7 @@ export default function PlansModal({
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[2px]">
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-[#E7E0D8] bg-[#FAF7F2] shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-[#E7E0D8] bg-[#FAF7F2] shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#E7E0D8] px-6 py-6 md:px-8">
           <div>
             <div className="mb-3 h-[3px] w-12 rounded-full bg-[#FF4D00]" />
@@ -80,7 +80,46 @@ export default function PlansModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <article className="rounded-3xl border border-[#E7E0D8] bg-white p-5">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                  Começar
+                </span>
+                <h3 className="mt-1 text-xl font-semibold text-stone-950">
+                  Go
+                </h3>
+              </div>
+
+              <div className="mt-5">
+                <span className="text-3xl font-semibold tracking-tight text-stone-950">
+                  {formatBRL(SCOUTLY_PLANS.go.monthlyPrice)}
+                </span>
+                <span className="ml-1 text-sm text-stone-400">/mês</span>
+              </div>
+
+              <p className="mt-1 text-[11px] text-stone-500">
+                Para quem prospecta por conta própria
+              </p>
+
+              <div className="mt-5 space-y-2.5">
+                <Feature>1 usuário</Feature>
+                <Feature>Mapa e busca de empresas</Feature>
+                <Feature>Até {SCOUTLY_PLANS.go.monthlyAnalysisLimit} análises por mês</Feature>
+                <Feature>Contatos públicos, favoritos e pipeline</Feature>
+                <Feature>Até {SCOUTLY_PLANS.go.monthlyAiMessageLimit} mensagens com IA por mês</Feature>
+                <Feature>Filtros essenciais</Feature>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSelectPlan('go')}
+                className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50"
+              >
+                Continuar com Go
+              </button>
+            </article>
+
             <article className="rounded-3xl border border-[#FF4D00]/50 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -163,7 +202,7 @@ export default function PlansModal({
           {selectedPlan && (
             <div className="mt-5 rounded-2xl border border-[#E7E0D8] bg-white px-4 py-3.5">
               <span className="block text-xs font-semibold text-stone-900">
-                {selectedPlan === 'pro' ? 'Pro selecionado' : 'Agency selecionado'}
+                {selectedPlan === 'go' ? 'Go selecionado' : selectedPlan === 'pro' ? 'Pro selecionado' : 'Agency selecionado'}
               </span>
               <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
                 O plano foi salvo como sua escolha. No próximo passo vamos conectar o checkout da Stripe para concluir a assinatura.
