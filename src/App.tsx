@@ -877,6 +877,11 @@ export default function App() {
                   onClear={handleClearVisitRoute}
                   onCloseMode={() => setIsRouteMode(false)}
                   onInspectBusiness={handleInspectRouteBusiness}
+                  onAddToPipeline={(business) => {
+                    if (!business.leadStatus || business.leadStatus === 'NOVO') {
+                      handleUpdateStatus(business.id, 'CONTATADO', business.notes);
+                    }
+                  }}
                 />
               </div>
             )}

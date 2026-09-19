@@ -25,122 +25,151 @@ function getEvidence(business: any) {
 
 function buildFallbackMessage(business: any, variationIndex = 0): string {
   const name = business?.name || 'sua empresa';
-  const category = business?.category || 'serviços';
-  const { score, diagnostics, missingTracking } = getEvidence(business);
-  const priorityCount = Math.max(1, Math.min(3, diagnostics.length || missingTracking.length || 2));
+  const category = business?.category || 'negócios locais';
+  const { score, missingTracking } = getEvidence(business);
 
-  if (!business?.website) {
-    const variants = [
-      `Olá! Tudo bem? Encontrei a ${name} pesquisando empresas de ${category} e notei uma oportunidade simples na presença digital de vocês.
-
-Hoje, quem procura a empresa online pode ter dificuldade para chegar rápido às informações e ao contato. Tenho uma ideia bem objetiva de como resolver isso sem transformar em um projeto enorme.
-
-Posso te mostrar a estrutura que eu faria para a ${name}?`,
-      `Olá! Tudo bem? Estava olhando a presença digital da ${name} e fiquei com uma ideia que pode facilitar bastante a chegada de novos contatos.
-
-É uma estrutura simples, focada em transformar busca local em conversa no WhatsApp, sem depender de um site complexo.
-
-Quer que eu te mostre como eu montaria isso para vocês?`,
-    ];
-    return variants[variationIndex % variants.length];
+  const observedSignals: string[] = [];
+  if (!business?.website) observedSignals.push('presença online');
+  if (score > 0 && score < 70) observedSignals.push('desempenho do site no celular');
+  if (missingTracking.length > 0) observedSignals.push('mensuração e rastreamento');
+  if (Array.isArray(business?.opportunities)) {
+    observedSignals.push(...business.opportunities.slice(0, 2).map(String));
   }
 
-  if (score > 0 && score < 70) {
-    const variants = [
-      `Olá! Tudo bem? Dei uma olhada no site da ${name} e um ponto me chamou atenção: no mobile, a análise ficou em ${score}/100.
+  const opportunityText = observedSignals.length > 0
+    ? `Na análise pública, apareceram alguns pontos que vale olhar com mais atenção, principalmente em ${Array.from(new Set(observedSignals)).slice(0, 3).join(', ')}.`
+    : `Pesquisando empresas de ${category}, vi algumas oportunidades que podem ajudar a melhorar aquisição, atendimento e presença digital.`;
 
-Isso indica alguns gargalos que podem criar atrito justamente antes do visitante chegar ao contato. Separei os ${priorityCount} pontos que eu atacaria primeiro, sem mexer no que já funciona.
-
-Quer que eu te mande esse diagnóstico curto?`,
-      `Olá! Tudo bem? Analisei rapidamente o site da ${name} e encontrei uma oportunidade bem clara no mobile. O desempenho ficou em ${score}/100.
-
-O interessante é que não parece ser caso de refazer tudo. Há alguns ajustes prioritários que podem melhorar a experiência e deixar o site mais preparado para receber tráfego.
-
-Posso te mostrar quais eu priorizaria primeiro?`,
-      `Olá! Tudo bem? Passei pelo site da ${name} e fiz uma checagem rápida de performance. O resultado no mobile foi ${score}/100.
-
-Encontrei alguns pontos que valem atenção antes de colocar mais energia em tráfego ou aquisição. Montei uma leitura bem curta do que parece ter maior impacto.
-
-Quer que eu te envie?`,
-    ];
-    return variants[variationIndex % variants.length];
-  }
-
-  if (missingTracking.length > 0) {
-    const variants = [
-      `Olá! Tudo bem? Dei uma olhada na estrutura digital da ${name} e encontrei alguns pontos de mensuração que valem uma checagem.
-
-Não significa necessariamente que estejam ausentes, mas há sinais que não ficaram confirmados publicamente e isso pode dificultar enxergar o que realmente gera contato e venda.
-
-Posso te mandar os pontos que eu revisaria primeiro?`,
-      `Olá! Tudo bem? Analisei rapidamente o site da ${name} e fiquei com uma dúvida importante sobre a mensuração das campanhas e dos acessos.
-
-Alguns sinais de tracking não ficaram confirmados na análise pública. Separei uma lista curta do que eu validaria antes de escalar mídia.
-
-Quer que eu te envie?`,
-    ];
-    return variants[variationIndex % variants.length];
-  }
-
-  const variants = [
-    `Olá! Tudo bem? Encontrei a ${name} pesquisando empresas de ${category} e dei uma olhada rápida na presença digital de vocês.
-
-Vi alguns pontos interessantes que podem deixar o caminho entre visita e contato mais direto. Nada genérico, são ajustes bem específicos do que encontrei.
-
-Posso te mandar um resumo curto?`,
-    `Olá! Tudo bem? Dei uma olhada na presença digital da ${name} e encontrei algumas oportunidades que eu priorizaria antes de pensar em aumentar investimento em aquisição.
-
-Separei uma leitura bem objetiva, focada no que pode melhorar o caminho até o contato.
-
-Quer que eu te mostre?`,
+  const openings = [
+    `Olá! Tudo bem? 😊\n\nPesquisando negócios locais, conheci a ${name} e percebi que existem algumas oportunidades que podem ajudar vocês a atrair mais clientes, facilitar o atendimento e melhorar a presença digital da empresa.\n\n${opportunityText}`,
+    `Olá! Tudo bem? 😊\n\nEu estava analisando negócios de ${category} na região e encontrei a ${name}. Fiz uma leitura rápida da presença digital de vocês e identifiquei alguns pontos que podem ser trabalhados para melhorar visibilidade, atendimento e geração de oportunidades.\n\n${opportunityText}`,
+    `Olá! Tudo bem? 😊\n\nConheci a ${name} enquanto pesquisava empresas locais e resolvi fazer uma análise rápida da estrutura digital de vocês. Existem alguns caminhos interessantes para aumentar a presença no Google, melhorar a captação e reduzir tarefas manuais no atendimento.\n\n${opportunityText}`,
   ];
-  return variants[variationIndex % variants.length];
+
+  return `${openings[variationIndex % openings.length]}
+
+Hoje trabalhamos justamente com esse tipo de solução, unindo marketing, tecnologia e automação conforme a necessidade de cada negócio.
+
+🌐 Websites profissionais — criação, otimização, velocidade, SEO e estrutura pensada para gerar contatos.
+
+📍 Google & Google Maps — otimização do perfil, posicionamento local e estratégias para aumentar a visibilidade.
+
+⭐ Avaliações Google com NFC + QR Code — placas, cartões e adesivos personalizados para facilitar que o cliente avalie a empresa após o atendimento.
+
+📱 Mídias sociais — criação de conteúdo, gestão de redes sociais, planejamento e presença digital.
+
+🎯 Gestão de tráfego pago — Google Ads, Meta Ads, LinkedIn Ads e outras plataformas, com acompanhamento e mensuração dos resultados.
+
+📊 Analytics, rastreamento e relatórios — implementação de GA4, Google Tag Manager, eventos, conversões e acompanhamento da jornada do cliente.
+
+🤖 Automação de processos — automação de formulários, captação de informações, notificações, organização de leads e etapas do atendimento, reduzindo trabalho manual e tempo de resposta.
+
+📲 Aplicativos Essenciais ou Premium — desenvolvimento de sistemas próprios para atendimento, gestão e acompanhamento de processos, inclusive soluções internas ou produtos digitais.
+
+🔐 Auditoria digital e LGPD — análise de formulários, coleta de dados, cookies, consentimento e rastreamento. A necessidade de adequação é avaliada caso a caso.
+
+E o principal: não trabalhamos com uma solução engessada.
+
+Primeiro procuramos entender onde está o problema do negócio.
+
+Está faltando cliente?
+O site não gera contatos?
+O Google não traz visitas suficientes?
+Os leads demoram para ser atendidos?
+O processo depende de muita coisa manual?
+As informações ficam espalhadas?
+Existe dificuldade para acompanhar os clientes?
+O marketing não está sendo mensurado?
+Ou existe uma ideia que vocês gostariam de transformar em uma ferramenta?
+
+A partir da dor, desenvolvemos a solução — seja marketing, tecnologia, automação, site, aplicativo, tráfego pago ou uma combinação de tudo isso.
+
+Posso fazer uma análise gratuita da presença digital da ${name}, apontar algumas oportunidades e mostrar, de forma prática, o que poderia ser melhorado.
+
+Faz sentido conversarmos por alguns minutos? 😊`;
 }
 
 function buildPrompt(business: any, variationIndex = 0, previousMessage = ''): string {
   const { score, diagnostics, missingTracking } = getEvidence(business);
   const styles = [
-    'curiosidade com dado específico',
-    'consultivo e confiante',
-    'direto com provocação leve',
-    'executivo e muito curto',
+    'consultivo, próximo e profissional',
+    'confiante, humano e orientado a oportunidades',
+    'comercial elegante, sem pressão',
+    'direto, personalizado e acolhedor',
   ];
   const style = styles[variationIndex % styles.length];
+  const opportunities = Array.isArray(business?.opportunities)
+    ? business.opportunities.map(String).slice(0, 5)
+    : [];
 
-  return `Escreva uma mensagem de prospecção B2B para WhatsApp em português brasileiro.
+  return `Escreva uma mensagem de prospecção B2B para WhatsApp em português brasileiro, pronta para envio, personalizada para um negócio local.
 
 Empresa: ${business?.name || 'Empresa'}
 Segmento: ${business?.category || 'Não informado'}
 Site: ${business?.website || 'Não identificado'}
 PageSpeed mobile: ${score > 0 ? `${score}/100` : 'não disponível'}
-Diagnósticos técnicos: ${diagnostics.length ? diagnostics.join('; ') : 'nenhum diagnóstico específico disponível'}
+Diagnósticos técnicos encontrados: ${diagnostics.length ? diagnostics.join('; ') : 'nenhum diagnóstico específico disponível'}
 Sinais de tracking não confirmados: ${missingTracking.length ? missingTracking.join('; ') : 'nenhum'}
-Telefone/WhatsApp: ${business?.phone || 'não informado'}
+Outras oportunidades observadas: ${opportunities.length ? opportunities.join('; ') : 'nenhuma adicional'}
 Estilo desta variação: ${style}
 
-Objetivo:
-Criar curiosidade real e vontade de responder sem entregar todo o diagnóstico na primeira mensagem. A mensagem deve dar um motivo concreto para a pessoa querer ver o restante.
+A mensagem deve seguir esta pegada e estrutura:
 
-Regras:
-- mensagem curta e natural
-- 2 ou 3 parágrafos curtos
-- use um dado específico quando houver, principalmente PageSpeed
-- mostre que houve uma análise real da empresa
-- revele só uma parte do achado e guarde o restante para o CTA
-- CTA de baixa fricção como "Quer que eu te mande os pontos?"
-- não invente prejuízo, percentual, aumento de vendas ou qualquer fato não fornecido
-- não diga que algo está ausente quando só está "não confirmado"
-- sem emojis
-- sem travessões
-- sem clichês de marketing
-- sem "potencialize seu negócio", "soluções personalizadas", "transforme sua presença digital"
-- não comece se apresentando ou falando muito sobre quem vende
+1. Comece com "Olá! Tudo bem? 😊".
+2. Diga que encontrou/conheceu a empresa pesquisando negócios locais ou o segmento.
+3. Mostre que houve uma análise real, mas seja cuidadoso com evidências. Se um sinal estiver apenas "não confirmado", nunca diga que está ausente. Se não houver dado suficiente, fale em "oportunidades que vale analisar".
+4. Explique que trabalhamos com marketing, tecnologia e automação para resolver problemas reais do negócio.
+5. Inclua, cada um em seu próprio parágrafo, estes serviços, com linguagem clara e comercial:
+
+🌐 Websites profissionais — criação, otimização, velocidade, SEO e estrutura pensada para gerar contatos.
+
+📍 Google & Google Maps — otimização do perfil, posicionamento local e estratégias para aumentar a visibilidade.
+
+⭐ Avaliações Google com NFC + QR Code — placas, cartões e adesivos personalizados para facilitar avaliações após o atendimento.
+
+📱 Mídias sociais — criação de conteúdo, gestão de redes sociais, planejamento e presença digital.
+
+🎯 Gestão de tráfego pago — Google Ads, Meta Ads, LinkedIn Ads e outras plataformas, com acompanhamento e mensuração.
+
+📊 Analytics, rastreamento e relatórios — GA4, Google Tag Manager, eventos, conversões e acompanhamento da jornada do cliente.
+
+🤖 Automação de processos — formulários, captação de informações, notificações, organização de leads e etapas de atendimento, reduzindo trabalho manual.
+
+📲 Aplicativos Essenciais ou Premium — sistemas próprios para atendimento, gestão e acompanhamento de processos, incluindo ferramentas internas ou produtos digitais.
+
+🔐 Auditoria digital e LGPD — análise de formulários, coleta de dados, cookies, consentimento e rastreamento. Diga explicitamente que a necessidade de adequação é avaliada caso a caso.
+
+6. Depois explique que não trabalhamos com solução engessada e que primeiro entendemos a dor.
+7. Inclua perguntas curtas, uma por linha, nesta linha:
+Está faltando cliente?
+O site não gera contatos?
+O Google não traz visitas suficientes?
+Os leads demoram para ser atendidos?
+O processo depende de muita coisa manual?
+As informações ficam espalhadas?
+Existe dificuldade para acompanhar os clientes?
+O marketing não está sendo mensurado?
+Existe uma ideia que gostariam de transformar em uma ferramenta?
+
+8. Diga que, a partir da dor, desenvolvemos a solução adequada, podendo combinar marketing, tecnologia, automação, site, aplicativo e tráfego pago.
+9. Finalize oferecendo uma análise gratuita da presença digital da empresa e perguntando se faz sentido conversar por alguns minutos, podendo encerrar com 😊.
+
+Regras importantes:
+- personalize com o nome exato da empresa
+- mantenha tom humano, consultivo e profissional
+- o texto pode ser longo porque funciona como apresentação comercial completa
+- preserve boa leitura no WhatsApp com parágrafos curtos
+- não invente faturamento, prejuízo, quantidade de clientes, resultados, rankings ou problemas não comprovados
+- não prometa resultado garantido
+- não diga que uma tecnologia está ausente se ela estiver apenas "não confirmada"
+- não invente infrações de LGPD
+- não use markdown com asteriscos
 - responda somente com a mensagem pronta para envio
 
 ${previousMessage ? `A mensagem anterior foi esta:
 "${previousMessage}"
 
-Crie uma variação claramente diferente. Mude abertura, argumento e CTA. Não apenas reescreva sinônimos.` : ''}`;
+Crie uma variação claramente diferente na abertura, na forma de apresentar as oportunidades e no CTA, mantendo a mesma estrutura completa de serviços.` : ''}`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -152,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const business = req.body?.business;
   const variationIndex = Math.max(0, Number(req.body?.variationIndex || 0));
   const previousMessage =
-    typeof req.body?.previousMessage === 'string' ? req.body.previousMessage.slice(0, 1800) : '';
+    typeof req.body?.previousMessage === 'string' ? req.body.previousMessage.slice(0, 7000) : '';
 
   if (!business) {
     return res.status(400).json({ error: 'Business data is required' });
@@ -189,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             model: candidate,
             messages: [{ role: 'user', content: prompt }],
             temperature: variationIndex > 0 ? 0.9 : 0.76,
-            max_tokens: 360,
+            max_tokens: 1600,
           }),
           signal: AbortSignal.timeout(10000),
         });

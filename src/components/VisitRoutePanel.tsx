@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Route, Trash2, X } from 'lucide-react';
+import { Check, Columns3, ExternalLink, Route, Trash2, X } from 'lucide-react';
 import { Business, VisitRouteStop, VisitStatus } from '../types';
 import { getGoogleRouteLink } from '../services/api';
 
@@ -9,6 +9,7 @@ interface VisitRoutePanelProps {
   onClear: () => void;
   onCloseMode: () => void;
   onInspectBusiness: (business: Business) => void;
+  onAddToPipeline: (business: Business) => void;
 }
 
 const STATUS_LABELS: Record<VisitStatus, string> = {
@@ -36,6 +37,7 @@ export default function VisitRoutePanel({
   onClear,
   onCloseMode,
   onInspectBusiness,
+  onAddToPipeline,
 }: VisitRoutePanelProps) {
   const visitedCount = stops.filter((stop) => stop.visitStatus === 'VISITADO').length;
   const googleRouteUrl = getGoogleRouteLink(stops.map((stop) => stop.business));
@@ -145,6 +147,22 @@ export default function VisitRoutePanel({
                     </button>
                   ))}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => onAddToPipeline(stop.business)}
+                  disabled={Boolean(stop.business.leadStatus && stop.business.leadStatus !== 'NOVO')}
+                  className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-[9px] font-semibold transition ${
+                    stop.business.leadStatus && stop.business.leadStatus !== 'NOVO'
+                      ? 'cursor-default border-stone-200 bg-stone-50 text-stone-400'
+                      : 'border-[#FF4D00]/20 bg-[#FFF7F2] text-[#D94400] hover:border-[#FF4D00]/40 hover:bg-[#FFF1E8]'
+                  }`}
+                >
+                  <Columns3 className="h-3.5 w-3.5" />
+                  {stop.business.leadStatus && stop.business.leadStatus !== 'NOVO'
+                    ? 'Já está no pipeline'
+                    : 'Adicionar ao pipeline'}
+                </button>
               </div>
             ))}
           </div>
