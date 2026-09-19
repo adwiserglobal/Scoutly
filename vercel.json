@@ -59,6 +59,10 @@
       "dest": "/api/leads.ts"
     },
     {
+      "src": "/api/user-sync",
+      "dest": "/api/user-sync.ts"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
