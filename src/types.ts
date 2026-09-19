@@ -82,6 +82,14 @@ export interface Business {
   pageSpeed?: PageSpeedData;
 }
 
+export type VisitStatus = 'PENDENTE' | 'VISITADO' | 'PULADO';
+
+export interface VisitRouteStop {
+  business: Business;
+  visitStatus: VisitStatus;
+  addedAt: number;
+}
+
 export interface PageSpeedData {
   url: string;
   score: number; // 0 - 100

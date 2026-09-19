@@ -3,7 +3,7 @@ import * as maplibregl from 'maplibre-gl';
 // @ts-ignore
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Business } from '../types';
+import { Business, VisitRouteStop } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
 import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
@@ -46,6 +46,8 @@ interface InteractiveMapProps {
   onRadarPinDrag?: (coords: { lat: number; lng: number }) => void;
   onRadarPinDrop?: (coords: { lat: number; lng: number }) => void;
   isPinPlacementMode?: boolean;
+  routeMode?: boolean;
+  routeStops?: VisitRouteStop[];
 }
 
 function escapeHtml(str: string) {
@@ -71,6 +73,8 @@ function InteractiveMap({
   onRadarPinDrag,
   onRadarPinDrop,
   isPinPlacementMode = false,
+  routeMode = false,
+  routeStops = [],
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -84,6 +88,10 @@ function InteractiveMap({
   const pinMarkerRef = useRef<maplibregl.Marker | null>(null);
   const isPinPlacementModeRef = useRef(isPinPlacementMode);
   isPinPlacementModeRef.current = isPinPlacementMode;
+  const routeModeRef = useRef(routeMode);
+  routeModeRef.current = routeMode;
+  const routeStopsRef = useRef(routeStops);
+  routeStopsRef.current = routeStops;
 
   const onRadarPinDropRef = useRef(onRadarPinDrop);
   onRadarPinDropRef.current = onRadarPinDrop;
@@ -248,6 +256,35 @@ function InteractiveMap({
           },
         });
 
+        // 1e. Visit route sources
+        map.addSource('visit-route-line', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        });
+
+        map.addSource('visit-route-stops', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        });
+
+        map.addLayer({
+          id: 'visit-route-line',
+          type: 'line',
+          source: 'visit-route-line',
+          paint: {
+            'line-color': '#FF4D00',
+            'line-width': 4,
+            'line-opacity': 0.8,
+            'line-dasharray': [2, 1.5],
+          },
+        });
+
         // 2. Add Cluster Circles Layer
         map.addLayer({
           id: 'clusters',
@@ -312,6 +349,42 @@ function InteractiveMap({
             'circle-radius': ['get', 'markerRadius'],
             'circle-stroke-width': ['get', 'outlineWidth'],
             'circle-stroke-color': ['get', 'outlineColor'],
+          },
+        });
+
+        map.addLayer({
+          id: 'visit-route-stop-circles',
+          type: 'circle',
+          source: 'visit-route-stops',
+          paint: {
+            'circle-color': [
+              'match',
+              ['get', 'visitStatus'],
+              'VISITADO',
+              '#16A34A',
+              'PULADO',
+              '#78716C',
+              '#FF4D00',
+            ],
+            'circle-radius': 11,
+            'circle-stroke-width': 2.5,
+            'circle-stroke-color': '#FFFFFF',
+          },
+        });
+
+        map.addLayer({
+          id: 'visit-route-stop-numbers',
+          type: 'symbol',
+          source: 'visit-route-stops',
+          layout: {
+            'text-field': ['to-string', ['get', 'order']],
+            'text-size': 10,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          },
+          paint: {
+            'text-color': '#FFFFFF',
           },
         });
 
@@ -443,7 +516,11 @@ function InteractiveMap({
                     : ''
                 }
                 <button type="button" data-biz-id="${escapeHtml(biz.id)}" class="btn-scoutly-open-panel flex-1 px-3 py-1.5 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-[11px] font-bold transition shadow-2xs shrink-0 cursor-pointer">
-                  Ver resumo
+                  ${routeModeRef.current
+                    ? routeStopsRef.current.some((stop) => stop.business.id === biz.id)
+                      ? 'Na rota'
+                      : 'Adicionar à rota'
+                    : 'Ver resumo'}
                 </button>
               </div>
             </div>
@@ -551,6 +628,7 @@ function InteractiveMap({
         type: 'FeatureCollection',
         features: businesses.map((biz) => {
           const isRecentlyViewed = recentlyViewedIds.has(biz.id);
+          const isInRoute = routeStops.some((stop) => stop.business.id === biz.id);
           let markerColor = isRecentlyViewed ? '#FF7A45' : '#FF4D00';
           let outlineColor = '#ffffff';
           let outlineWidth = 2;
@@ -560,6 +638,12 @@ function InteractiveMap({
           const hasWebsite = Boolean(biz.website);
           const hasPhone = Boolean(biz.phone || (biz.phones && biz.phones.length > 0));
           const hasSocial = Boolean(biz.socials && biz.socials.length > 0);
+
+          if (isInRoute) {
+            outlineColor = '#FF4D00';
+            outlineWidth = 4;
+            markerRadius = 8;
+          }
 
           if (activeFilters.semSite && !hasWebsite) {
             markerColor = '#ef4444'; // red
@@ -599,10 +683,53 @@ function InteractiveMap({
 
       source.setData(geojson);
     }
-  }, [businesses, activeFilters, isMapLoaded, recentlyViewedIds]);
+  }, [businesses, activeFilters, isMapLoaded, recentlyViewedIds, routeStops]);
 
   // Selecting a business must not change the map position or zoom.
   // Search/location changes still use centerCoordinates above.
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isMapLoaded) return;
+
+    const lineSource = map.getSource('visit-route-line') as maplibregl.GeoJSONSource | undefined;
+    const stopSource = map.getSource('visit-route-stops') as maplibregl.GeoJSONSource | undefined;
+
+    const coordinates = routeStops.map((stop) => [
+      stop.business.longitude,
+      stop.business.latitude,
+    ]);
+
+    lineSource?.setData({
+      type: 'FeatureCollection',
+      features: coordinates.length >= 2
+        ? [{
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates,
+            },
+          }]
+        : [],
+    } as GeoJSON.FeatureCollection);
+
+    stopSource?.setData({
+      type: 'FeatureCollection',
+      features: routeStops.map((stop, index) => ({
+        type: 'Feature',
+        properties: {
+          id: stop.business.id,
+          order: index + 1,
+          visitStatus: stop.visitStatus,
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [stop.business.longitude, stop.business.latitude],
+        },
+      })),
+    } as GeoJSON.FeatureCollection);
+  }, [routeStops, isMapLoaded]);
 
   // Handle Radar Pin Marker & Radius Circle updates
   useEffect(() => {

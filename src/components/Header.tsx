@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, FormEvent, KeyboardEvent, memo } from 'react';
-import { Search, Navigation, SlidersHorizontal, MapPin, Loader2 } from 'lucide-react';
+import { Search, Navigation, SlidersHorizontal, MapPin, Loader2, Route } from 'lucide-react';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -13,6 +13,8 @@ interface HeaderProps {
   onOpenFilters: () => void;
   isPinActive?: boolean;
   onTogglePinMode?: () => void;
+  isRouteActive?: boolean;
+  onToggleRouteMode?: () => void;
 }
 
 interface LocationSuggestion {
@@ -73,6 +75,8 @@ function Header({
   onOpenFilters,
   isPinActive = false,
   onTogglePinMode,
+  isRouteActive = false,
+  onToggleRouteMode,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
@@ -301,6 +305,21 @@ function Header({
           </button>
         )}
       </div>
+
+      {onToggleRouteMode && (
+        <button
+          type="button"
+          onClick={onToggleRouteMode}
+          title={isRouteActive ? 'Encerrar seleção da rota' : 'Selecionar negócios para uma rota de visitas'}
+          className={`flex items-center gap-2 h-[52px] px-4 py-2 backdrop-blur-md rounded-full text-xs font-bold tracking-wider uppercase transition active:scale-95 shadow-sm cursor-pointer ${isRouteActive
+            ? 'bg-[#FF4D00] border border-[#FF4D00] text-white'
+            : 'bg-white/70 hover:bg-white border border-white/40 text-stone-700 hover:text-stone-900'
+          }`}
+        >
+          <Route className="w-4 h-4" />
+          <span className="hidden lg:inline">{isRouteActive ? 'Traçando rota' : 'Traçar rota'}</span>
+        </button>
+      )}
 
       <button
         type="button"

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
-import { Business, ActiveFilters, LeadStatus, NavigationTab } from './types';
+import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, fetchUserLeads, saveUserLead } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
@@ -20,8 +20,30 @@ import FavoritesView from './components/FavoritesView';
 import PipelineView from './components/PipelineView';
 import SettingsView from './components/SettingsView';
 import PlansModal from './components/PlansModal';
+import VisitRoutePanel from './components/VisitRoutePanel';
 import LoginView from './components/LoginView';
 import { getBillingStatus } from './lib/billing';
+
+const VISIT_ROUTE_STORAGE_KEY = 'scoutly_visit_route';
+
+function loadSavedVisitRoute(): VisitRouteStop[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(VISIT_ROUTE_STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((stop) =>
+      stop &&
+      stop.business &&
+      typeof stop.business.id === 'string' &&
+      Number.isFinite(Number(stop.business.latitude)) &&
+      Number.isFinite(Number(stop.business.longitude))
+    );
+  } catch {
+    return [];
+  }
+}
 
 export default function App() {
   const { user, loading, signOut } = useAuth();
@@ -47,6 +69,8 @@ export default function App() {
   const [isPinPlacementMode, setIsPinPlacementMode] = useState(false);
   const [filterOnlyInRadius, setFilterOnlyInRadius] = useState(false);
   const [isPinSearching, setIsPinSearching] = useState(false);
+  const [isRouteMode, setIsRouteMode] = useState(false);
+  const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
@@ -108,6 +132,10 @@ export default function App() {
     const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
     setVisibleCount([30, 60, 100].includes(stored) ? stored : 30);
   }, [activeFilters, selectedCategory, sortBy, businesses]);
+
+  useEffect(() => {
+    window.localStorage.setItem(VISIT_ROUTE_STORAGE_KEY, JSON.stringify(visitRouteStops));
+  }, [visitRouteStops]);
 
   useEffect(() => {
     const syncPreferences = () => {
@@ -388,6 +416,65 @@ export default function App() {
     setCurrentRegionName(preset.name);
   };
 
+  const handleToggleRouteMode = useCallback(() => {
+    setIsRouteMode((current) => {
+      const next = !current;
+      if (next) {
+        setRadarPin(null);
+        setIsPinPlacementMode(false);
+        setFilterOnlyInRadius(false);
+        setIsListOpen(false);
+        setIsFiltersOpen(false);
+        setModalBusiness(null);
+        setSelectedBusiness(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleMapBusinessSelect = useCallback((biz: Business) => {
+    if (isRouteMode) {
+      setVisitRouteStops((current) => {
+        if (current.some((stop) => stop.business.id === biz.id)) return current;
+        return [
+          ...current,
+          {
+            business: biz,
+            visitStatus: 'PENDENTE',
+            addedAt: Date.now(),
+          },
+        ];
+      });
+      setSelectedBusiness(null);
+      setModalBusiness(null);
+      return;
+    }
+
+    setSelectedBusiness(biz);
+    setModalBusiness(null);
+  }, [isRouteMode]);
+
+  const handleSetVisitStatus = useCallback((businessId: string, status: VisitStatus) => {
+    setVisitRouteStops((current) =>
+      current.map((stop) =>
+        stop.business.id === businessId ? { ...stop, visitStatus: status } : stop
+      )
+    );
+  }, []);
+
+  const handleRemoveRouteStop = useCallback((businessId: string) => {
+    setVisitRouteStops((current) => current.filter((stop) => stop.business.id !== businessId));
+  }, []);
+
+  const handleClearVisitRoute = useCallback(() => {
+    setVisitRouteStops([]);
+  }, []);
+
+  const handleInspectRouteBusiness = useCallback((biz: Business) => {
+    setSelectedBusiness(biz);
+    setModalBusiness(null);
+  }, []);
+
   // Toggle or Drop Pin at current screen center
   const handleTogglePinMode = useCallback(() => {
     if (radarPin && radarPin.active) {
@@ -660,6 +747,13 @@ export default function App() {
       ...prev,
       [biz.id]: nextIsFavorite,
     }));
+    setVisitRouteStops((prev) =>
+      prev.map((stop) =>
+        stop.business.id === biz.id
+          ? { ...stop, business: { ...stop.business, isFavorite: nextIsFavorite } }
+          : stop
+      )
+    );
     // Save favorite state to database
     saveUserLead(biz.id, undefined, undefined, nextIsFavorite);
   }, []);
@@ -680,6 +774,13 @@ export default function App() {
       ...prev,
       [id]: { status: newStatus, notes: updatedNotes },
     }));
+    setVisitRouteStops((prev) =>
+      prev.map((stop) =>
+        stop.business.id === id
+          ? { ...stop, business: { ...stop.business, leadStatus: newStatus, notes: updatedNotes } }
+          : stop
+      )
+    );
     // Save to persistent database
     saveUserLead(id, newStatus, updatedNotes);
   }, []);
@@ -719,10 +820,7 @@ export default function App() {
           <InteractiveMap
             businesses={filteredBusinesses}
             selectedBusiness={selectedBusiness}
-            onSelectBusiness={(biz) => {
-              setSelectedBusiness(biz);
-              setModalBusiness(null);
-            }}
+            onSelectBusiness={handleMapBusinessSelect}
             centerCoordinates={centerCoordinates}
             zoom={14}
             activeFilters={activeFilters}
@@ -736,6 +834,8 @@ export default function App() {
             onRadarPinDrag={handleRadarPinDrag}
             onRadarPinDrop={handleRadarPinDrop}
             isPinPlacementMode={isPinPlacementMode}
+            routeMode={isRouteMode}
+            routeStops={visitRouteStops}
           />
       </div>
 
@@ -762,9 +862,24 @@ export default function App() {
                   }}
                   isPinActive={Boolean(radarPin?.active)}
                   onTogglePinMode={handleTogglePinMode}
+                  isRouteActive={isRouteMode}
+                  onToggleRouteMode={handleToggleRouteMode}
                 />
               </div>
             </div>
+
+            {isRouteMode && (
+              <div className="absolute top-[138px] sm:top-[82px] left-4 z-30 pointer-events-none">
+                <VisitRoutePanel
+                  stops={visitRouteStops}
+                  onSetVisitStatus={handleSetVisitStatus}
+                  onRemoveStop={handleRemoveRouteStop}
+                  onClear={handleClearVisitRoute}
+                  onCloseMode={() => setIsRouteMode(false)}
+                  onInspectBusiness={handleInspectRouteBusiness}
+                />
+              </div>
+            )}
 
             {/* Floating Pin Radar Control Panel (Top Left below Header) */}
             {radarPin?.active && (

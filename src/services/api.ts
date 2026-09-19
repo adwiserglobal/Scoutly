@@ -137,6 +137,29 @@ export function getGoogleBusinessLink(
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || fallback)}`;
 }
 
+export function getGoogleRouteLink(
+  businesses: Array<Pick<Business, 'name' | 'address' | 'latitude' | 'longitude'>>
+): string | null {
+  if (businesses.length === 0) return null;
+  if (businesses.length === 1) return getGoogleBusinessLink(businesses[0]);
+
+  const coordinate = (business: Pick<Business, 'latitude' | 'longitude'>) =>
+    `${business.latitude},${business.longitude}`;
+
+  const destination = coordinate(businesses[businesses.length - 1]);
+  const waypoints = businesses.slice(0, -1).map(coordinate).join('|');
+
+  const params = new URLSearchParams({
+    api: '1',
+    destination,
+    travelmode: 'driving',
+  });
+
+  if (waypoints) params.set('waypoints', waypoints);
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 export function getWhatsAppLink(phoneOrUrl?: string | null): string | null {
   if (!phoneOrUrl) return null;
   
