@@ -3,20 +3,70 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "routes": [
-    { "handle": "filesystem" },
-    { "src": "/__/auth/(.*)", "dest": "https://gen-lang-client-0931227900.firebaseapp.com/__/auth/$1" },
-    { "src": "/api/places-fast", "dest": "/api/places-fast.ts" },
-    { "src": "/api/search", "dest": "/api/search.ts" },
-    { "src": "/api/location-suggestions", "dest": "/api/location-suggestions.ts" },
-    { "src": "/api/places", "dest": "/api/places.ts" },
-    { "src": "/api/ai/chat", "dest": "/api/ai/chat.ts" },
-    { "src": "/api/ai/suggestions", "dest": "/api/ai/suggestions.ts" },
-    { "src": "/api/ai/generate-message", "dest": "/api/ai/generate-message.ts" },
-    { "src": "/api/enrich", "dest": "/api/enrich.ts" },
-    { "src": "/api/tracking-audit", "dest": "/api/tracking-audit.ts" },
-    { "src": "/api/social-check", "dest": "/api/social-check.ts" },
-    { "src": "/api/pagespeed", "dest": "/api/pagespeed.ts" },
-    { "src": "/api/leads", "dest": "/api/leads.ts" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/__/auth/(.*)",
+      "dest": "https://gen-lang-client-0931227900.firebaseapp.com/__/auth/$1"
+    },
+    {
+      "src": "/api/places-fast",
+      "dest": "/api/places-fast.ts"
+    },
+    {
+      "src": "/api/search",
+      "dest": "/api/search.ts"
+    },
+    {
+      "src": "/api/location-suggestions",
+      "dest": "/api/location-suggestions.ts"
+    },
+    {
+      "src": "/api/places",
+      "dest": "/api/places.ts"
+    },
+    {
+      "src": "/api/ai/chat",
+      "dest": "/api/ai/chat.ts"
+    },
+    {
+      "src": "/api/ai/suggestions",
+      "dest": "/api/ai/suggestions.ts"
+    },
+    {
+      "src": "/api/ai/generate-message",
+      "dest": "/api/ai/generate-message.ts"
+    },
+    {
+      "src": "/api/enrich",
+      "dest": "/api/enrich.ts"
+    },
+    {
+      "src": "/api/tracking-audit",
+      "dest": "/api/tracking-audit.ts"
+    },
+    {
+      "src": "/api/social-check",
+      "dest": "/api/social-check.ts"
+    },
+    {
+      "src": "/api/pagespeed",
+      "dest": "/api/pagespeed.ts"
+    },
+    {
+      "src": "/api/leads",
+      "dest": "/api/leads.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.ts": {
+      "excludeFiles": "{data/**,scripts/**,supabase/**}"
+    }
+  }
 }

@@ -1,6 +1,7 @@
-import { getDuckDB, normalizeOverturePlace, queryPlacesInBBox, OverturePlace } from './overtureService.js';
+import type { OverturePlace } from './overtureService.js';
+import { queryOvertureViaApi } from './overtureHttpService.js';
 import { interpretSearchIntent } from './searchInterpreter.js';
-import { BusinessSummary } from './aiService.js';
+import type { BusinessSummary } from './aiService.js';
 import {
   fetchCompaniesFromMinhaReceita,
   processMinhaReceitaBusiness,
@@ -153,44 +154,25 @@ async function searchOvertureByTerms(
   if (!usefulTerms.length) return [];
 
   try {
-    const db = await getDuckDB();
-    const conditions = usefulTerms.map(() => `(
-      lower(coalesce(names.primary, '')) LIKE ? OR
-      lower(coalesce(basic_category, '')) LIKE ? OR
-      lower(coalesce(categories.primary, '')) LIKE ? OR
-      lower(coalesce(taxonomy.primary, '')) LIKE ?
-    )`).join(' OR ');
-    const termParams = usefulTerms.flatMap((term) => {
-      const pattern = `%${term}%`;
-      return [pattern, pattern, pattern, pattern];
-    });
+    // Keep the DuckDB/Overture native module in one isolated serverless function.
+    // Search receives a broad bbox result and performs the same relevance scoring here.
+    const fallback = await queryOvertureViaApi(
+      bbox.west,
+      bbox.south,
+      bbox.east,
+      bbox.north,
+      Math.min(5000, Math.max(limit * 12, 1200))
+    );
 
-    const rows = await new Promise<any[]>((resolve, reject) => {
-      const sql = `
-        SELECT id, names.primary AS name, basic_category, taxonomy, categories, confidence,
-               operating_status, websites, socials, emails, phones, addresses, sources,
-               ST_X(geometry) AS longitude, ST_Y(geometry) AS latitude
-        FROM read_parquet('s3://overturemaps-us-west-2/release/2026-08-19.0/theme=places/type=place/*', filename=false)
-        WHERE bbox.xmin >= ? AND bbox.xmax <= ? AND bbox.ymin >= ? AND bbox.ymax <= ?
-          AND (${conditions})
-        LIMIT ?;
-      `;
-      db.all(sql, bbox.west, bbox.east, bbox.south, bbox.north, ...termParams, limit, (err, result: any[]) => {
-        if (err) return reject(err);
-        resolve(result || []);
-      });
-    });
-
-    return rows.map(normalizeOverturePlace);
-  } catch (err: any) {
-    console.warn('[Business Search] Targeted Overture query failed, using bbox fallback:', err.message);
-    const fallback = await queryPlacesInBBox(bbox.west, bbox.south, bbox.east, bbox.north, 1200);
     return fallback.places
       .map((place) => ({ place, score: scorePlace(place, usefulTerms) }))
       .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || (b.place.confidence || 0) - (a.place.confidence || 0))
       .slice(0, limit)
       .map(({ place }) => place);
+  } catch (err: any) {
+    console.warn('[Business Search] Isolated Overture fallback failed:', err.message);
+    return [];
   }
 }
 

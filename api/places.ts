@@ -43,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await queryPlacesInBBox(west, south, east, north, limit);
     console.log('overture query finished');
 
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
     return res.status(200).json({
       places: result.places,
       total: result.places.length,

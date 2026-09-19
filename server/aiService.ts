@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { queryPlacesInBBox, OverturePlace } from './overtureService.js';
+import type { OverturePlace } from './overtureService.js';
+import { queryOvertureViaApi } from './overtureHttpService.js';
 import {
   interpretSearchIntent,
   parseSearchLocation,
@@ -231,7 +232,7 @@ export async function handleAIChat({
     // Standard Search: Overture + CNPJ + Serper merged
     let overtureSummaries: BusinessSummary[] = [];
     try {
-      const { places: rawPlaces } = await queryPlacesInBBox(
+      const { places: rawPlaces } = await queryOvertureViaApi(
         resolvedArea.bbox.west,
         resolvedArea.bbox.south,
         resolvedArea.bbox.east,

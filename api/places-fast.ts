@@ -1,6 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { queryBrazilPlaces, hasBrazilPlacesDatabase } from '../server/brazilPlacesService.js';
-import { queryPlacesInBBox } from '../server/overtureService.js';
+import { queryOvertureViaApi } from '../server/overtureHttpService.js';
+
+const BRAZIL_INDEX_BBOX = {
+  west: -47.2,
+  south: -24.2,
+  east: -45.65,
+  north: -23.15,
+};
+
+function fullyInsideBrazilIndex(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+) {
+  return (
+    west >= BRAZIL_INDEX_BBOX.west &&
+    south >= BRAZIL_INDEX_BBOX.south &&
+    east <= BRAZIL_INDEX_BBOX.east &&
+    north <= BRAZIL_INDEX_BBOX.north
+  );
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -20,17 +41,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Parâmetros de coordenadas inválidos.', places: [] });
     }
 
-    if (hasBrazilPlacesDatabase()) {
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
+    const insideBrazilIndex = fullyInsideBrazilIndex(west, south, east, north);
+
+    if (insideBrazilIndex && hasBrazilPlacesDatabase()) {
       try {
-        const result = await queryBrazilPlaces(west, south, east, north, limit);
+        const result = await queryBrazilPlaces(west, south, east, north, safeLimit);
         res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
         return res.status(200).json({ ...result, total: result.places.length });
       } catch (err: any) {
-        console.warn('[Fast Places] Supabase unavailable, falling back to Overture:', err.message);
+        console.warn('[Fast Places] Supabase unavailable, using isolated Overture fallback:', err.message);
       }
     }
 
-    const fallback = await queryPlacesInBBox(west, south, east, north, limit, zoom);
+    const fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
     return res.status(200).json({
       ...fallback,
       source: 'overture',
