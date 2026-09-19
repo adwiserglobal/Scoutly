@@ -35,11 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         void currentUser
           .getIdToken()
           .then((token) =>
-            fetch('/api/user-sync', {
+            fetch('/api/leads', {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
               },
+              body: JSON.stringify({ action: 'sync-user' }),
             })
           )
           .then((response) => {
