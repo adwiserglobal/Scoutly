@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { getWhatsAppLink, getTrustIcon } from '../services/api';
+import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 
 interface FavoritesViewProps {
@@ -144,6 +145,7 @@ function FavoriteCard({
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => recordRecommendationWhatsApp(biz)}
               className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl transition cursor-pointer"
               title="Abrir WhatsApp"
             >

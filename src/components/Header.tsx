@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, FormEvent, KeyboardEvent, memo } from 'react';
-import { Search, Navigation, SlidersHorizontal, MapPin, Loader2, Route } from 'lucide-react';
+import { Search, Navigation, SlidersHorizontal, MapPin, Loader2 } from 'lucide-react';
+import { Business } from '../types';
+import RecommendedDropdown from './RecommendedDropdown';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -11,10 +13,10 @@ interface HeaderProps {
   totalOpportunitiesCount: number;
   totalBusinessesCount: number;
   onOpenFilters: () => void;
-  isPinActive?: boolean;
-  onTogglePinMode?: () => void;
-  isRouteActive?: boolean;
-  onToggleRouteMode?: () => void;
+  recommendedBusinesses: Business[];
+  recommendationsLocked: boolean;
+  onSelectRecommended: (business: Business) => void;
+  onOpenRecommendationsUpgrade: () => void;
 }
 
 interface LocationSuggestion {
@@ -73,10 +75,10 @@ function Header({
   isLocating,
   totalBusinessesCount,
   onOpenFilters,
-  isPinActive = false,
-  onTogglePinMode,
-  isRouteActive = false,
-  onToggleRouteMode,
+  recommendedBusinesses,
+  recommendationsLocked,
+  onSelectRecommended,
+  onOpenRecommendationsUpgrade,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
@@ -287,39 +289,14 @@ function Header({
           <span className="hidden sm:inline-block">{isLocating ? 'LOCALIZANDO' : 'PERTO DE VOCÊ'}</span>
         </button>
 
-        {onTogglePinMode && (
-          <button
-            type="button"
-            onClick={onTogglePinMode}
-            title={isPinActive ? 'Pin ativo no mapa (clique para remover ou reposicionar)' : 'Soltar pin arrastável no mapa para prospecção rápida'}
-            className={`h-full px-4 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition whitespace-nowrap active:scale-95 shadow-2xs flex items-center justify-center gap-2 cursor-pointer ${
-              isPinActive
-                ? 'bg-[#FF4D00] text-white border-2 border-[#FF4D00] shadow-md shadow-[#FF4D00]/30 animate-pulse'
-                : 'bg-white/90 border-2 border-stone-800 text-stone-900 hover:bg-stone-900 hover:text-white'
-            }`}
-          >
-            <MapPin className={`w-3.5 h-3.5 ${isPinActive ? 'text-white' : 'text-[#FF4D00]'}`} />
-            <span className="hidden sm:inline-block">
-              {isPinActive ? 'PIN ATIVO' : 'SOLTAR PIN'}
-            </span>
-          </button>
-        )}
-      </div>
+     </div>
 
-      {onToggleRouteMode && (
-        <button
-          type="button"
-          onClick={onToggleRouteMode}
-          title={isRouteActive ? 'Encerrar seleção da rota' : 'Selecionar negócios para uma rota de visitas'}
-          className={`flex items-center gap-2 h-[52px] px-4 py-2 backdrop-blur-md rounded-full text-xs font-bold tracking-wider uppercase transition active:scale-95 shadow-sm cursor-pointer ${isRouteActive
-            ? 'bg-[#FF4D00] border border-[#FF4D00] text-white'
-            : 'bg-white/70 hover:bg-white border border-white/40 text-stone-700 hover:text-stone-900'
-          }`}
-        >
-          <Route className="w-4 h-4" />
-          <span className="hidden lg:inline">{isRouteActive ? 'Traçando rota' : 'Traçar rota'}</span>
-        </button>
-      )}
+      <RecommendedDropdown
+        businesses={recommendedBusinesses}
+        locked={recommendationsLocked}
+        onSelectBusiness={onSelectRecommended}
+        onUpgrade={onOpenRecommendationsUpgrade}
+      />
 
       <button
         type="button"

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, fetchUserLeads, saveUserLead } from './services/api';
@@ -22,7 +22,14 @@ import SettingsView from './components/SettingsView';
 import PlansModal from './components/PlansModal';
 import VisitRoutePanel from './components/VisitRoutePanel';
 import LoginView from './components/LoginView';
-import { getBillingStatus } from './lib/billing';
+import { getBillingStatus, hasRecommendationsAccess } from './lib/billing';
+import {
+  getRecommendedBusinesses,
+  recordRecommendationFavorite,
+  recordRecommendationPipeline,
+  recordRecommendationSearch,
+  RECOMMENDATION_SIGNAL_EVENT,
+} from './utils/recommendations';
 
 const VISIT_ROUTE_STORAGE_KEY = 'scoutly_visit_route';
 
@@ -71,6 +78,7 @@ export default function App() {
   const [isPinSearching, setIsPinSearching] = useState(false);
   const [isRouteMode, setIsRouteMode] = useState(false);
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
+  const [recommendationRevision, setRecommendationRevision] = useState(0);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
@@ -87,6 +95,16 @@ export default function App() {
 
   const [isPlansOpen, setIsPlansOpen] = useState(false);
   const [billingStatus, setBillingStatus] = useState(() => getBillingStatus(user));
+
+  useEffect(() => {
+    const refreshRecommendations = () => setRecommendationRevision((value) => value + 1);
+    window.addEventListener(RECOMMENDATION_SIGNAL_EVENT, refreshRecommendations);
+    window.addEventListener('storage', refreshRecommendations);
+    return () => {
+      window.removeEventListener(RECOMMENDATION_SIGNAL_EVENT, refreshRecommendations);
+      window.removeEventListener('storage', refreshRecommendations);
+    };
+  }, []);
 
   useEffect(() => {
     const refreshBilling = () => setBillingStatus(getBillingStatus(user));
@@ -379,9 +397,11 @@ export default function App() {
     const result = await searchAddressOrCity(query);
 
     if (result) {
+      recordRecommendationSearch(query, result.name);
       setCenterCoordinates({ lat: result.lat, lng: result.lng });
       setCurrentRegionName(result.name);
     } else {
+      recordRecommendationSearch(query, currentRegionName);
       alert(`Local não encontrado para "${query}". Tente um nome de cidade ou bairro.`);
     }
     setIsLocating(false);
@@ -734,6 +754,7 @@ export default function App() {
   // Toggle Favorite status (and persist in database)
   const handleToggleFavorite = useCallback((biz: Business) => {
     const nextIsFavorite = !biz.isFavorite;
+    recordRecommendationFavorite(biz, nextIsFavorite);
     setBusinesses((prev) =>
       prev.map((b) => (b.id === biz.id ? { ...b, isFavorite: nextIsFavorite } : b))
     );
@@ -761,6 +782,15 @@ export default function App() {
   // Update Lead Status (and persist in database)
   const handleUpdateStatus = useCallback((id: string, newStatus: LeadStatus, notes?: string) => {
     const updatedNotes = notes !== undefined ? notes : '';
+    const signalBusiness =
+      businesses.find((business) => business.id === id) ||
+      visitRouteStops.find((stop) => stop.business.id === id)?.business ||
+      (selectedBusiness?.id === id ? selectedBusiness : null) ||
+      (modalBusiness?.id === id ? modalBusiness : null);
+
+    if (signalBusiness) {
+      recordRecommendationPipeline(signalBusiness, newStatus !== 'NOVO' && newStatus !== 'ARQUIVADO');
+    }
     setBusinesses((prev) =>
       prev.map((b) => (b.id === id ? { ...b, leadStatus: newStatus, notes: updatedNotes } : b))
     );
@@ -783,6 +813,21 @@ export default function App() {
     );
     // Save to persistent database
     saveUserLead(id, newStatus, updatedNotes);
+  }, [businesses, visitRouteStops, selectedBusiness, modalBusiness]);
+
+  const recommendedBusinesses = useMemo(
+    () => getRecommendedBusinesses(businesses, 12),
+    [businesses, recommendationRevision]
+  );
+
+  const recommendationsLocked = !hasRecommendationsAccess(billingStatus);
+
+  const handleSelectRecommended = useCallback((business: Business) => {
+    setCenterCoordinates({ lat: business.latitude, lng: business.longitude });
+    setCurrentRegionName(business.address || business.name);
+    setSelectedBusiness(business);
+    setModalBusiness(null);
+    setIsFiltersOpen(false);
   }, []);
 
   const favoritesCount = useMemo(() => {
@@ -860,13 +905,45 @@ export default function App() {
                     setSelectedBusiness(null);
                     setIsFiltersOpen(true);
                   }}
-                  isPinActive={Boolean(radarPin?.active)}
-                  onTogglePinMode={handleTogglePinMode}
-                  isRouteActive={isRouteMode}
-                  onToggleRouteMode={handleToggleRouteMode}
+                  recommendedBusinesses={recommendedBusinesses}
+                  recommendationsLocked={recommendationsLocked}
+                  onSelectRecommended={handleSelectRecommended}
+                  onOpenRecommendationsUpgrade={() => setIsPlansOpen(true)}
                 />
               </div>
             </div>
+
+            {!selectedBusiness && !modalBusiness && !isFiltersOpen && (
+              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={handleTogglePinMode}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 ${
+                    radarPin?.active
+                      ? 'border-[#FF4D00] bg-[#FF4D00] text-white'
+                      : 'border-white/60 bg-white/90 text-stone-700 hover:border-[#FF4D00]/40 hover:text-[#FF4D00]'
+                  }`}
+                  title={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
+                  aria-label={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
+                >
+                  <MapPin className="h-5 w-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleRouteMode}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 ${
+                    isRouteMode
+                      ? 'border-[#FF4D00] bg-[#FF4D00] text-white'
+                      : 'border-white/60 bg-white/90 text-stone-700 hover:border-[#FF4D00]/40 hover:text-[#FF4D00]'
+                  }`}
+                  title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                  aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                >
+                  <Route className="h-5 w-5" />
+                </button>
+              </div>
+            )}
 
             {isRouteMode && (
               <div className="absolute top-[138px] sm:top-[82px] left-4 z-30 pointer-events-none">

@@ -24,6 +24,7 @@ import { enrichBusinessData, fetchTrackingAudit, generateMessage, getGoogleBusin
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
+import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -421,6 +422,7 @@ export default function BusinessSidePanel({
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => recordRecommendationWhatsApp(business)}
                 title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-700"
               >

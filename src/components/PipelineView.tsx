@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { getWhatsAppLink, getTrustIcon } from '../services/api';
+import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface PipelineViewProps {
   businesses: Business[];
@@ -451,9 +452,12 @@ function PipelineView({
                                     href={waLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      recordRecommendationWhatsApp(biz);
+                                    }}
                                     className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg transition"
                                     title="WhatsApp"
-                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <img
                                       src="/whatsapp_icone.png"

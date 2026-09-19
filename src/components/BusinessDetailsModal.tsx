@@ -6,6 +6,7 @@ import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import TrackingAuditPanel from './TrackingAuditPanel';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
+import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -366,6 +367,7 @@ export default function BusinessDetailsModal({
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => recordRecommendationWhatsApp(business)}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 transition shadow-2xs"
                   title="WhatsApp confirmado no site oficial"
                 >
@@ -767,6 +769,7 @@ export default function BusinessDetailsModal({
                         href={whatsappUrl || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => recordRecommendationWhatsApp(business)}
                         className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1.5 text-[10px] font-semibold text-white transition"
                       >
                         <img src="/whatsapp_icone.png" alt="" className="w-3.5 h-3.5 object-contain" />

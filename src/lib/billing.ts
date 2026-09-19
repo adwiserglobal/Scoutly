@@ -106,3 +106,7 @@ export function formatBRL(value: number) {
     minimumFractionDigits: 2,
   });
 }
+
+export function hasRecommendationsAccess(billing: BillingStatus) {
+  return billing.plan === 'pro' || billing.plan === 'agency' || billing.plan === 'trial';
+}

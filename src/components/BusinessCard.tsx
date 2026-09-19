@@ -4,6 +4,7 @@ import { Business } from '../types';
 import { getGoogleBusinessLink, getWhatsAppLink, getTrustIcon } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
+import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface BusinessCardProps {
   business: Business;
@@ -314,7 +315,10 @@ function BusinessCard({
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                recordRecommendationWhatsApp(business);
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition active:scale-95 shadow-2xs"
             >
               <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />
