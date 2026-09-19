@@ -1,6 +1,5 @@
 import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
-import { auth } from '../lib/firebase';
 
 export async function fetchPlacesFromOverture(
   west: number,
@@ -84,16 +83,6 @@ export async function checkBusinessSocials(url: string): Promise<{
   return res.json();
 }
 
-async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error('Usuário não autenticado');
-
-  const headers = new Headers(init.headers);
-  headers.set('Authorization', `Bearer ${token}`);
-
-  return fetch(input, { ...init, headers });
-}
-
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string }>;
   favorites: Record<string, boolean>;
@@ -101,7 +90,7 @@ export interface UserUserData {
 
 export async function fetchUserLeads(): Promise<UserUserData> {
   try {
-    const res = await authenticatedFetch('/api/leads');
+    const res = await fetch('/api/leads');
     if (!res.ok) return { leads: {}, favorites: {} };
     const data = await res.json();
     return {
@@ -118,17 +107,15 @@ export async function saveUserLead(
   businessId: string,
   status?: string,
   notes?: string,
-  isFavorite?: boolean,
-  business?: Business
+  isFavorite?: boolean
 ) {
   try {
     const body: Record<string, any> = { businessId };
     if (status !== undefined) body.status = status;
     if (notes !== undefined) body.notes = notes;
     if (isFavorite !== undefined) body.isFavorite = isFavorite;
-    if (business) body.business = business;
 
-    const res = await authenticatedFetch('/api/leads', {
+    const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -322,75 +309,5 @@ export async function generateMessage(
   } catch (error) {
     console.error('Failed to generate message:', error);
     throw error;
-  }
-}
-
-export interface RecommendationEventInput {
-  eventType:
-    | 'search'
-    | 'favorite_add'
-    | 'favorite_remove'
-    | 'pipeline_add'
-    | 'pipeline_remove'
-    | 'whatsapp_click';
-  businessId?: string;
-  category?: string;
-  query?: string;
-  location?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export async function saveRecommendationEvent(event: RecommendationEventInput) {
-  try {
-    const res = await authenticatedFetch('/api/recommendation-events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(event),
-    });
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving recommendation event:', error);
-    return false;
-  }
-}
-
-export async function fetchRecommendationEvents(): Promise<any[]> {
-  try {
-    const res = await authenticatedFetch('/api/recommendation-events');
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data.events) ? data.events : [];
-  } catch (error) {
-    console.warn('[API] Error loading recommendation events:', error);
-    return [];
-  }
-}
-
-export async function fetchVisitRoute(): Promise<{ exists: boolean; stops: any[] }> {
-  try {
-    const res = await authenticatedFetch('/api/routes');
-    if (!res.ok) return { exists: false, stops: [] };
-    const data = await res.json();
-    return {
-      exists: Boolean(data.exists),
-      stops: Array.isArray(data.stops) ? data.stops : [],
-    };
-  } catch (error) {
-    console.warn('[API] Error loading visit route:', error);
-    return { exists: false, stops: [] };
-  }
-}
-
-export async function saveVisitRoute(stops: any[]) {
-  try {
-    const res = await authenticatedFetch('/api/routes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stops }),
-    });
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving visit route:', error);
-    return false;
   }
 }

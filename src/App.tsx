@@ -2,14 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import {
-  checkBusinessSocials,
-  fetchRecommendationEvents,
-  fetchUserLeads,
-  fetchVisitRoute,
-  saveUserLead,
-  saveVisitRoute,
-} from './services/api';
+import { checkBusinessSocials, fetchUserLeads, saveUserLead } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -35,7 +28,6 @@ import {
   recordRecommendationFavorite,
   recordRecommendationPipeline,
   recordRecommendationSearch,
-  hydrateRecommendationSignals,
   RECOMMENDATION_SIGNAL_EVENT,
 } from './utils/recommendations';
 
@@ -86,8 +78,6 @@ export default function App() {
   const [isPinSearching, setIsPinSearching] = useState(false);
   const [isRouteMode, setIsRouteMode] = useState(false);
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
-  const routeHydratedRef = useRef(false);
-  const routeSyncTimerRef = useRef<number | null>(null);
   const [recommendationRevision, setRecommendationRevision] = useState(0);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
@@ -163,42 +153,7 @@ export default function App() {
 
   useEffect(() => {
     window.localStorage.setItem(VISIT_ROUTE_STORAGE_KEY, JSON.stringify(visitRouteStops));
-
-    if (!user || !routeHydratedRef.current) return;
-    if (routeSyncTimerRef.current) window.clearTimeout(routeSyncTimerRef.current);
-
-    routeSyncTimerRef.current = window.setTimeout(() => {
-      void saveVisitRoute(visitRouteStops);
-    }, 500);
-
-    return () => {
-      if (routeSyncTimerRef.current) window.clearTimeout(routeSyncTimerRef.current);
-    };
-  }, [visitRouteStops, user]);
-
-  useEffect(() => {
-    if (!user) {
-      routeHydratedRef.current = false;
-      return;
-    }
-
-    let cancelled = false;
-    routeHydratedRef.current = false;
-
-    Promise.all([fetchVisitRoute(), fetchRecommendationEvents()]).then(([route, events]) => {
-      if (cancelled) return;
-
-      if (route.exists) {
-        setVisitRouteStops(route.stops as VisitRouteStop[]);
-      }
-      hydrateRecommendationSignals(events);
-      routeHydratedRef.current = true;
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.uid]);
+  }, [visitRouteStops]);
 
   useEffect(() => {
     const syncPreferences = () => {
@@ -346,10 +301,8 @@ export default function App() {
     };
   }, [activeFilters.semRedeSocial, businessIdSignature]);
 
-  // Load persistent user leads and favorites for the authenticated user.
+  // Load persistent user leads and favorites from database on mount
   useEffect(() => {
-    if (!user) return;
-
     fetchUserLeads().then((data) => {
       if (data && data.leads) {
         setUserLeadsMap(data.leads);
@@ -358,7 +311,7 @@ export default function App() {
         setUserFavoritesMap(data.favorites);
       }
     });
-  }, [user?.uid]);
+  }, []);
 
   // Dynamic available categories with counts
   const availableCategories = useMemo(() => {
@@ -823,10 +776,7 @@ export default function App() {
       )
     );
     // Save favorite state to database
-    saveUserLead(biz.id, undefined, undefined, nextIsFavorite, {
-      ...biz,
-      isFavorite: nextIsFavorite,
-    });
+    saveUserLead(biz.id, undefined, undefined, nextIsFavorite);
   }, []);
 
   // Update Lead Status (and persist in database)
@@ -862,7 +812,7 @@ export default function App() {
       )
     );
     // Save to persistent database
-    saveUserLead(id, newStatus, updatedNotes, undefined, signalBusiness || undefined);
+    saveUserLead(id, newStatus, updatedNotes);
   }, [businesses, visitRouteStops, selectedBusiness, modalBusiness]);
 
   const recommendedBusinesses = useMemo(
