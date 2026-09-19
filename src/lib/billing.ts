@@ -62,7 +62,7 @@ export function getBillingStatus(user: User | null): BillingStatus {
   };
 }
 
-export const SCOUTLY_PLANS: Record<'go' | 'pro' | 'agency', ScoutlyPlanDefinition> = {
+export const SCOUTLY_PLANS = {
   go: {
     id: 'go',
     name: 'Go',
@@ -97,7 +97,7 @@ export const SCOUTLY_PLANS: Record<'go' | 'pro' | 'agency', ScoutlyPlanDefinitio
     teamWorkspace: true,
     additionalSeatPrice: 39.9,
   },
-};
+} satisfies Record<'go' | 'pro' | 'agency', ScoutlyPlanDefinition>;
 
 export function formatBRL(value: number) {
   return value.toLocaleString('pt-BR', {
