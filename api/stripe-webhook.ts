@@ -48,6 +48,13 @@ function invoiceSubscriptionId(invoice: any): string | null {
   );
 }
 
+function stripeEventIso(event: any): string {
+  const seconds = Number(event?.created);
+  return Number.isFinite(seconds) && seconds > 0
+    ? new Date(seconds * 1000).toISOString()
+    : new Date().toISOString();
+}
+
 async function alreadyProcessed(eventId: string) {
   const rows = await appDataRequest<any[]>(
     `stripe_events?event_id=eq.${dbValue(eventId)}&select=event_id,status&limit=1`
@@ -73,6 +80,7 @@ async function saveEvent(event: any, data: {
       stripe_subscription_id: data.subscriptionId || null,
       status: data.status,
       error_message: data.errorMessage || null,
+      event_created_at: stripeEventIso(event),
       processed_at: new Date().toISOString(),
     }),
   });
@@ -119,6 +127,8 @@ export async function POST(request: Request) {
         synced = await syncStripeSubscription(subscription, {
           userUid: String(object?.client_reference_id || object?.metadata?.firebase_uid || '') || null,
           plan: normalizePaidPlan(object?.metadata?.plan),
+          providerEventAt: stripeEventIso(event),
+          providerEventId: String(event.id),
         });
         customerId = stripeId(subscription?.customer) || customerId;
       }
@@ -128,7 +138,10 @@ export async function POST(request: Request) {
       event.type === 'customer.subscription.deleted'
     ) {
       subscriptionId = stripeId(object?.id);
-      synced = await syncStripeSubscription(object);
+      synced = await syncStripeSubscription(object, {
+        providerEventAt: stripeEventIso(event),
+        providerEventId: String(event.id),
+      });
       customerId = stripeId(object?.customer) || customerId;
     } else if (
       event.type === 'invoice.paid' ||
@@ -138,7 +151,10 @@ export async function POST(request: Request) {
       subscriptionId = invoiceSubscriptionId(object);
       if (subscriptionId) {
         const subscription = await retrieveStripeSubscription(subscriptionId);
-        synced = await syncStripeSubscription(subscription);
+        synced = await syncStripeSubscription(subscription, {
+          providerEventAt: stripeEventIso(event),
+          providerEventId: String(event.id),
+        });
         customerId = stripeId(subscription?.customer) || customerId;
       }
     }
