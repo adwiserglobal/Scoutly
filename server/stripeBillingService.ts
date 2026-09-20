@@ -47,6 +47,12 @@ function unixToIso(value: unknown): string | null {
   return new Date(seconds * 1000).toISOString();
 }
 
+function parseIsoTime(value: unknown): number | null {
+  if (!value) return null;
+  const parsed = new Date(String(value)).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function stripeRequest<T>(
   path: string,
   init: RequestInit = {}
@@ -81,21 +87,21 @@ export async function retrieveStripeSubscription(subscriptionId: string) {
 async function findExistingSubscription(userUid?: string | null, subscriptionId?: string | null, customerId?: string | null) {
   if (userUid) {
     const rows = await appDataRequest<any[]>(
-      `subscriptions?user_uid=eq.${dbValue(userUid)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,last_provider_event_at,last_provider_event_id&limit=1`
+      `subscriptions?user_uid=eq.${dbValue(userUid)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,current_period_start,current_period_end,cancel_at_period_end,last_provider_event_at,last_provider_event_id&limit=1`
     );
     if (rows[0]) return rows[0];
   }
 
   if (subscriptionId) {
     const rows = await appDataRequest<any[]>(
-      `subscriptions?provider_subscription_id=eq.${dbValue(subscriptionId)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,last_provider_event_at,last_provider_event_id&limit=1`
+      `subscriptions?provider_subscription_id=eq.${dbValue(subscriptionId)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,current_period_start,current_period_end,cancel_at_period_end,last_provider_event_at,last_provider_event_id&limit=1`
     );
     if (rows[0]) return rows[0];
   }
 
   if (customerId) {
     const rows = await appDataRequest<any[]>(
-      `subscriptions?provider_customer_id=eq.${dbValue(customerId)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,last_provider_event_at,last_provider_event_id&limit=1`
+      `subscriptions?provider_customer_id=eq.${dbValue(customerId)}&select=user_uid,plan,status,provider_customer_id,provider_subscription_id,current_period_start,current_period_end,cancel_at_period_end,last_provider_event_at,last_provider_event_id&limit=1`
     );
     if (rows[0]) return rows[0];
   }
@@ -155,14 +161,13 @@ export async function syncStripeSubscription(
     unixToIso(stripeSubscription?.current_period_end) ||
     unixToIso(firstItem?.current_period_end);
 
-  const incomingEventAt = parseTime(hints.providerEventAt);
-  const existingEventAt = parseTime(existing?.last_provider_event_at);
+  const incomingEventAt = parseIsoTime(hints.providerEventAt);
+  const existingEventAt = parseIsoTime(existing?.last_provider_event_at);
 
   if (
     incomingEventAt &&
     existingEventAt &&
-    incomingEventAt <= existingEventAt &&
-    String(existing?.provider_subscription_id || '') !== String(subscriptionId || '')
+    incomingEventAt <= existingEventAt
   ) {
     return {
       user_uid: userUid,
@@ -171,9 +176,9 @@ export async function syncStripeSubscription(
       provider_subscription_id: existing?.provider_subscription_id || subscriptionId,
       plan: normalizePaidPlan(existing?.plan) || plan,
       status: String(existing?.status || status),
-      current_period_start: null,
-      current_period_end: null,
-      cancel_at_period_end: false,
+      current_period_start: existing?.current_period_start || null,
+      current_period_end: existing?.current_period_end || null,
+      cancel_at_period_end: Boolean(existing?.cancel_at_period_end),
       last_provider_event_at: existing?.last_provider_event_at || null,
       last_provider_event_id: existing?.last_provider_event_id || null,
       ignored_stale_event: true,
@@ -190,8 +195,8 @@ export async function syncStripeSubscription(
     current_period_start: periodStart,
     current_period_end: periodEnd,
     cancel_at_period_end: Boolean(stripeSubscription?.cancel_at_period_end),
-    last_provider_event_at: hints.providerEventAt || null,
-    last_provider_event_id: hints.providerEventId || null,
+    last_provider_event_at: hints.providerEventAt || existing?.last_provider_event_at || null,
+    last_provider_event_id: hints.providerEventId || existing?.last_provider_event_id || null,
     updated_at: new Date().toISOString(),
   };
 
