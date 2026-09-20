@@ -449,3 +449,17 @@ export async function saveGeneratedMessage(data: {
     return false;
   }
 }
+
+export async function createCheckoutSession(plan: 'go' | 'pro' | 'agency') {
+  const res = await appDataAction('create-checkout', { plan });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.url) {
+    throw new Error(data?.error || 'Não foi possível abrir o checkout.');
+  }
+
+  return {
+    id: String(data.id || ''),
+    url: String(data.url),
+  };
+}

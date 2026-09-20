@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BillingStatus, formatBRL, SCOUTLY_PLANS } from '../lib/billing';
+import { createCheckoutSession } from '../services/api';
 
 interface PlansModalProps {
   open: boolean;
@@ -28,12 +29,26 @@ export default function PlansModal({
   forceOpen = false,
 }: PlansModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   if (!open) return null;
 
-  const handleSelectPlan = (plan: PlanId) => {
+  const handleSelectPlan = async (plan: PlanId) => {
+    if (isRedirecting) return;
+
     setSelectedPlan(plan);
+    setCheckoutError('');
+    setIsRedirecting(true);
     localStorage.setItem('scoutly_pending_plan', plan);
+
+    try {
+      const checkout = await createCheckoutSession(plan);
+      window.location.assign(checkout.url);
+    } catch (error: any) {
+      setCheckoutError(error?.message || 'Não foi possível abrir o checkout.');
+      setIsRedirecting(false);
+    }
   };
 
   return (
@@ -70,8 +85,10 @@ export default function PlansModal({
                 </span>
                 <span className="mt-1 block text-sm font-semibold text-stone-900">
                   {billing.isExpired
-                    ? 'Seu teste terminou'
-                    : `Teste Pro · ${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
+                    ? 'Seu acesso está encerrado'
+                    : billing.isTrial
+                      ? `Teste Pro · ${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
+                      : `${billing.planName} · assinatura ativa`}
                 </span>
               </div>
               <span className="text-[11px] text-stone-500">
@@ -114,9 +131,10 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('go')}
+                disabled={isRedirecting}
                 className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50"
               >
-                Continuar com Go
+                {isRedirecting && selectedPlan === 'go' ? 'Abrindo checkout...' : 'Continuar com Go'}
               </button>
             </article>
 
@@ -154,9 +172,10 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('pro')}
+                disabled={isRedirecting}
                 className="mt-6 w-full rounded-xl bg-[#FF4D00] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#E04400]"
               >
-                Continuar com Pro
+                {isRedirecting && selectedPlan === 'pro' ? 'Abrindo checkout...' : 'Continuar com Pro'}
               </button>
             </article>
 
@@ -192,20 +211,27 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('agency')}
+                disabled={isRedirecting}
                 className="mt-6 w-full rounded-xl border border-stone-200 bg-stone-950 px-4 py-3 text-xs font-semibold text-white transition hover:bg-stone-800"
               >
-                Continuar com Agency
+                {isRedirecting && selectedPlan === 'agency' ? 'Abrindo checkout...' : 'Continuar com Agency'}
               </button>
             </article>
           </div>
 
-          {selectedPlan && (
+          {checkoutError && (
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-medium text-red-700">
+              {checkoutError}
+            </div>
+          )}
+
+          {selectedPlan && isRedirecting && (
             <div className="mt-5 rounded-2xl border border-[#E7E0D8] bg-white px-4 py-3.5">
               <span className="block text-xs font-semibold text-stone-900">
-                {selectedPlan === 'go' ? 'Go selecionado' : selectedPlan === 'pro' ? 'Pro selecionado' : 'Agency selecionado'}
+                Preparando checkout seguro
               </span>
               <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
-                O plano foi salvo como sua escolha. No próximo passo vamos conectar o checkout da Stripe para concluir a assinatura.
+                Você será redirecionado para a Stripe para concluir a assinatura.
               </p>
             </div>
           )}

@@ -120,6 +120,97 @@ async function bootstrap(userUid: string, workspaceId: string) {
   };
 }
 
+
+type PaidPlan = 'go' | 'pro' | 'agency';
+
+function getRequestOrigin(req: VercelRequest) {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  if (host) return `${forwardedProto}://${host}`;
+  return String(process.env.APP_URL || 'https://www.scoutly.pro').replace(/\/$/, '');
+}
+
+async function createStripeCheckout(
+  req: VercelRequest,
+  identity: { uid: string; email: string | null },
+  plan: PaidPlan
+) {
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '');
+  if (!stripeSecret) {
+    throw Object.assign(new Error('STRIPE_SECRET_KEY não configurada'), { statusCode: 503 });
+  }
+
+  const priceByPlan: Record<PaidPlan, string> = {
+    go: String(process.env.STRIPE_PRICE_GO || ''),
+    pro: String(process.env.STRIPE_PRICE_PRO || ''),
+    agency: String(process.env.STRIPE_PRICE_AGENCY || ''),
+  };
+
+  const priceId = priceByPlan[plan];
+  if (!priceId || !priceId.startsWith('price_')) {
+    throw Object.assign(new Error(`Preço Stripe do plano ${plan} não configurado`), {
+      statusCode: 503,
+    });
+  }
+
+  const existingRows = await appDataRequest<any[]>(
+    `subscriptions?user_uid=eq.${dbValue(identity.uid)}&select=provider_customer_id,provider_subscription_id,plan,status&limit=1`
+  );
+  const existing = existingRows[0] || null;
+
+  if (
+    existing?.provider_subscription_id &&
+    ['active', 'trialing', 'past_due'].includes(String(existing.status || '')) &&
+    ['go', 'pro', 'agency'].includes(String(existing.plan || ''))
+  ) {
+    throw Object.assign(
+      new Error('Sua conta já possui uma assinatura Stripe ativa.'),
+      { statusCode: 409 }
+    );
+  }
+
+  const origin = getRequestOrigin(req);
+  const params = new URLSearchParams();
+  params.set('mode', 'subscription');
+  params.set('line_items[0][price]', priceId);
+  params.set('line_items[0][quantity]', '1');
+  params.set('success_url', `${origin}/?billing=success&session_id={CHECKOUT_SESSION_ID}`);
+  params.set('cancel_url', `${origin}/?billing=cancel`);
+  params.set('client_reference_id', identity.uid);
+  params.set('metadata[firebase_uid]', identity.uid);
+  params.set('metadata[plan]', plan);
+  params.set('subscription_data[metadata][firebase_uid]', identity.uid);
+  params.set('subscription_data[metadata][plan]', plan);
+  params.set('allow_promotion_codes', 'true');
+
+  if (existing?.provider_customer_id) {
+    params.set('customer', String(existing.provider_customer_id));
+  } else if (identity.email) {
+    params.set('customer_email', identity.email);
+  }
+
+  const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecret}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+    signal: AbortSignal.timeout(12000),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.url) {
+    const message = data?.error?.message || `Stripe HTTP ${response.status}`;
+    throw Object.assign(new Error(message), { statusCode: 502 });
+  }
+
+  return {
+    id: data.id as string,
+    url: data.url as string,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const identity = await requireFirebaseIdentity(req as any);
@@ -138,6 +229,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'sync-user') {
       return res.status(200).json({ success: true, user: identity, workspaceId });
+    }
+
+    if (action === 'create-checkout') {
+      const plan = String(req.body?.plan || '').toLowerCase();
+      if (!['go', 'pro', 'agency'].includes(plan)) {
+        return res.status(400).json({ error: 'Plano inválido' });
+      }
+
+      const checkout = await createStripeCheckout(req, identity, plan as PaidPlan);
+      return res.status(200).json(checkout);
     }
 
     if (action === 'update-profile') {
@@ -347,9 +448,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error:
         statusCode === 401
           ? 'Sessão inválida ou expirada.'
-          : statusCode === 503
-            ? 'Banco de usuários não configurado.'
-            : 'Erro ao acessar os dados do usuário.',
+          : statusCode === 409
+            ? error?.message || 'Já existe uma assinatura ativa.'
+            : statusCode === 502
+              ? error?.message || 'Não foi possível iniciar o checkout da Stripe.'
+              : statusCode === 503
+                ? error?.message || 'Configuração de cobrança incompleta.'
+                : 'Erro ao acessar os dados do usuário.',
     });
   }
 }

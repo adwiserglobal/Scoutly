@@ -98,6 +98,7 @@ export default function App() {
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
 
   const [isPlansOpen, setIsPlansOpen] = useState(false);
+  const [serverSubscription, setServerSubscription] = useState<any>(null);
   const [billingStatus, setBillingStatus] = useState(() => getBillingStatus(user));
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const refreshBilling = () => setBillingStatus(getBillingStatus(user));
+    const refreshBilling = () => setBillingStatus(getBillingStatus(user, serverSubscription));
     refreshBilling();
 
     const interval = window.setInterval(refreshBilling, 60 * 1000);
@@ -121,7 +122,7 @@ export default function App() {
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshBilling);
     };
-  }, [user]);
+  }, [user, serverSubscription]);
 
   // Pagination / Progressive Rendering for High Performance (prevent DOM overload)
   const [visibleCount, setVisibleCount] = useState<number>(() => {
@@ -331,6 +332,10 @@ export default function App() {
 
       if (data?.leads) setUserLeadsMap(data.leads);
       if (data?.favorites) setUserFavoritesMap(data.favorites);
+      if (data?.subscription) {
+        setServerSubscription(data.subscription);
+        setBillingStatus(getBillingStatus(user, data.subscription));
+      }
 
       if (data?.settings) {
         if (typeof data.settings.auto_enrich === 'boolean') {
@@ -361,6 +366,61 @@ export default function App() {
 
       routeHydratedRef.current = true;
     });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const billingResult = params.get('billing');
+    if (!billingResult) return;
+
+    if (billingResult === 'cancel') {
+      params.delete('billing');
+      params.delete('session_id');
+      const query = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+      setIsPlansOpen(true);
+      return;
+    }
+
+    if (billingResult !== 'success') return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const refreshSubscription = async () => {
+      attempts += 1;
+      const data = await fetchUserLeads();
+      if (cancelled) return;
+
+      if (data?.subscription) {
+        setServerSubscription(data.subscription);
+        const nextBilling = getBillingStatus(user, data.subscription);
+        setBillingStatus(nextBilling);
+
+        if (nextBilling.plan === 'go' || nextBilling.plan === 'pro' || nextBilling.plan === 'agency') {
+          localStorage.removeItem('scoutly_pending_plan');
+          setIsPlansOpen(false);
+
+          params.delete('billing');
+          params.delete('session_id');
+          const query = params.toString();
+          window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+          return;
+        }
+      }
+
+      if (attempts < 6) {
+        window.setTimeout(refreshSubscription, 1500);
+      }
+    };
+
+    void refreshSubscription();
 
     return () => {
       cancelled = true;

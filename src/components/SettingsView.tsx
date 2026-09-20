@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
-import type { BillingStatus } from '../lib/billing';
+import { formatBRL, type BillingStatus } from '../lib/billing';
 import { saveUserProfile, saveUserSettings } from '../services/api';
 
 function getInitialBatchSize() {
@@ -240,8 +240,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-stone-900">
                   {billing.isExpired
-                    ? 'Teste encerrado'
-                    : `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`}
+                    ? 'Acesso encerrado'
+                    : billing.isTrial
+                      ? `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
+                      : 'Assinatura ativa'}
                 </span>
               </div>
 
@@ -250,7 +252,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   Cobrança
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-stone-900">
-                  Sem cobrança no teste
+                  {billing.isTrial || billing.monthlyPrice === null
+                    ? 'Sem cobrança no teste'
+                    : `${formatBRL(billing.monthlyPrice)} / mês`}
                 </span>
               </div>
             </div>
