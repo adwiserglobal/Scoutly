@@ -1248,7 +1248,7 @@ export default function App() {
         {/* Business List Drawer Overlay for INICIO tab */}
         {currentTab === 'INICIO' && (
           <div 
-            className={`absolute inset-x-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`absolute left-0 right-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 lg:left-[172px] lg:right-[392px] ease-[cubic-bezier(0.16,1,0.3,1)] ${
               isListOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
             }`}
           >
