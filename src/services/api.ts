@@ -463,3 +463,28 @@ export async function createCheckoutSession(plan: 'go' | 'pro' | 'agency') {
     url: String(data.url),
   };
 }
+
+export async function confirmCheckoutSession(sessionId: string) {
+  const res = await appDataAction('confirm-checkout', { sessionId });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.subscription) {
+    throw new Error(data?.error || 'Não foi possível confirmar sua assinatura.');
+  }
+
+  return data.subscription;
+}
+
+export async function createBillingPortalSession() {
+  const res = await appDataAction('create-billing-portal');
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.url) {
+    throw new Error(data?.error || 'Não foi possível abrir o portal de cobrança.');
+  }
+
+  return {
+    id: String(data.id || ''),
+    url: String(data.url),
+  };
+}
