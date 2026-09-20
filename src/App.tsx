@@ -1395,7 +1395,7 @@ export default function App() {
         )}
 
         {currentTab === 'PIPELINE' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
             <PipelineView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1409,7 +1409,7 @@ export default function App() {
         )}
 
         {currentTab === 'CONFIGURACOES' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
             <SettingsView
               billing={billingStatus}
               onOpenPlans={() => setIsPlansOpen(true)}
