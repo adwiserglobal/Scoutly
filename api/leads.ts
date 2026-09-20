@@ -257,9 +257,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'create-billing-portal') {
       const origin = getRequestOrigin(req);
+      const targetPlan = String(req.body?.plan || '').toLowerCase();
       const portal = await createStripeBillingPortal(
         identity.uid,
-        `${origin}/?billing=portal-return`
+        `${origin}/?billing=portal-return`,
+        ['go', 'pro', 'agency'].includes(targetPlan) ? (targetPlan as PaidPlan) : null
       );
       return res.status(200).json(portal);
     }
