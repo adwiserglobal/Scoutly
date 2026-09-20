@@ -148,7 +148,7 @@ function ResultsPanel({
                           </span>
                         )}
                         <span className="ml-auto text-stone-600">
-                          {Math.round((business.confidence || 0) * 100)}%
+                          {Math.round((business.confidence || 0.8) * 100)}%
                         </span>
                       </div>
                     </div>
