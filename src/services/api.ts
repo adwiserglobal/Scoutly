@@ -475,8 +475,8 @@ export async function confirmCheckoutSession(sessionId: string) {
   return data.subscription;
 }
 
-export async function createBillingPortalSession() {
-  const res = await appDataAction('create-billing-portal');
+export async function createBillingPortalSession(plan?: 'go' | 'pro' | 'agency') {
+  const res = await appDataAction('create-billing-portal', plan ? { plan } : {});
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok || !data?.url) {
