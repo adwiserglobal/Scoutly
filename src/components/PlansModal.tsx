@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BillingStatus, formatBRL, SCOUTLY_PLANS } from '../lib/billing';
-import { createCheckoutSession } from '../services/api';
+import { createBillingPortalSession, createCheckoutSession } from '../services/api';
 
 interface PlansModalProps {
   open: boolean;
@@ -36,20 +36,34 @@ export default function PlansModal({
 
   const handleSelectPlan = async (plan: PlanId) => {
     if (isRedirecting) return;
+    if (!billing.isTrial && !billing.isExpired && billing.plan === plan) return;
 
     setSelectedPlan(plan);
     setCheckoutError('');
     setIsRedirecting(true);
-    localStorage.setItem('scoutly_pending_plan', plan);
 
     try {
+      if (!billing.isTrial && !billing.isExpired) {
+        const portal = await createBillingPortalSession();
+        window.location.assign(portal.url);
+        return;
+      }
+
+      localStorage.setItem('scoutly_pending_plan', plan);
       const checkout = await createCheckoutSession(plan);
       window.location.assign(checkout.url);
     } catch (error: any) {
-      setCheckoutError(error?.message || 'Não foi possível abrir o checkout.');
+      setCheckoutError(
+        error?.message ||
+          (!billing.isTrial && !billing.isExpired
+            ? 'Não foi possível abrir o portal de cobrança.'
+            : 'Não foi possível abrir o checkout.')
+      );
       setIsRedirecting(false);
     }
   };
+
+  const isPaid = !billing.isTrial && !billing.isExpired;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[2px]">
@@ -61,7 +75,9 @@ export default function PlansModal({
               Escolha seu plano
             </h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-500">
-              Teste todos os recursos por 7 dias. Depois, escolha um plano para continuar usando a Scoutly.
+              {isPaid
+                ? 'Compare os planos e use o portal seguro da Stripe para fazer upgrade, downgrade, atualizar o pagamento ou cancelar.'
+                : 'Teste todos os recursos por 7 dias. Depois, escolha um plano para continuar usando a Scoutly.'}
             </p>
           </div>
 
@@ -92,7 +108,11 @@ export default function PlansModal({
                 </span>
               </div>
               <span className="text-[11px] text-stone-500">
-                Sem cartão durante o período de teste
+                {billing.isTrial
+                  ? 'Sem cartão durante o período de teste'
+                  : billing.cancelAtPeriodEnd
+                    ? 'Cancelamento agendado no fim do ciclo'
+                    : 'Cobrança gerenciada com segurança pela Stripe'}
               </span>
             </div>
           </div>
@@ -131,10 +151,14 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('go')}
-                disabled={isRedirecting}
-                className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50"
+                disabled={isRedirecting || (isPaid && billing.plan === 'go')}
+                className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isRedirecting && selectedPlan === 'go' ? 'Abrindo checkout...' : 'Continuar com Go'}
+                {isPaid && billing.plan === 'go'
+                  ? 'Plano atual'
+                  : isRedirecting && selectedPlan === 'go'
+                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
+                    : isPaid ? 'Alterar plano' : 'Continuar com Go'}
               </button>
             </article>
 
@@ -172,10 +196,14 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('pro')}
-                disabled={isRedirecting}
-                className="mt-6 w-full rounded-xl bg-[#FF4D00] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#E04400]"
+                disabled={isRedirecting || (isPaid && billing.plan === 'pro')}
+                className="mt-6 w-full rounded-xl bg-[#FF4D00] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isRedirecting && selectedPlan === 'pro' ? 'Abrindo checkout...' : 'Continuar com Pro'}
+                {isPaid && billing.plan === 'pro'
+                  ? 'Plano atual'
+                  : isRedirecting && selectedPlan === 'pro'
+                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
+                    : isPaid ? 'Alterar plano' : 'Continuar com Pro'}
               </button>
             </article>
 
@@ -211,10 +239,14 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('agency')}
-                disabled={isRedirecting}
-                className="mt-6 w-full rounded-xl border border-stone-200 bg-stone-950 px-4 py-3 text-xs font-semibold text-white transition hover:bg-stone-800"
+                disabled={isRedirecting || (isPaid && billing.plan === 'agency')}
+                className="mt-6 w-full rounded-xl border border-stone-200 bg-stone-950 px-4 py-3 text-xs font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isRedirecting && selectedPlan === 'agency' ? 'Abrindo checkout...' : 'Continuar com Agency'}
+                {isPaid && billing.plan === 'agency'
+                  ? 'Plano atual'
+                  : isRedirecting && selectedPlan === 'agency'
+                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
+                    : isPaid ? 'Alterar plano' : 'Continuar com Agency'}
               </button>
             </article>
           </div>
@@ -228,10 +260,12 @@ export default function PlansModal({
           {selectedPlan && isRedirecting && (
             <div className="mt-5 rounded-2xl border border-[#E7E0D8] bg-white px-4 py-3.5">
               <span className="block text-xs font-semibold text-stone-900">
-                Preparando checkout seguro
+                {isPaid ? 'Abrindo portal seguro' : 'Preparando checkout seguro'}
               </span>
               <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
-                Você será redirecionado para a Stripe para concluir a assinatura.
+                {isPaid
+                  ? 'Você será redirecionado para a Stripe para alterar sua assinatura.'
+                  : 'Você será redirecionado para a Stripe para concluir a assinatura.'}
               </p>
             </div>
           )}
