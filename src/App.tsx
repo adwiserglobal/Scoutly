@@ -271,7 +271,7 @@ export default function App() {
           const result = await checkBusinessSocials(business.website);
           if (cancelled) return;
 
-          const nextStatus =
+          const nextStatus: 'has_social' | 'no_social' | 'failed' =
             result.hasSocial && result.socials.length > 0
               ? 'has_social'
               : result.siteStatus === 'verified'
