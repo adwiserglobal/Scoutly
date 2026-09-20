@@ -51,8 +51,6 @@ export function hydrateRecentlyViewedBusinesses(items: any[]) {
       detail: { ids: next.map((item) => item.id) },
     })
   );
-
-  void saveRecentBusiness(businessId, business);
 }
 
 export function markBusinessRecentlyViewed(businessId: string, business?: any) {
@@ -69,4 +67,6 @@ export function markBusinessRecentlyViewed(businessId: string, business?: any) {
       detail: { ids: next.map((item) => item.id) },
     })
   );
+
+  void saveRecentBusiness(businessId, business);
 }
