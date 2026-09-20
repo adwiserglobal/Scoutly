@@ -63,7 +63,7 @@ export default function PlansModal({
     }
   };
 
-  const isPaid = !billing.isTrial && !billing.isExpired;
+  const isPaid = Boolean(billing.paidPlanId);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[2px]">
@@ -151,10 +151,10 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('go')}
-                disabled={isRedirecting || (isPaid && billing.plan === 'go')}
+                disabled={isRedirecting || (isPaid && billing.paidPlanId === 'go')}
                 className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isPaid && billing.plan === 'go'
+                {isPaid && billing.paidPlanId === 'go'
                   ? 'Plano atual'
                   : isRedirecting && selectedPlan === 'go'
                     ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
@@ -196,10 +196,10 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('pro')}
-                disabled={isRedirecting || (isPaid && billing.plan === 'pro')}
+                disabled={isRedirecting || (isPaid && billing.paidPlanId === 'pro')}
                 className="mt-6 w-full rounded-xl bg-[#FF4D00] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isPaid && billing.plan === 'pro'
+                {isPaid && billing.paidPlanId === 'pro'
                   ? 'Plano atual'
                   : isRedirecting && selectedPlan === 'pro'
                     ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
@@ -239,10 +239,10 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => handleSelectPlan('agency')}
-                disabled={isRedirecting || (isPaid && billing.plan === 'agency')}
+                disabled={isRedirecting || (isPaid && billing.paidPlanId === 'agency')}
                 className="mt-6 w-full rounded-xl border border-stone-200 bg-stone-950 px-4 py-3 text-xs font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isPaid && billing.plan === 'agency'
+                {isPaid && billing.paidPlanId === 'agency'
                   ? 'Plano atual'
                   : isRedirecting && selectedPlan === 'agency'
                     ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
