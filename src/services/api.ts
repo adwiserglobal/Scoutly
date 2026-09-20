@@ -488,3 +488,14 @@ export async function createBillingPortalSession(plan?: 'go' | 'pro' | 'agency')
     url: String(data.url),
   };
 }
+
+export async function refreshSubscriptionFromStripe() {
+  const res = await appDataAction('refresh-subscription');
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.subscription) {
+    throw new Error(data?.error || 'Não foi possível sincronizar sua assinatura.');
+  }
+
+  return data.subscription;
+}
