@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, fetchUserLeads, saveUserLead, saveVisitRoute } from './services/api';
+import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, saveUserLead, saveVisitRoute } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -20,6 +20,7 @@ import FavoritesView from './components/FavoritesView';
 import PipelineView from './components/PipelineView';
 import SettingsView from './components/SettingsView';
 import PlansModal from './components/PlansModal';
+import SubscriptionSuccessModal from './components/SubscriptionSuccessModal';
 import VisitRoutePanel from './components/VisitRoutePanel';
 import LoginView from './components/LoginView';
 import { hydrateRecentlyViewedBusinesses } from './utils/recentBusinesses';
@@ -100,6 +101,8 @@ export default function App() {
   const [isPlansOpen, setIsPlansOpen] = useState(false);
   const [serverSubscription, setServerSubscription] = useState<any>(null);
   const [billingStatus, setBillingStatus] = useState(() => getBillingStatus(user));
+  const [subscriptionWelcome, setSubscriptionWelcome] = useState<ReturnType<typeof getBillingStatus> | null>(null);
+  const [billingSyncError, setBillingSyncError] = useState('');
 
   useEffect(() => {
     const refreshRecommendations = () => setRecommendationRevision((value) => value + 1);
@@ -379,44 +382,100 @@ export default function App() {
     const billingResult = params.get('billing');
     if (!billingResult) return;
 
-    if (billingResult === 'cancel') {
+    const cleanBillingParams = () => {
       params.delete('billing');
       params.delete('session_id');
       const query = params.toString();
-      window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+      window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${query ? `?${query}` : ''}`
+      );
+    };
+
+    if (billingResult === 'cancel') {
+      cleanBillingParams();
       setIsPlansOpen(true);
       return;
     }
 
+    let cancelled = false;
+
+    if (billingResult === 'portal-return') {
+      let refreshes = 0;
+
+      const refreshAfterPortal = async () => {
+        refreshes += 1;
+        const data = await fetchUserLeads();
+        if (cancelled) return;
+
+        if (data?.subscription) {
+          setServerSubscription(data.subscription);
+          setBillingStatus(getBillingStatus(user, data.subscription));
+        }
+
+        if (refreshes < 3) {
+          window.setTimeout(refreshAfterPortal, 1500);
+        } else {
+          cleanBillingParams();
+        }
+      };
+
+      void refreshAfterPortal();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (billingResult !== 'success') return;
 
-    let cancelled = false;
+    const sessionId = String(params.get('session_id') || '').trim();
     let attempts = 0;
+    setBillingSyncError('');
+
+    const applySubscription = (subscription: any) => {
+      if (!subscription || cancelled) return false;
+
+      setServerSubscription(subscription);
+      const nextBilling = getBillingStatus(user, subscription);
+      setBillingStatus(nextBilling);
+
+      const isPaidPlan =
+        nextBilling.plan === 'go' ||
+        nextBilling.plan === 'pro' ||
+        nextBilling.plan === 'agency';
+
+      if (!isPaidPlan) return false;
+
+      localStorage.removeItem('scoutly_pending_plan');
+      setIsPlansOpen(false);
+      setSubscriptionWelcome(nextBilling);
+      cleanBillingParams();
+      return true;
+    };
 
     const refreshSubscription = async () => {
       attempts += 1;
-      const data = await fetchUserLeads();
-      if (cancelled) return;
 
-      if (data?.subscription) {
-        setServerSubscription(data.subscription);
-        const nextBilling = getBillingStatus(user, data.subscription);
-        setBillingStatus(nextBilling);
-
-        if (nextBilling.plan === 'go' || nextBilling.plan === 'pro' || nextBilling.plan === 'agency') {
-          localStorage.removeItem('scoutly_pending_plan');
-          setIsPlansOpen(false);
-
-          params.delete('billing');
-          params.delete('session_id');
-          const query = params.toString();
-          window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
-          return;
+      if (attempts === 1 && sessionId.startsWith('cs_')) {
+        try {
+          const confirmed = await confirmCheckoutSession(sessionId);
+          if (applySubscription(confirmed)) return;
+        } catch (error) {
+          console.warn('[Scoutly Billing] Checkout confirmation pending:', error);
         }
       }
 
+      const data = await fetchUserLeads();
+      if (cancelled) return;
+      if (applySubscription(data?.subscription)) return;
+
       if (attempts < 6) {
         window.setTimeout(refreshSubscription, 1500);
+      } else {
+        setBillingSyncError(
+          'O pagamento foi concluído, mas a Scoutly ainda não conseguiu sincronizar sua assinatura. Aguarde alguns segundos e atualize a página.'
+        );
       }
     };
 
@@ -1364,6 +1423,26 @@ export default function App() {
         onClose={() => setIsPlansOpen(false)}
         onSignOut={signOut}
       />
+
+      <SubscriptionSuccessModal
+        billing={subscriptionWelcome}
+        onContinue={() => setSubscriptionWelcome(null)}
+      />
+
+      {billingSyncError && (
+        <div className="fixed left-1/2 top-5 z-[115] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-xs leading-relaxed text-amber-900">{billingSyncError}</p>
+            <button
+              type="button"
+              onClick={() => setBillingSyncError('')}
+              className="shrink-0 text-[11px] font-semibold text-amber-900 underline underline-offset-2"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Business Details Modal */}
       <BusinessDetailsModal
