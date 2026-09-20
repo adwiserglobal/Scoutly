@@ -120,12 +120,22 @@ export async function syncStripeSubscription(
     });
   }
 
-  const firstItem = stripeSubscription?.items?.data?.[0] || null;
-  const priceId = asStripeId(firstItem?.price) || asStripeId(firstItem?.plan);
+  const subscriptionItems = Array.isArray(stripeSubscription?.items?.data)
+    ? stripeSubscription.items.data
+    : [];
+  const firstItem = subscriptionItems[0] || null;
+  const planFromCurrentPrice =
+    subscriptionItems
+      .map((item: any) => planFromStripePrice(asStripeId(item?.price) || asStripeId(item?.plan)))
+      .find(Boolean) || null;
+
+  // The current Stripe price is the source of truth after an upgrade/downgrade.
+  // Subscription metadata is only a fallback because Stripe Portal price changes
+  // do not automatically rewrite metadata.plan.
   const plan =
+    planFromCurrentPrice ||
     normalizePaidPlan(metadata?.plan) ||
     normalizePaidPlan(hints.plan) ||
-    planFromStripePrice(priceId) ||
     normalizePaidPlan(existing?.plan);
 
   if (!plan) {
