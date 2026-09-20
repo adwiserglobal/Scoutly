@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { formatBRL, type BillingStatus } from '../lib/billing';
-import { saveUserProfile, saveUserSettings } from '../services/api';
+import { createBillingPortalSession, saveUserProfile, saveUserSettings } from '../services/api';
 
 function getInitialBatchSize() {
   const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
@@ -26,6 +26,8 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const [resultsBatchSize, setResultsBatchSize] = useState(getInitialBatchSize);
   const [savedMessage, setSavedMessage] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isOpeningBilling, setIsOpeningBilling] = useState(false);
+  const [billingError, setBillingError] = useState('');
 
   const initials = useMemo(() => {
     const source = displayName || user?.email || 'S';
@@ -77,6 +79,29 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const handleSignOut = async () => {
     await signOut();
   };
+
+  const handleBillingAction = async () => {
+    if (!billing.paidPlanId) {
+      onOpenPlans();
+      return;
+    }
+
+    if (isOpeningBilling) return;
+    setIsOpeningBilling(true);
+    setBillingError('');
+
+    try {
+      const portal = await createBillingPortalSession();
+      window.location.assign(portal.url);
+    } catch (error: any) {
+      setBillingError(error?.message || 'Não foi possível abrir o portal de cobrança.');
+      setIsOpeningBilling(false);
+    }
+  };
+
+  const periodEndLabel = billing.periodEndsAt
+    ? new Date(billing.periodEndsAt).toLocaleDateString('pt-BR')
+    : '';
 
   return (
     <div className="flex-1 h-full overflow-y-auto bg-[#FAF7F2] px-4 py-6 md:px-8 md:py-10">
@@ -243,7 +268,11 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                     ? 'Acesso encerrado'
                     : billing.isTrial
                       ? `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
-                      : 'Assinatura ativa'}
+                      : billing.subscriptionStatus === 'past_due'
+                        ? 'Pagamento pendente'
+                        : billing.cancelAtPeriodEnd
+                          ? 'Cancelamento agendado'
+                          : 'Assinatura ativa'}
                 </span>
               </div>
 
@@ -260,16 +289,30 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             </div>
 
             <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="max-w-xl text-[11px] leading-relaxed text-stone-500">
-                O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Go, Pro ou Agency para continuar usando a Scoutly.
-              </p>
+              <div className="max-w-xl">
+                <p className="text-[11px] leading-relaxed text-stone-500">
+                  {billing.cancelAtPeriodEnd && periodEndLabel
+                    ? `Seu plano permanece ativo até ${periodEndLabel}. Você pode reativar ou alterar a assinatura pelo portal de cobrança.`
+                    : billing.isTrial
+                      ? 'O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Go, Pro ou Agency para continuar usando a Scoutly.'
+                      : 'Atualize o plano, método de pagamento, faturas ou cancelamento com segurança pela Stripe.'}
+                </p>
+                {billingError && (
+                  <p className="mt-2 text-[11px] font-medium text-red-600">{billingError}</p>
+                )}
+              </div>
 
               <button
                 type="button"
-                onClick={onOpenPlans}
-                className="shrink-0 rounded-xl bg-[#FF4D00] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#E04400]"
+                onClick={handleBillingAction}
+                disabled={isOpeningBilling}
+                className="shrink-0 rounded-xl bg-[#FF4D00] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-wait disabled:opacity-60"
               >
-                Ver planos
+                {isOpeningBilling
+                  ? 'Abrindo...'
+                  : billing.paidPlanId
+                    ? 'Gerenciar assinatura'
+                    : 'Ver planos'}
               </button>
             </div>
           </section>

@@ -24,7 +24,7 @@
     },
     {
       "src": "/api/places",
-      "dest": "/api/places.ts"
+      "dest": "/api/places-fast.ts"
     },
     {
       "src": "/api/ai/chat",
@@ -57,6 +57,10 @@
     {
       "src": "/api/leads",
       "dest": "/api/leads.ts"
+    },
+    {
+      "src": "/api/stripe-webhook",
+      "dest": "/api/stripe-webhook.ts"
     },
     {
       "src": "/(.*)",
