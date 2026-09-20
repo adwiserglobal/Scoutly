@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue, ensureAppUser, incrementUsage } from '../server/appDataService.js';
 import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
+import { confirmStripeCheckoutSession, createStripeBillingPortal } from '../server/stripeBillingService.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -241,6 +242,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(checkout);
     }
 
+    if (action === 'confirm-checkout') {
+      const sessionId = String(req.body?.sessionId || '').trim();
+      if (!sessionId.startsWith('cs_')) {
+        return res.status(400).json({ error: 'Sessão de checkout inválida' });
+      }
+
+      const confirmed = await confirmStripeCheckoutSession(sessionId, identity.uid);
+      return res.status(200).json({
+        success: true,
+        subscription: confirmed.subscription,
+      });
+    }
+
+    if (action === 'create-billing-portal') {
+      const origin = getRequestOrigin(req);
+      const portal = await createStripeBillingPortal(
+        identity.uid,
+        `${origin}/?billing=portal-return`
+      );
+      return res.status(200).json(portal);
+    }
+
     if (action === 'update-profile') {
       const displayName = String(req.body?.displayName || '').trim().slice(0, 120);
       if (!displayName) return res.status(400).json({ error: 'Nome inválido' });
@@ -448,10 +471,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error:
         statusCode === 401
           ? 'Sessão inválida ou expirada.'
-          : statusCode === 409
-            ? error?.message || 'Já existe uma assinatura ativa.'
+          : statusCode === 400 || statusCode === 403 || statusCode === 409
+            ? error?.message || 'Não foi possível concluir a operação de cobrança.'
             : statusCode === 502
-              ? error?.message || 'Não foi possível iniciar o checkout da Stripe.'
+              ? error?.message || 'Não foi possível acessar a Stripe.'
               : statusCode === 503
                 ? error?.message || 'Configuração de cobrança incompleta.'
                 : 'Erro ao acessar os dados do usuário.',
