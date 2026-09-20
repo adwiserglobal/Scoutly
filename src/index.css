@@ -242,18 +242,14 @@ body,
   transition: right 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.scoutly-results-panel {
-  scrollbar-gutter: stable;
-}
-
 @media (min-width: 1024px) {
   .maplibregl-ctrl-top-right {
     top: 82px;
-    right: 392px;
+    right: 8px;
   }
 
   .maplibregl-ctrl-bottom-right {
-    right: 388px;
+    right: 8px;
   }
 }
 
