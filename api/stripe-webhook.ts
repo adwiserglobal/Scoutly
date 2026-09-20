@@ -1,31 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue } from '../server/appDataService.js';
 import {
   normalizePaidPlan,
   retrieveStripeSubscription,
   syncStripeSubscription,
 } from '../server/stripeBillingService.js';
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-async function readRawBody(req: VercelRequest) {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req as any) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-function getHeader(req: VercelRequest, name: string) {
-  const value = req.headers[name.toLowerCase()];
-  if (Array.isArray(value)) return value[0] || '';
-  return String(value || '');
-}
 
 function verifyStripeSignature(rawBody: string, signatureHeader: string, secret: string) {
   const parts = signatureHeader.split(',').map((part) => part.trim());
@@ -99,38 +78,33 @@ async function saveEvent(event: any, data: {
   });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  }
-
+export async function POST(request: Request) {
   const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   if (!webhookSecret) {
-    return res.status(503).json({ error: 'STRIPE_WEBHOOK_SECRET não configurada' });
+    return Response.json({ error: 'STRIPE_WEBHOOK_SECRET não configurada' }, { status: 503 });
   }
 
-  const rawBody = await readRawBody(req);
-  const signature = getHeader(req, 'stripe-signature');
+  const rawBody = await request.text();
+  const signature = request.headers.get('stripe-signature') || '';
 
   if (!verifyStripeSignature(rawBody, signature, webhookSecret)) {
-    return res.status(400).json({ error: 'Assinatura do webhook Stripe inválida' });
+    return Response.json({ error: 'Assinatura do webhook Stripe inválida' }, { status: 400 });
   }
 
   let event: any;
   try {
     event = JSON.parse(rawBody);
   } catch {
-    return res.status(400).json({ error: 'Payload Stripe inválido' });
+    return Response.json({ error: 'Payload Stripe inválido' }, { status: 400 });
   }
 
   if (!event?.id || !event?.type) {
-    return res.status(400).json({ error: 'Evento Stripe inválido' });
+    return Response.json({ error: 'Evento Stripe inválido' }, { status: 400 });
   }
 
   try {
     if (await alreadyProcessed(String(event.id))) {
-      return res.status(200).json({ received: true, duplicate: true });
+      return Response.json({ received: true, duplicate: true });
     }
 
     const object = event?.data?.object || {};
@@ -176,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status: 'processed',
     });
 
-    return res.status(200).json({ received: true });
+    return Response.json({ received: true });
   } catch (error: any) {
     console.error('[Stripe webhook]', event?.type, error?.message || error);
 
@@ -193,6 +167,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('[Stripe webhook] Could not persist failed event:', logError);
     }
 
-    return res.status(500).json({ error: 'Não foi possível processar o evento Stripe' });
+    return Response.json(
+      { error: 'Não foi possível processar o evento Stripe' },
+      { status: 500 }
+    );
   }
 }
