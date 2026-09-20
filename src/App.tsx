@@ -1092,6 +1092,7 @@ export default function App() {
                   totalBusinessesCount={filteredBusinesses.length}
                   onOpenFilters={() => {
                     setSelectedBusiness(null);
+                    setIsListOpen(false);
                     setIsFiltersOpen(true);
                   }}
                   recommendedBusinesses={recommendedBusinesses}
@@ -1102,7 +1103,7 @@ export default function App() {
               </div>
             </div>
 
-            {!selectedBusiness && !modalBusiness && !isFiltersOpen && (
+            {!selectedBusiness && !modalBusiness && !isFiltersOpen && !isListOpen && (
               <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto lg:right-4">
                 <button
                   type="button"
@@ -1134,7 +1135,7 @@ export default function App() {
               </div>
             )}
 
-            {isRouteMode && (
+            {isRouteMode && !isListOpen && (
               <div className="absolute top-[138px] left-4 z-30 pointer-events-none sm:top-[82px] lg:left-[88px]">
                 <VisitRoutePanel
                   stops={visitRouteStops}
@@ -1153,7 +1154,7 @@ export default function App() {
             )}
 
             {/* Floating Pin Radar Control Panel (Top Left below Header) */}
-            {radarPin?.active && (
+            {radarPin?.active && !isListOpen && (
               <div className="absolute top-[135px] left-4 z-30 pointer-events-none sm:top-[80px] lg:left-[88px]">
                 <PinRadarControl
                   active={radarPin.active}
@@ -1343,7 +1344,7 @@ export default function App() {
                 setIsListOpen(nextOpen);
                 if (nextOpen) setSelectedBusiness(null);
               }}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-white/70 hover:bg-white text-stone-700 hover:text-stone-900 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all shadow-md border border-white/40 backdrop-blur-md cursor-pointer hover:scale-105 active:scale-95"
+              className="flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-[#111418]/[0.92] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-300 shadow-[0_10px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-all cursor-pointer hover:border-[#FF5A12]/35 hover:text-white hover:scale-[1.02] active:scale-95"
             >
               {isListOpen ? (
                 <>
@@ -1486,7 +1487,7 @@ export default function App() {
       />
 
       {/* Floating Action Button: Scoutly AI (Orange Liquid Glass Design) */}
-      {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && currentTab === 'INICIO' && (
+      {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && (
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
