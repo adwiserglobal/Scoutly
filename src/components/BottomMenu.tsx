@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Columns3, Home, Menu, Settings, Star, X } from 'lucide-react';
+import { Columns3, Home, MapPin, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
 
 interface BottomMenuProps {
@@ -16,6 +16,8 @@ function BottomMenu({
   pipelineDealsCount,
 }: BottomMenuProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopHovered, setDesktopHovered] = useState(false);
+  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
 
   const navItems = [
     {
@@ -47,7 +49,7 @@ function BottomMenu({
     setMobileOpen(false);
   };
 
-  const navigation = (
+  const renderNavigation = (expanded: boolean) => (
     <nav className="flex flex-col gap-1.5">
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -58,7 +60,10 @@ function BottomMenu({
             key={item.id}
             type="button"
             onClick={() => navigate(item.id)}
-            className={`group relative flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left transition-all duration-200 ${
+            title={!expanded ? item.label : undefined}
+            className={`group relative flex h-12 w-full items-center rounded-xl transition-all duration-200 ${
+              expanded ? 'gap-3 px-3' : 'justify-center px-0'
+            } ${
               isActive
                 ? 'bg-white/[0.075] text-white shadow-[inset_2px_0_0_#FF5A12]'
                 : 'text-stone-400 hover:bg-white/[0.045] hover:text-white'
@@ -67,11 +72,24 @@ function BottomMenu({
             <Icon className={`h-[18px] w-[18px] shrink-0 transition ${
               isActive ? 'text-[#FF5A12]' : 'text-stone-500 group-hover:text-stone-300'
             }`} />
-            <span className="min-w-0 flex-1 text-[12px] font-medium">{item.label}</span>
-            {item.badge !== null && item.badge !== undefined && (
-              <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                isActive ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.08] text-stone-400'
-              }`}>
+
+            {expanded && (
+              <>
+                <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">
+                  {item.label}
+                </span>
+                {item.badge !== null && item.badge !== undefined && (
+                  <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                    isActive ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.08] text-stone-400'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </>
+            )}
+
+            {!expanded && item.badge !== null && item.badge !== undefined && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF5A12] px-1 text-[8px] font-bold text-white">
                 {item.badge}
               </span>
             )}
@@ -83,23 +101,41 @@ function BottomMenu({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[172px] flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.96] px-3 py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:flex">
-        <div className="mb-10 px-2">
-          <img
-            src="/logo_white.png"
-            alt="Scoutly"
-            className="h-10 w-auto max-w-[132px] object-contain object-left"
-          />
+      <aside
+        onMouseEnter={() => setDesktopHovered(true)}
+        onMouseLeave={() => setDesktopHovered(false)}
+        className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.97] py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:flex ${
+          desktopExpanded ? 'w-[190px] px-3' : 'w-[72px] px-2'
+        }`}
+      >
+        <div className={`mb-10 flex h-10 items-center ${
+          desktopExpanded ? 'justify-start px-1' : 'justify-center'
+        }`}>
+          {desktopExpanded ? (
+            <img
+              src="/logo_white.png"
+              alt="Scoutly"
+              className="h-10 w-auto max-w-[138px] object-contain object-left"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] text-[#FF5A12]">
+              <MapPin className="h-5 w-5" strokeWidth={2.4} />
+            </div>
+          )}
         </div>
 
-        <div className="flex-1">{navigation}</div>
+        <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3">
-          <div className="mb-2 h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
-          <p className="text-[10px] font-medium leading-relaxed text-stone-400">
-            Prospecção local em tempo real
-          </p>
-        </div>
+        {desktopExpanded ? (
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3">
+            <div className="mb-2 h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
+            <p className="text-[10px] font-medium leading-relaxed text-stone-400">
+              Prospecção local em tempo real
+            </p>
+          </div>
+        ) : (
+          <div className="mx-auto h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
+        )}
       </aside>
 
       <div className="lg:hidden">
@@ -146,7 +182,7 @@ function BottomMenu({
               </button>
             </div>
 
-            <div className="flex-1">{navigation}</div>
+            <div className="flex-1">{renderNavigation(true)}</div>
 
             <p className="px-2 text-[10px] leading-relaxed text-stone-600">
               Scoutly
