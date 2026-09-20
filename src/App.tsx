@@ -1233,37 +1233,37 @@ export default function App() {
         {/* Business List Drawer Overlay for INICIO tab */}
         {currentTab === 'INICIO' && (
           <div 
-            className={`absolute left-0 right-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 lg:left-[72px] lg:right-0 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`absolute bottom-0 left-0 right-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] lg:left-[72px] lg:top-[88px] ${
               isListOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
             }`}
           >
             {/* Backdrop Blur effect over the map when list is open */}
             <div 
-              className={`absolute inset-0 bg-white/30 transition-opacity duration-700 ${isListOpen ? 'opacity-100 backdrop-blur-md pointer-events-auto' : 'opacity-0'}`} 
+              className={`absolute inset-0 bg-black/20 transition-opacity duration-700 ${isListOpen ? 'opacity-100 backdrop-blur-[3px] pointer-events-auto' : 'opacity-0'}`} 
               onClick={() => setIsListOpen(false)}
             />
             
             {/* The List Container */}
-            <div className="relative w-full max-w-4xl h-full bg-[#FAF7F2] rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex flex-col pointer-events-auto border border-[#EDE8E0] transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pb-24">
+            <div className="relative flex h-full w-full max-w-[980px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.10] bg-[#111315]/[0.97] pb-4 shadow-[0_-20px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]">
               {/* Drawer Handle */}
               <button 
                 onClick={() => setIsListOpen(false)}
-                className="w-full flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-stone-50 rounded-t-3xl transition"
+                className="w-full flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-white/[0.035] rounded-t-[28px] transition"
               >
-                <div className="w-12 h-1.5 bg-stone-300 rounded-full mb-2" />
-                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1">
+                <div className="mb-2 h-1 w-12 rounded-full bg-white/[0.16]" />
+                <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-stone-500">
                   Ocultar Empresas <ChevronDown className="w-3 h-3" />
                 </span>
               </button>
 
-              <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 custom-scrollbar">
-                <div className="flex items-center justify-between px-1 mb-4">
-                  <span className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+              <div className="flex-1 overflow-y-auto px-3 pb-6 sm:px-5 md:px-6 custom-scrollbar">
+                <div className="mb-4 flex items-center justify-between gap-4 border-b border-white/[0.07] px-1 pb-3">
+                  <span className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-300">
                     Estabelecimentos em {currentRegionName.split(',')[0]}
                   </span>
-                  <span className="text-xs font-semibold text-stone-500">
+                  <span className="shrink-0 text-[11px] font-medium text-stone-500">
                     {isBusinessesLoading ? (
-                      <span className="text-[#FF4D00] font-bold animate-pulse">Carregando dados...</span>
+                      <span className="font-semibold text-[#FF6A26] animate-pulse">Carregando dados...</span>
                     ) : (
                       `${filteredBusinesses.length} ${filteredBusinesses.length === 1 ? 'negócio' : 'negócios'}`
                     )}
@@ -1272,15 +1272,15 @@ export default function App() {
 
                 {/* Error Banner */}
                 {businessesError && (
-                  <div className="bg-red-50 text-red-700 p-4 rounded-2xl text-xs border border-red-200 leading-relaxed mb-4">
+                  <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/[0.08] p-4 text-xs leading-relaxed text-rose-300">
                     {businessesError}
                   </div>
                 )}
 
                 {/* List or Empty State */}
                 {filteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
-                  <div className="bg-white rounded-2xl p-8 border border-[#EDE8E0] text-center mt-4">
-                    <p className="text-sm font-semibold text-stone-800 mb-1">
+                  <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-8 text-center">
+                    <p className="mb-1 text-sm font-semibold text-stone-200">
                       Nenhum estabelecimento encontrado nesta área.
                     </p>
                     <p className="text-xs text-stone-500">
@@ -1288,7 +1288,7 @@ export default function App() {
                     </p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3.5">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     {displayedBusinesses.map((biz, idx) => (
                       <BusinessCard
                         key={biz.id}
@@ -1303,7 +1303,7 @@ export default function App() {
 
                     {/* Progressive Load More button */}
                     {visibleCount < filteredBusinesses.length && (
-                      <div className="pt-2 pb-4 flex flex-col items-center gap-2 mt-2">
+                      <div className="col-span-full mt-2 flex flex-col items-center gap-2 pb-4 pt-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -1311,7 +1311,7 @@ export default function App() {
                             const batchSize = [30, 60, 100].includes(stored) ? stored : 30;
                             setVisibleCount((prev) => Math.min(prev + batchSize, filteredBusinesses.length));
                           }}
-                          className="w-full py-3 px-4 rounded-2xl bg-white border border-[#EDE8E0] hover:border-[#FF4D00] text-stone-800 hover:text-[#FF4D00] text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-3 text-xs font-semibold text-stone-300 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.06] hover:text-white active:scale-[0.99] cursor-pointer"
                         >
                           <span>Carregar mais 30 estabelecimentos</span>
                           <span className="text-[11px] text-stone-400 font-normal">
@@ -1321,7 +1321,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setVisibleCount(filteredBusinesses.length)}
-                          className="text-[11px] text-stone-500 hover:text-stone-800 font-medium underline underline-offset-2 transition cursor-pointer"
+                          className="cursor-pointer text-[11px] font-medium text-stone-500 underline underline-offset-2 transition hover:text-stone-300"
                         >
                           Exibir todos ({filteredBusinesses.length})
                         </button>
