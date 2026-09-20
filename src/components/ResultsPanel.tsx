@@ -85,7 +85,7 @@ function ResultsPanel({
                   <div className="flex gap-3">
                     <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border ${
                       isSelected
-                        ? 'border-[#FF5A12]/35 bg-[#FF5A12]/16 text-[#FF6A26]'
+                        ? 'border-[#FF5A12]/[0.35] bg-[#FF5A12]/[0.16] text-[#FF6A26]'
                         : 'border-white/[0.08] bg-gradient-to-br from-stone-800 to-stone-900 text-stone-400'
                     }`}>
                       <Building2 className="h-5 w-5" />
@@ -164,7 +164,7 @@ function ResultsPanel({
         <button
           type="button"
           onClick={onOpenAll}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-[11px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/8 hover:text-white"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-[11px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/[0.40] hover:bg-[#FF5A12]/[0.08] hover:text-white"
         >
           Ver todos os resultados
           <ArrowRight className="h-3.5 w-3.5" />
