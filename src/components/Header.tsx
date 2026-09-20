@@ -230,7 +230,7 @@ function Header({
           {suggestionsOpen && suggestions.length > 0 && (
             <div
               role="listbox"
-              className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#121519]/96 p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.46)] backdrop-blur-2xl"
+              className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#121519]/[0.96] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.46)] backdrop-blur-2xl"
             >
               <div className="px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
                 Locais
