@@ -81,7 +81,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   };
 
   const handleBillingAction = async () => {
-    if (billing.isTrial || billing.isExpired) {
+    if (!billing.paidPlanId) {
       onOpenPlans();
       return;
     }
@@ -310,9 +310,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               >
                 {isOpeningBilling
                   ? 'Abrindo...'
-                  : billing.isTrial || billing.isExpired
-                    ? 'Ver planos'
-                    : 'Gerenciar assinatura'}
+                  : billing.paidPlanId
+                    ? 'Gerenciar assinatura'
+                    : 'Ver planos'}
               </button>
             </div>
           </section>
