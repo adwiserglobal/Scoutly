@@ -14,6 +14,7 @@ import { PinRadarControl } from './components/PinRadarControl';
 import BusinessCard from './components/BusinessCard';
 import BusinessDetailsModal from './components/BusinessDetailsModal';
 import BusinessSidePanel from './components/BusinessSidePanel';
+import ResultsPanel from './components/ResultsPanel';
 import LoadingScreen from './components/LoadingScreen';
 import AIAssistantDrawer from './components/AIAssistantDrawer';
 import FavoritesView from './components/FavoritesView';
@@ -1080,7 +1081,7 @@ export default function App() {
         {currentTab === 'INICIO' && (
           <>
             <div className="absolute top-4 left-4 right-4 z-30 pointer-events-none flex items-start justify-center">
-              <div className="max-w-[1400px] w-full flex flex-col items-center justify-between pointer-events-none">
+              <div className="w-full flex flex-col items-center justify-between pointer-events-none">
                 <Header
                   currentRegionName={currentRegionName}
                   onSearch={handleSearch}
@@ -1102,8 +1103,22 @@ export default function App() {
               </div>
             </div>
 
+            <ResultsPanel
+              businesses={filteredBusinesses}
+              totalCount={filteredBusinesses.length}
+              currentRegionName={currentRegionName}
+              isLoading={isBusinessesLoading}
+              selectedBusinessId={selectedBusiness?.id}
+              onSelectBusiness={handleMapBusinessSelect}
+              onToggleFavorite={handleToggleFavorite}
+              onOpenAll={() => {
+                setIsListOpen(true);
+                setSelectedBusiness(null);
+              }}
+            />
+
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && (
-              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto">
+              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto lg:right-[396px]">
                 <button
                   type="button"
                   onClick={handleTogglePinMode}
@@ -1336,7 +1351,7 @@ export default function App() {
 
         {/* View Businesses Button (floating below BottomMenu) */}
         {currentTab === 'INICIO' && (
-          <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500">
+          <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500 lg:hidden">
             <button
               onClick={() => {
                 const nextOpen = !isListOpen;
@@ -1365,7 +1380,7 @@ export default function App() {
 
         {/* Other Tabs Content */}
         {currentTab === 'FAVORITOS' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
             <FavoritesView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1490,7 +1505,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
-          className="fixed bottom-[52px] right-4 lg:right-8 z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
+          className="fixed bottom-[28px] right-4 lg:right-[396px] z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
         >
           {/* Glass reflection highlight overlay */}
           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none rounded-t-full" />
