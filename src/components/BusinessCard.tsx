@@ -1,9 +1,18 @@
-import { useState, memo } from 'react';
-import { Star, ChevronDown, Check, Copy } from 'lucide-react';
+import { memo, useState } from 'react';
+import {
+  Building2,
+  Check,
+  Copy,
+  ExternalLink,
+  Globe2,
+  Mail,
+  MapPin,
+  Phone,
+  Star,
+} from 'lucide-react';
 import { Business } from '../types';
-import { getGoogleBusinessLink, getWhatsAppLink, getTrustIcon } from '../services/api';
+import { getGoogleBusinessLink, getTrustIcon, getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
-import { usePageSpeed } from '../hooks/usePageSpeed';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface BusinessCardProps {
@@ -15,6 +24,19 @@ interface BusinessCardProps {
   onToggleFavorite?: (business: Business) => void;
 }
 
+function shortLocation(business: Business): string {
+  if (business.bairro) return business.bairro;
+  if (business.municipio) return business.municipio;
+
+  const parts = (business.address || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return parts[0] || 'Localização no mapa';
+}
+
 function BusinessCard({
   business,
   isSelected,
@@ -22,323 +44,203 @@ function BusinessCard({
   onOpenDetails,
   onToggleFavorite,
 }: BusinessCardProps) {
-  const [isSpeedExpanded, setIsSpeedExpanded] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const hasWebsite = Boolean(business.website);
+  const hasPhone = Boolean(business.phone || business.phones?.length);
+  const hasEmail = Boolean(business.email || business.emails?.length);
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const whatsappUrl = getWhatsAppLink(business.phone);
-  const isFavorited = Boolean(business.isFavorite);
   const googleBusinessUrl = getGoogleBusinessLink(business);
+  const isFavorited = Boolean(business.isFavorite);
 
   const handleCopyPhone = async (event: React.MouseEvent) => {
     event.stopPropagation();
     if (!business.phone) return;
-    await navigator.clipboard.writeText(business.phone);
-    setCopiedPhone(true);
-    window.setTimeout(() => setCopiedPhone(false), 1600);
+
+    try {
+      await navigator.clipboard.writeText(business.phone);
+      setCopiedPhone(true);
+      window.setTimeout(() => setCopiedPhone(false), 1400);
+    } catch {
+      setCopiedPhone(false);
+    }
   };
 
-  const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
-    hasWebsite ? business.website : null
-  );
-
   return (
-    <div
+    <article
       id={`card-${business.id}`}
       onClick={onSelect}
-      className={`group relative bg-white rounded-2xl p-4 sm:p-5 border transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md ${
+      className={`group relative cursor-pointer overflow-hidden rounded-[20px] border bg-[#17191c] p-3.5 shadow-[0_10px_32px_rgba(0,0,0,0.16)] transition-all duration-200 sm:p-4 ${
         isSelected
-          ? 'border-[#FF4D00] ring-2 ring-[#FF4D00]/15'
-          : 'border-[#EDE8E0] hover:border-stone-300'
+          ? 'border-[#FF5A12]/70 ring-1 ring-[#FF5A12]/25'
+          : 'border-white/[0.09] hover:border-white/[0.16] hover:bg-[#1b1d20]'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        {/* Left: Name, Star & Category */}
+      <div className="flex min-w-0 gap-3">
+        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border transition sm:h-16 sm:w-16 ${
+          hasWebsite
+            ? 'border-emerald-500/15 bg-emerald-500/[0.055] text-stone-400'
+            : 'border-[#FF5A12]/18 bg-[#FF5A12]/[0.065] text-[#FF6A26]'
+        }`}>
+          <Building2 className="h-5 w-5" strokeWidth={1.8} />
+        </div>
+
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-base text-stone-900 leading-snug group-hover:text-[#FF4D00] transition truncate">
-              {business.name}
-            </h3>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
+                {business.name}
+              </h3>
+              <p className="mt-0.5 truncate text-[11px] text-stone-400">
+                {translateCategory(business.category)}
+              </p>
+            </div>
+
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={(event) => {
+                event.stopPropagation();
                 onToggleFavorite?.(business);
               }}
-              className="p-1 hover:bg-stone-100 rounded-lg transition cursor-pointer text-stone-400 hover:text-amber-500 shrink-0"
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition ${
+                isFavorited
+                  ? 'bg-[#FF5A12]/12 text-[#FF6A26]'
+                  : 'text-stone-500 hover:bg-white/[0.06] hover:text-white'
+              }`}
               title={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+              aria-label={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
-              <Star
-                className={`w-4 h-4 ${
-                  isFavorited
-                    ? 'fill-amber-500 text-amber-500'
-                    : 'text-stone-300 hover:text-stone-400'
-                }`}
-              />
+              <Star className={`h-4 w-4 ${isFavorited ? 'fill-current' : ''}`} />
             </button>
           </div>
-          <p className="text-xs text-stone-500 font-medium mt-0.5 truncate">
-            {translateCategory(business.category)}
-          </p>
-        </div>
 
-        {/* Website Status & Opening Hours Badges */}
-        <div className="shrink-0 flex flex-col items-end gap-1">
-          <div className="flex items-center gap-1.5">
-            {hasWebsite ? (
-              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Site encontrado
-              </span>
-            ) : (
-              <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                Site não identificado
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+              hasWebsite
+                ? 'bg-emerald-500/10 text-emerald-400'
+                : 'bg-[#FF5A12]/12 text-[#FF7A3D]'
+            }`}>
+              {hasWebsite ? 'Com site' : 'Sem site'}
+            </span>
+
+            {business.openStatus === 'ABERTO_AGORA' && (
+              <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-medium text-emerald-400">
+                Aberto agora
               </span>
             )}
 
-            {/* Real PageSpeed Score displayed upfront */}
-            {hasWebsite && (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsSpeedExpanded(!isSpeedExpanded);
-                }}
-                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border transition cursor-pointer shadow-2xs ${
-                  isSpeedLoading
-                    ? 'bg-stone-50 text-stone-600 border-stone-200 animate-pulse'
-                    : pageSpeed
-                    ? pageSpeed.score >= 90
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                      : pageSpeed.score >= 50
-                      ? 'bg-amber-50 text-amber-800 border-amber-300'
-                      : 'bg-rose-50 text-rose-800 border-rose-300'
-                    : 'bg-stone-50 text-stone-600 border-stone-200'
-                }`}
-                title="Pontuação Google PageSpeed (clique para detalhes)"
-              >
-                <img src="/velocimetro.png" alt="Google PageSpeed" className="w-3.5 h-3.5 object-contain" />
-                <span>
-                  {isSpeedLoading ? (
-                    '...'
-                  ) : pageSpeed ? (
-                    <span className="tracking-tight">{pageSpeed.score}/100</span>
-                  ) : (
-                    'Score'
-                  )}
-                </span>
-              </div>
+            {business.openStatus === 'FECHADO_AGORA' && (
+              <span className="rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[10px] font-medium text-rose-400">
+                Fechado
+              </span>
             )}
+
+            <span className="flex min-w-0 items-center gap-1 text-[10px] text-stone-500">
+              <MapPin className="h-3 w-3 shrink-0" />
+              <span className="truncate">{shortLocation(business)}</span>
+            </span>
           </div>
-
-          {/* Status Aberto / Fechado / Não identificado */}
-          {business.openStatus === 'ABERTO_AGORA' ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200" title={business.openStatusText}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-              {business.openStatusText || 'Aberto agora'}
-            </span>
-          ) : business.openStatus === 'FECHADO_AGORA' ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200" title={business.openStatusText}>
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-              {business.openStatusText || 'Fechado agora'}
-            </span>
-          ) : (
-            <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">
-              Horário não identificado
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Address */}
-      <div className="mt-2.5 text-xs text-stone-600 truncate">
-        {business.address}
-      </div>
-
-      {/* Contact Info Pills */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        {/* Phone */}
-        <div className="flex max-w-[220px] items-center gap-1 rounded-lg border border-[#EDE8E0] bg-[#FAF7F2] px-2.5 py-1 text-stone-600">
-          {business.phone ? (
-            <>
-              <span className="truncate font-medium text-stone-800">{business.phone}</span>
-              <button
-                type="button"
-                onClick={handleCopyPhone}
-                className="shrink-0 rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
-                title={copiedPhone ? 'Número copiado' : 'Copiar número'}
-              >
-                {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </>
-          ) : (
-            <span className="truncate text-stone-400 italic">Telefone não identificado</span>
+      <div className="mt-3 flex items-center gap-3 border-t border-white/[0.07] pt-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-stone-500">
+          {hasWebsite && (
+            <span className="flex items-center gap-1">
+              <Globe2 className="h-3 w-3" />
+              Site
+            </span>
+          )}
+          {hasPhone && (
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3" />
+              Contato
+            </span>
+          )}
+          {hasEmail && (
+            <span className="hidden items-center gap-1 sm:flex">
+              <Mail className="h-3 w-3" />
+              E-mail
+            </span>
           )}
         </div>
 
-        {/* Email */}
-        <div className="px-2.5 py-1 bg-[#FAF7F2] rounded-lg border border-[#EDE8E0] text-stone-600 truncate max-w-[200px]">
-          {business.email ? (
-            <span className="font-medium text-stone-800">{business.email}</span>
-          ) : (
-            <span className="text-stone-400 italic">E-mail não identificado</span>
-          )}
-        </div>
-
-        {/* Confidence Badge with Trust Icon */}
-        <div className="ml-auto text-[11px] font-semibold text-stone-600 shrink-0 flex items-center gap-1.5 bg-[#FAF7F2] px-2 py-0.5 rounded-lg border border-[#EDE8E0]">
-          <span>{confidencePercent}% conf.</span>
+        <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-stone-500">
+          <span>{confidencePercent}%</span>
           <img
             src={getTrustIcon(business.confidence || 0.8)}
-            alt="Indicador de Confiança"
-            className="w-4 h-4 object-contain"
-            title={`Nível de Confiança dos Dados: ${confidencePercent}%`}
+            alt=""
+            className="h-4 w-4 object-contain opacity-75"
+            title={`Nível de confiança dos dados: ${confidencePercent}%`}
           />
         </div>
       </div>
 
-      {/* Collapsible PageSpeed Section */}
-      {hasWebsite && (
-        <div className="mt-3 pt-2.5 border-t border-stone-100">
+      <div className="mt-2.5 flex items-center gap-1.5">
+        <a
+          href={googleBusinessUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
+          title="Abrir no Google"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Google
+        </a>
+
+        {business.phone && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsSpeedExpanded(!isSpeedExpanded);
-            }}
-            className="flex items-center justify-between w-full text-left py-1 group/toggle cursor-pointer"
+            onClick={handleCopyPhone}
+            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
+            title={copiedPhone ? 'Número copiado' : 'Copiar telefone'}
           >
-            <div className="flex items-center gap-2">
-              <img src="/velocimetro.png" alt="PageSpeed" className="w-4 h-4 object-contain" />
-              <span className="text-xs font-semibold text-stone-700">
-                Google PageSpeed:{' '}
-                <strong
-                  className={`font-black ${
-                    pageSpeed
-                      ? pageSpeed.score >= 90
-                        ? 'text-emerald-600'
-                        : pageSpeed.score >= 50
-                        ? 'text-amber-600'
-                        : 'text-rose-600'
-                      : 'text-stone-500'
-                  }`}
-                >
-                  {isSpeedLoading ? 'Medindo score...' : pageSpeed ? `${pageSpeed.score}/100` : 'Disponível'}
-                </strong>
-              </span>
-            </div>
-            <span className="text-[11px] font-bold text-[#FF4D00] group-hover/toggle:underline flex items-center gap-1">
-              {isSpeedExpanded ? 'Recolher' : 'Ver mais informações'}
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isSpeedExpanded ? 'rotate-180' : ''
-                }`}
-              />
-            </span>
+            {copiedPhone ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+            <span className="hidden sm:inline">{copiedPhone ? 'Copiado' : 'Telefone'}</span>
           </button>
+        )}
 
-          {isSpeedExpanded && (
-            <div className="mt-2.5 p-3 rounded-xl bg-[#FAF7F2] border border-[#EDE8E0] space-y-2.5">
-              {isSpeedLoading ? (
-                <div className="flex items-center gap-2 text-xs text-stone-500 py-1">
-                  <div className="w-3.5 h-3.5 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin" />
-                  <span>Obtendo diagnóstico do Google PageSpeed...</span>
-                </div>
-              ) : pageSpeed ? (
-                <>
-                  {/* Web Vitals Metrics Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
-                      <div className="text-[10px] text-stone-400 font-semibold uppercase">FCP (1ª Pintura)</div>
-                      <div className="text-xs font-bold text-stone-800">{pageSpeed.fcp || '-'}</div>
-                    </div>
-                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
-                      <div className="text-[10px] text-stone-400 font-semibold uppercase">LCP (Conteúdo)</div>
-                      <div className="text-xs font-bold text-stone-800">{pageSpeed.lcp || '-'}</div>
-                    </div>
-                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
-                      <div className="text-[10px] text-stone-400 font-semibold uppercase">TBT (Bloqueio)</div>
-                      <div className="text-xs font-bold text-stone-800">{pageSpeed.tbt || '-'}</div>
-                    </div>
-                    <div className="p-1.5 rounded-lg bg-white border border-stone-200">
-                      <div className="text-[10px] text-stone-400 font-semibold uppercase">CLS (Estabilidade)</div>
-                      <div className="text-xs font-bold text-stone-800">{pageSpeed.cls || '-'}</div>
-                    </div>
-                  </div>
-
-                  {/* Commercial Argument */}
-                  <div className="text-[11px] text-stone-600 bg-white p-2.5 rounded-lg border border-stone-200 leading-relaxed">
-                    <strong className="text-stone-900 block mb-0.5 font-bold">
-                      💡 {pageSpeed.opportunityTitle}
-                    </strong>
-                    <span>{pageSpeed.opportunityDescription}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs text-stone-500 py-1">
-                  Não foi possível obter dados para este site.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Action Buttons & Details */}
-      <div className="mt-3.5 pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        {hasWebsite && (
           <a
-            href={googleBusinessUrl}
+            href={business.website!}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 hover:text-stone-900 transition active:scale-95 shadow-2xs"
-            title="Abrir este negócio no Google Maps"
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
           >
-            <span>Ver no Google</span>
+            Ver site
           </a>
+        )}
 
-          {/* Button: Ver site (Sem seta) */}
-          {hasWebsite && (
-            <a
-              href={business.website!}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 hover:text-stone-900 transition active:scale-95 shadow-2xs"
-            >
-              <span>Ver site</span>
-            </a>
-          )}
-
-          {/* Button: Conversar no WhatsApp */}
-          {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                recordRecommendationWhatsApp(business);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition active:scale-95 shadow-2xs"
-            >
-              <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />
-              <span>WhatsApp</span>
-            </a>
-          )}
-        </div>
+        {whatsappUrl && (
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => {
+              event.stopPropagation();
+              recordRecommendationWhatsApp(business);
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[10px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+          >
+            <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
+        )}
 
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
+          onClick={(event) => {
+            event.stopPropagation();
             onOpenDetails(business);
           }}
-          className="text-xs font-bold text-[#FF4D00] hover:text-[#E04400] transition flex items-center gap-1 ml-auto"
+          className="ml-auto inline-flex h-8 items-center rounded-xl px-2.5 text-[10px] font-semibold text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.08]"
         >
-          Ver detalhes &rarr;
+          Ver detalhes
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
