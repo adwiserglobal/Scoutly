@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, saveUserLead, saveVisitRoute } from './services/api';
+import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -406,6 +406,19 @@ export default function App() {
 
       const refreshAfterPortal = async () => {
         refreshes += 1;
+
+        try {
+          const subscription = await refreshSubscriptionFromStripe();
+          if (cancelled) return;
+
+          setServerSubscription(subscription);
+          setBillingStatus(getBillingStatus(user, subscription));
+          cleanBillingParams();
+          return;
+        } catch (error) {
+          console.warn('[Scoutly Billing] Stripe refresh pending:', error);
+        }
+
         const data = await fetchUserLeads();
         if (cancelled) return;
 
