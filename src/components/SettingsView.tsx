@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import type { BillingStatus } from '../lib/billing';
+import { saveUserProfile, saveUserSettings } from '../services/api';
 
 function getInitialBatchSize() {
   const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
@@ -48,6 +49,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
     try {
       await updateProfile(user, { displayName: nextName });
       localStorage.setItem('scoutly_profile_name', nextName);
+      void saveUserProfile(nextName);
       setSavedMessage('Perfil atualizado');
     } catch (error) {
       console.error('[Scoutly Settings] Profile update failed:', error);
@@ -62,12 +64,14 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
     setAutoEnrich(enabled);
     localStorage.setItem('scoutly_auto_enrich', String(enabled));
     window.dispatchEvent(new Event('scoutly-preferences-updated'));
+    void saveUserSettings({ autoEnrich: enabled });
   };
 
   const updateBatchSize = (value: number) => {
     setResultsBatchSize(value);
     localStorage.setItem('scoutly_results_batch_size', String(value));
     window.dispatchEvent(new Event('scoutly-preferences-updated'));
+    void saveUserSettings({ resultsBatchSize: value });
   };
 
   const handleSignOut = async () => {
@@ -157,7 +161,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             <div className="mb-5">
               <h2 className="text-sm font-semibold text-stone-900">Preferências</h2>
               <p className="mt-1 text-xs text-stone-500">
-                Estas configurações são aplicadas imediatamente neste navegador.
+                Estas configurações ficam sincronizadas com sua conta Scoutly.
               </p>
             </div>
 

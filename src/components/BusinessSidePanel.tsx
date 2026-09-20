@@ -166,7 +166,7 @@ export default function BusinessSidePanel({
   );
 
   useEffect(() => {
-    markBusinessRecentlyViewed(business.id);
+    markBusinessRecentlyViewed(business.id, business);
     setCopiedPhone(false);
     setGeneratedMessage('');
     setMessageVariation(0);

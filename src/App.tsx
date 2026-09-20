@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, fetchUserLeads, saveUserLead } from './services/api';
+import { checkBusinessSocials, fetchUserLeads, saveUserLead, saveVisitRoute } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -22,12 +22,14 @@ import SettingsView from './components/SettingsView';
 import PlansModal from './components/PlansModal';
 import VisitRoutePanel from './components/VisitRoutePanel';
 import LoginView from './components/LoginView';
+import { hydrateRecentlyViewedBusinesses } from './utils/recentBusinesses';
 import { getBillingStatus, hasRecommendationsAccess } from './lib/billing';
 import {
   getRecommendedBusinesses,
   recordRecommendationFavorite,
   recordRecommendationPipeline,
   recordRecommendationSearch,
+  hydrateRecommendationSignals,
   RECOMMENDATION_SIGNAL_EVENT,
 } from './utils/recommendations';
 
@@ -78,6 +80,8 @@ export default function App() {
   const [isPinSearching, setIsPinSearching] = useState(false);
   const [isRouteMode, setIsRouteMode] = useState(false);
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
+  const routeHydratedRef = useRef(false);
+  const routeSyncTimerRef = useRef<number | null>(null);
   const [recommendationRevision, setRecommendationRevision] = useState(0);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
@@ -153,7 +157,18 @@ export default function App() {
 
   useEffect(() => {
     window.localStorage.setItem(VISIT_ROUTE_STORAGE_KEY, JSON.stringify(visitRouteStops));
-  }, [visitRouteStops]);
+
+    if (!user || !routeHydratedRef.current) return;
+    if (routeSyncTimerRef.current) window.clearTimeout(routeSyncTimerRef.current);
+
+    routeSyncTimerRef.current = window.setTimeout(() => {
+      void saveVisitRoute(visitRouteStops);
+    }, 500);
+
+    return () => {
+      if (routeSyncTimerRef.current) window.clearTimeout(routeSyncTimerRef.current);
+    };
+  }, [visitRouteStops, user]);
 
   useEffect(() => {
     const syncPreferences = () => {
@@ -301,17 +316,56 @@ export default function App() {
     };
   }, [activeFilters.semRedeSocial, businessIdSignature]);
 
-  // Load persistent user leads and favorites from database on mount
+  // Hydrate all account-scoped data from the Scoutly App DB after Firebase auth.
   useEffect(() => {
+    if (!user) {
+      routeHydratedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    routeHydratedRef.current = false;
+
     fetchUserLeads().then((data) => {
-      if (data && data.leads) {
-        setUserLeadsMap(data.leads);
+      if (cancelled) return;
+
+      if (data?.leads) setUserLeadsMap(data.leads);
+      if (data?.favorites) setUserFavoritesMap(data.favorites);
+
+      if (data?.settings) {
+        if (typeof data.settings.auto_enrich === 'boolean') {
+          localStorage.setItem('scoutly_auto_enrich', String(data.settings.auto_enrich));
+        }
+        if ([30, 60, 100].includes(Number(data.settings.results_batch_size))) {
+          localStorage.setItem(
+            'scoutly_results_batch_size',
+            String(data.settings.results_batch_size)
+          );
+        }
+        window.dispatchEvent(new Event('scoutly-preferences-updated'));
       }
-      if (data && data.favorites) {
-        setUserFavoritesMap(data.favorites);
+
+      if (Array.isArray(data?.recommendationEvents)) {
+        hydrateRecommendationSignals(data.recommendationEvents);
       }
+
+      if (Array.isArray(data?.recentBusinesses)) {
+        hydrateRecentlyViewedBusinesses(data.recentBusinesses);
+      }
+
+      if (data?.route?.exists) {
+        setVisitRouteStops(data.route.stops as VisitRouteStop[]);
+      } else if (visitRouteStops.length > 0) {
+        void saveVisitRoute(visitRouteStops);
+      }
+
+      routeHydratedRef.current = true;
     });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   // Dynamic available categories with counts
   const availableCategories = useMemo(() => {
@@ -776,7 +830,10 @@ export default function App() {
       )
     );
     // Save favorite state to database
-    saveUserLead(biz.id, undefined, undefined, nextIsFavorite);
+    saveUserLead(biz.id, undefined, undefined, nextIsFavorite, {
+      ...biz,
+      isFavorite: nextIsFavorite,
+    });
   }, []);
 
   // Update Lead Status (and persist in database)
@@ -812,7 +869,7 @@ export default function App() {
       )
     );
     // Save to persistent database
-    saveUserLead(id, newStatus, updatedNotes);
+    saveUserLead(id, newStatus, updatedNotes, undefined, signalBusiness || undefined);
   }, [businesses, visitRouteStops, selectedBusiness, modalBusiness]);
 
   const recommendedBusinesses = useMemo(

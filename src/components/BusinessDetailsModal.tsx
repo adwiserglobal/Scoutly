@@ -58,7 +58,7 @@ export default function BusinessDetailsModal({
     setMessageModel('');
     setMessageError(null);
     setCopiedPhone('');
-    markBusinessRecentlyViewed(business.id);
+    markBusinessRecentlyViewed(business.id, business);
   }, [business]);
 
   const hasWebsite = Boolean(business.website);

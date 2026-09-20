@@ -1,5 +1,6 @@
 import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
+import { auth } from '../lib/firebase';
 
 export async function fetchPlacesFromOverture(
   west: number,
@@ -57,7 +58,9 @@ export async function enrichBusinessData(url: string, force = false) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Erro ao enriquecer dados.');
   }
-  return res.json();
+  const data = await res.json();
+  void recordUsage('analyses');
+  return data;
 }
 
 export async function fetchTrackingAudit(url: string) {
@@ -83,22 +86,50 @@ export async function checkBusinessSocials(url: string): Promise<{
   return res.json();
 }
 
+async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('Usuário não autenticado');
+
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+
+  return fetch(input, { ...init, headers });
+}
+
+async function appDataAction(action: string, payload: Record<string, unknown> = {}) {
+  return authenticatedFetch('/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...payload }),
+  });
+}
+
 export interface UserUserData {
-  leads: Record<string, { status: any; notes: string }>;
+  leads: Record<string, { status: any; notes: string; business?: Business | null }>;
   favorites: Record<string, boolean>;
+  settings?: {
+    auto_enrich?: boolean;
+    results_batch_size?: number;
+  };
+  recommendationEvents?: any[];
+  recentBusinesses?: any[];
+  route?: {
+    exists: boolean;
+    stops: any[];
+  };
+  subscription?: any;
+  usage?: any;
+  user?: any;
+  workspaceId?: string;
 }
 
 export async function fetchUserLeads(): Promise<UserUserData> {
   try {
-    const res = await fetch('/api/leads');
+    const res = await authenticatedFetch('/api/leads');
     if (!res.ok) return { leads: {}, favorites: {} };
-    const data = await res.json();
-    return {
-      leads: data.leads || {},
-      favorites: data.favorites || {},
-    };
+    return await res.json();
   } catch (err) {
-    console.warn('[API] Error fetching saved user leads:', err);
+    console.warn('[API] Error fetching saved user data:', err);
     return { leads: {}, favorites: {} };
   }
 }
@@ -107,20 +138,30 @@ export async function saveUserLead(
   businessId: string,
   status?: string,
   notes?: string,
-  isFavorite?: boolean
+  isFavorite?: boolean,
+  business?: Business
 ) {
   try {
-    const body: Record<string, any> = { businessId };
-    if (status !== undefined) body.status = status;
-    if (notes !== undefined) body.notes = notes;
-    if (isFavorite !== undefined) body.isFavorite = isFavorite;
+    if (status !== undefined || notes !== undefined) {
+      const res = await appDataAction('save-lead', {
+        businessId,
+        status: status || 'NOVO',
+        notes: notes || '',
+        business,
+      });
+      if (!res.ok) return false;
+    }
 
-    const res = await fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return res.ok;
+    if (isFavorite !== undefined) {
+      const res = await appDataAction('favorite', {
+        businessId,
+        isFavorite,
+        business,
+      });
+      if (!res.ok) return false;
+    }
+
+    return true;
   } catch (err) {
     console.warn('[API] Error saving user lead:', err);
     return false;
@@ -300,14 +341,111 @@ export async function generateMessage(
       throw new Error(data.error || 'Falha ao gerar mensagem com a API');
     }
     const data = await res.json();
-    return {
+    const result = {
       message: data.message || '',
       source: data.source || 'template',
       model: data.model,
       variationIndex: data.variationIndex,
     };
+
+    if (result.message) {
+      void saveGeneratedMessage({
+        businessId: business?.id,
+        businessName: business?.name,
+        message: result.message,
+        source: result.source,
+        model: result.model,
+      });
+    }
+
+    return result;
   } catch (error) {
     console.error('Failed to generate message:', error);
     throw error;
+  }
+}
+
+export async function saveVisitRoute(stops: any[]) {
+  try {
+    const res = await appDataAction('save-route', { stops });
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving visit route:', error);
+    return false;
+  }
+}
+
+export async function saveRecommendationEvent(event: {
+  eventType: 'search' | 'favorite_add' | 'favorite_remove' | 'pipeline_add' | 'pipeline_remove' | 'whatsapp_click';
+  businessId?: string;
+  category?: string;
+  query?: string;
+  location?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    const res = await appDataAction('recommendation-event', event);
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving recommendation event:', error);
+    return false;
+  }
+}
+
+export async function saveUserSettings(settings: {
+  autoEnrich?: boolean;
+  resultsBatchSize?: number;
+}) {
+  try {
+    const res = await appDataAction('save-settings', settings);
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving user settings:', error);
+    return false;
+  }
+}
+
+export async function saveUserProfile(displayName: string) {
+  try {
+    const res = await appDataAction('update-profile', { displayName });
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving user profile:', error);
+    return false;
+  }
+}
+
+export async function saveRecentBusiness(businessId: string, business?: Business) {
+  try {
+    const res = await appDataAction('recent-business', { businessId, business });
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving recent business:', error);
+    return false;
+  }
+}
+
+export async function recordUsage(counter: 'analyses' | 'ai_messages' | 'recommendation_refreshes') {
+  try {
+    const res = await appDataAction('usage', { counter });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveGeneratedMessage(data: {
+  businessId?: string;
+  businessName?: string;
+  message: string;
+  source?: string;
+  model?: string;
+}) {
+  try {
+    const res = await appDataAction('generated-message', data);
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error saving generated message:', error);
+    return false;
   }
 }

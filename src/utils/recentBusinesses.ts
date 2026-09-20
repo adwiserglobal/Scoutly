@@ -1,3 +1,5 @@
+import { saveRecentBusiness } from '../services/api';
+
 const RECENTLY_VIEWED_KEY = 'scoutly_recently_viewed_businesses';
 export const RECENTLY_VIEWED_EVENT = 'scoutly-recently-viewed-updated';
 
@@ -31,7 +33,29 @@ export function getRecentlyViewedBusinessIds(limit = 30): string[] {
     .map((item) => item.id);
 }
 
-export function markBusinessRecentlyViewed(businessId: string) {
+export function hydrateRecentlyViewedBusinesses(items: any[]) {
+  if (typeof window === 'undefined' || !Array.isArray(items) || items.length === 0) return;
+
+  const next: RecentBusiness[] = items
+    .filter((item) => item && typeof item.business_id === 'string')
+    .map((item) => ({
+      id: item.business_id,
+      viewedAt: new Date(item.viewed_at || Date.now()).getTime(),
+    }))
+    .sort((a, b) => b.viewedAt - a.viewedAt)
+    .slice(0, 30);
+
+  window.localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(next));
+  window.dispatchEvent(
+    new CustomEvent(RECENTLY_VIEWED_EVENT, {
+      detail: { ids: next.map((item) => item.id) },
+    })
+  );
+
+  void saveRecentBusiness(businessId, business);
+}
+
+export function markBusinessRecentlyViewed(businessId: string, business?: any) {
   if (typeof window === 'undefined' || !businessId) return;
 
   const next: RecentBusiness[] = [

@@ -1,4 +1,5 @@
 import { Business } from '../types';
+import { saveRecommendationEvent } from '../services/api';
 
 const STORAGE_KEY = 'scoutly_recommendation_signals';
 export const RECOMMENDATION_SIGNAL_EVENT = 'scoutly-recommendation-signals-updated';
@@ -79,6 +80,11 @@ export function recordRecommendationSearch(query: string, location: string) {
   ].slice(-30);
 
   writeSignals({ ...current, searches });
+  void saveRecommendationEvent({
+    eventType: 'search',
+    query: cleanQuery,
+    location: location || '',
+  });
 }
 
 export function recordRecommendationFavorite(business: Business, active: boolean) {
@@ -89,6 +95,11 @@ export function recordRecommendationFavorite(business: Business, active: boolean
   else delete favorites[business.id];
 
   writeSignals({ ...current, favorites });
+  void saveRecommendationEvent({
+    eventType: active ? 'favorite_add' : 'favorite_remove',
+    businessId: business.id,
+    category: business.category || '',
+  });
 }
 
 export function recordRecommendationPipeline(business: Business, active: boolean) {
@@ -99,6 +110,11 @@ export function recordRecommendationPipeline(business: Business, active: boolean
   else delete pipeline[business.id];
 
   writeSignals({ ...current, pipeline });
+  void saveRecommendationEvent({
+    eventType: active ? 'pipeline_add' : 'pipeline_remove',
+    businessId: business.id,
+    category: business.category || '',
+  });
 }
 
 export function recordRecommendationWhatsApp(business: Business) {
@@ -116,6 +132,56 @@ export function recordRecommendationWhatsApp(business: Business) {
       [business.id]: true,
     },
   });
+  void saveRecommendationEvent({
+    eventType: 'whatsapp_click',
+    businessId: business.id,
+    category: business.category || '',
+  });
+}
+
+export function hydrateRecommendationSignals(events: any[]) {
+  if (!Array.isArray(events) || events.length === 0) return;
+
+  const next: RecommendationSignals = {
+    searches: [],
+    favorites: {},
+    pipeline: {},
+    whatsappClicks: {},
+    whatsappBusinesses: {},
+  };
+
+  const ordered = [...events].sort(
+    (a, b) => new Date(a?.created_at || 0).getTime() - new Date(b?.created_at || 0).getTime()
+  );
+
+  for (const event of ordered) {
+    const type = String(event?.event_type || '');
+    const businessId = String(event?.business_id || '');
+    const category = String(event?.category || '');
+
+    if (type === 'search' && event?.query) {
+      next.searches.push({
+        query: String(event.query),
+        location: String(event.location || ''),
+        at: new Date(event.created_at || Date.now()).getTime(),
+      });
+      next.searches = next.searches.slice(-30);
+    } else if (type === 'favorite_add' && businessId) {
+      next.favorites[businessId] = category;
+    } else if (type === 'favorite_remove' && businessId) {
+      delete next.favorites[businessId];
+    } else if (type === 'pipeline_add' && businessId) {
+      next.pipeline[businessId] = category;
+    } else if (type === 'pipeline_remove' && businessId) {
+      delete next.pipeline[businessId];
+    } else if (type === 'whatsapp_click' && businessId) {
+      const key = normalize(category) || 'outros';
+      next.whatsappClicks[key] = Math.min(50, Number(next.whatsappClicks[key] || 0) + 1);
+      next.whatsappBusinesses[businessId] = true;
+    }
+  }
+
+  writeSignals(next);
 }
 
 function addCategoryWeight(target: Map<string, number>, category: string, weight: number) {
