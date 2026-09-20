@@ -44,6 +44,14 @@ Os preços liberados para troca devem corresponder às variáveis
 
 A Scoutly identifica o plano pelo Price ID atual da assinatura. Isso permite que mudanças feitas no Customer Portal sejam refletidas automaticamente no banco após o webhook.
 
+Para uma configuração dedicada da Scoutly, salve o ID da configuração do portal em
+
+`STRIPE_PORTAL_CONFIGURATION_ID=bpc_...`
+
+Os botões de troca de plano tentam abrir diretamente o fluxo `subscription_update_confirm` para o preço escolhido. Se a configuração da Stripe ainda não permitir aquele preço, a Scoutly cai automaticamente no portal genérico em vez de bloquear o usuário.
+
+Na configuração do Customer Portal, habilite `subscription_update` e libere os três Price IDs. A política de pró-rata e a opção de agendar determinadas trocas para o fim do ciclo devem ser definidas nessa configuração da Stripe.
+
 ## Fluxo de pagamento
 
 Depois de um checkout concluído, a Stripe redireciona para
@@ -60,9 +68,13 @@ Quando a assinatura é confirmada
 - a tela de boas-vindas do plano é exibida
 - o acesso pago fica disponível imediatamente
 
-## Idempotência
+## Idempotência e ordem dos eventos
 
 Os eventos processados são registrados em `stripe_events`. Um mesmo evento recebido novamente pela Stripe não reaplica a operação se já estiver marcado como `processed`.
+
+A tabela `subscriptions` também registra o último evento aplicado. Isso evita que um webhook atrasado de uma assinatura antiga sobrescreva uma assinatura mais nova ou reverta o estado depois de uma confirmação direta com a Stripe.
+
+Após o retorno do Customer Portal, a Scoutly consulta a assinatura diretamente na Stripe. Assim, upgrade, downgrade, cancelamento e recuperação de pagamento podem aparecer na interface sem depender exclusivamente da velocidade do webhook.
 
 ## Testes recomendados antes do merge
 
