@@ -70,7 +70,7 @@ function BottomMenu({
             <span className="min-w-0 flex-1 text-[12px] font-medium">{item.label}</span>
             {item.badge !== null && item.badge !== undefined && (
               <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                isActive ? 'bg-[#FF5A12] text-white' : 'bg-white/8 text-stone-400'
+                isActive ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.08] text-stone-400'
               }`}>
                 {item.badge}
               </span>
@@ -83,7 +83,7 @@ function BottomMenu({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[172px] flex-col border-r border-white/8 bg-[#0d0f12]/96 px-3 py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[172px] flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.96] px-3 py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:flex">
         <div className="mb-10 px-2">
           <img
             src="/logo_white.png"
@@ -94,7 +94,7 @@ function BottomMenu({
 
         <div className="flex-1">{navigation}</div>
 
-        <div className="rounded-2xl border border-white/8 bg-white/[0.025] p-3">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3">
           <div className="mb-2 h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
           <p className="text-[10px] font-medium leading-relaxed text-stone-400">
             Prospecção local em tempo real
@@ -106,7 +106,7 @@ function BottomMenu({
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="fixed left-4 top-4 z-50 flex h-[44px] w-[44px] items-center justify-center rounded-2xl border border-white/10 bg-[#111418]/94 text-white shadow-[0_12px_36px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
+          className="fixed left-4 top-4 z-50 flex h-[44px] w-[44px] items-center justify-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] text-white shadow-[0_12px_36px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
           aria-label="Abrir menu"
         >
           <Menu className="h-[18px] w-[18px]" />
@@ -127,7 +127,7 @@ function BottomMenu({
             }`}
           />
 
-          <aside className={`absolute inset-y-0 left-0 flex w-[286px] max-w-[84vw] flex-col border-r border-white/10 bg-[#0d0f12]/98 px-4 py-5 shadow-[24px_0_70px_rgba(0,0,0,0.48)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          <aside className={`absolute inset-y-0 left-0 flex w-[286px] max-w-[84vw] flex-col border-r border-white/10 bg-[#0d0f12]/[0.98] px-4 py-5 shadow-[24px_0_70px_rgba(0,0,0,0.48)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
             <div className="mb-9 flex items-center justify-between gap-4 px-1">
@@ -139,7 +139,7 @@ function BottomMenu({
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.035] text-stone-300"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-stone-300"
                 aria-label="Fechar menu"
               >
                 <X className="h-4 w-4" />
