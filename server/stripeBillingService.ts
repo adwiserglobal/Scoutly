@@ -163,11 +163,21 @@ export async function syncStripeSubscription(
 
   const incomingEventAt = parseIsoTime(hints.providerEventAt);
   const existingEventAt = parseIsoTime(existing?.last_provider_event_at);
+  const existingSubscriptionId = String(existing?.provider_subscription_id || '');
+  const existingStatus = String(existing?.status || '');
+  const hasDifferentCurrentSubscription =
+    Boolean(existingSubscriptionId) &&
+    Boolean(subscriptionId) &&
+    existingSubscriptionId !== subscriptionId &&
+    ['active', 'trialing', 'past_due'].includes(existingStatus);
 
   if (
-    incomingEventAt &&
-    existingEventAt &&
-    incomingEventAt <= existingEventAt
+    hasDifferentCurrentSubscription ||
+    (
+      incomingEventAt &&
+      existingEventAt &&
+      incomingEventAt <= existingEventAt
+    )
   ) {
     return {
       user_uid: userUid,
