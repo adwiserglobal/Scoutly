@@ -14,7 +14,6 @@ import { PinRadarControl } from './components/PinRadarControl';
 import BusinessCard from './components/BusinessCard';
 import BusinessDetailsModal from './components/BusinessDetailsModal';
 import BusinessSidePanel from './components/BusinessSidePanel';
-import ResultsPanel from './components/ResultsPanel';
 import LoadingScreen from './components/LoadingScreen';
 import AIAssistantDrawer from './components/AIAssistantDrawer';
 import FavoritesView from './components/FavoritesView';
@@ -1103,22 +1102,8 @@ export default function App() {
               </div>
             </div>
 
-            <ResultsPanel
-              businesses={filteredBusinesses}
-              totalCount={filteredBusinesses.length}
-              currentRegionName={currentRegionName}
-              isLoading={isBusinessesLoading}
-              selectedBusinessId={selectedBusiness?.id}
-              onSelectBusiness={handleMapBusinessSelect}
-              onToggleFavorite={handleToggleFavorite}
-              onOpenAll={() => {
-                setIsListOpen(true);
-                setSelectedBusiness(null);
-              }}
-            />
-
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && (
-              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto lg:right-[396px]">
+              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto lg:right-4">
                 <button
                   type="button"
                   onClick={handleTogglePinMode}
@@ -1150,7 +1135,7 @@ export default function App() {
             )}
 
             {isRouteMode && (
-              <div className="absolute top-[138px] sm:top-[82px] left-4 z-30 pointer-events-none">
+              <div className="absolute top-[138px] left-4 z-30 pointer-events-none sm:top-[82px] lg:left-[88px]">
                 <VisitRoutePanel
                   stops={visitRouteStops}
                   onSetVisitStatus={handleSetVisitStatus}
@@ -1169,7 +1154,7 @@ export default function App() {
 
             {/* Floating Pin Radar Control Panel (Top Left below Header) */}
             {radarPin?.active && (
-              <div className="absolute top-[135px] sm:top-[80px] left-4 z-30 pointer-events-none">
+              <div className="absolute top-[135px] left-4 z-30 pointer-events-none sm:top-[80px] lg:left-[88px]">
                 <PinRadarControl
                   active={radarPin.active}
                   pinCoordinates={{ lat: radarPin.lat, lng: radarPin.lng }}
@@ -1248,7 +1233,7 @@ export default function App() {
         {/* Business List Drawer Overlay for INICIO tab */}
         {currentTab === 'INICIO' && (
           <div 
-            className={`absolute left-0 right-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 lg:left-[172px] lg:right-[392px] ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`absolute left-0 right-0 bottom-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 lg:left-[72px] lg:right-0 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               isListOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
             }`}
           >
@@ -1351,7 +1336,7 @@ export default function App() {
 
         {/* View Businesses Button (floating below BottomMenu) */}
         {currentTab === 'INICIO' && (
-          <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500 lg:hidden">
+          <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500">
             <button
               onClick={() => {
                 const nextOpen = !isListOpen;
@@ -1380,7 +1365,7 @@ export default function App() {
 
         {/* Other Tabs Content */}
         {currentTab === 'FAVORITOS' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <FavoritesView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1395,7 +1380,7 @@ export default function App() {
         )}
 
         {currentTab === 'PIPELINE' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <PipelineView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1409,7 +1394,7 @@ export default function App() {
         )}
 
         {currentTab === 'CONFIGURACOES' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[172px]">
+          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <SettingsView
               billing={billingStatus}
               onOpenPlans={() => setIsPlansOpen(true)}
@@ -1505,7 +1490,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
-          className="fixed bottom-[28px] right-4 lg:right-[396px] z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
+          className="fixed bottom-[28px] right-4 lg:right-4 z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
         >
           {/* Glass reflection highlight overlay */}
           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none rounded-t-full" />
