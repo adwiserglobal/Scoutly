@@ -199,7 +199,7 @@ function Header({
           onSubmit={handleSubmit}
           className="relative min-w-0 flex-1"
         >
-          <div className="relative flex h-[52px] items-center rounded-2xl border border-white/10 bg-[#111418]/94 shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="relative flex h-[52px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
 
             <input
@@ -268,7 +268,7 @@ function Header({
         <button
           type="button"
           onClick={onOpenFilters}
-          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/94 px-3.5 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#171a1f] sm:px-4"
+          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3.5 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#171a1f] sm:px-4"
           title="Filtros"
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -279,7 +279,7 @@ function Header({
           type="button"
           onClick={onUseCurrentLocation}
           disabled={isLocating}
-          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[#FF5A12]/70 bg-[#161413]/94 px-3.5 text-[#FF6A26] shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:bg-[#FF5A12]/10 disabled:opacity-50 sm:px-4"
+          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[#FF5A12]/70 bg-[#161413]/[0.94] px-3.5 text-[#FF6A26] shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:bg-[#FF5A12]/10 disabled:opacity-50 sm:px-4"
           title="Usar minha localização"
         >
           {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
@@ -299,10 +299,10 @@ function Header({
       </div>
 
       <div className="mt-2 flex items-center gap-2 lg:hidden">
-        <div className="max-w-[55vw] truncate rounded-full border border-white/10 bg-[#111418]/82 px-3 py-1.5 text-[9px] font-medium text-stone-400 backdrop-blur-xl">
+        <div className="max-w-[55vw] truncate rounded-full border border-white/10 bg-[#111418]/[0.82] px-3 py-1.5 text-[9px] font-medium text-stone-400 backdrop-blur-xl">
           {currentRegionName}
         </div>
-        <div className="rounded-full border border-white/10 bg-[#111418]/82 px-3 py-1.5 text-[9px] font-semibold text-stone-300 backdrop-blur-xl">
+        <div className="rounded-full border border-white/10 bg-[#111418]/[0.82] px-3 py-1.5 text-[9px] font-semibold text-stone-300 backdrop-blur-xl">
           {new Intl.NumberFormat('pt-BR').format(totalBusinessesCount)} resultados
         </div>
       </div>
