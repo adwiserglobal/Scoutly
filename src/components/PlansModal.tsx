@@ -44,7 +44,7 @@ export default function PlansModal({
 
     try {
       if (!billing.isTrial && !billing.isExpired) {
-        const portal = await createBillingPortalSession();
+        const portal = await createBillingPortalSession(plan);
         window.location.assign(portal.url);
         return;
       }
