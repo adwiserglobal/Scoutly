@@ -35,8 +35,8 @@ function ResultsPanel({
   const formattedCount = new Intl.NumberFormat('pt-BR').format(totalCount);
 
   return (
-    <aside className="scoutly-results-panel pointer-events-auto fixed bottom-4 right-4 top-4 z-30 hidden w-[360px] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#101215]/92 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-2xl lg:flex xl:w-[380px]">
-      <div className="flex items-start justify-between gap-4 border-b border-white/8 px-5 pb-4 pt-5">
+    <aside className="scoutly-results-panel pointer-events-auto fixed bottom-4 right-4 top-4 z-30 hidden w-[360px] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#101215]/[0.92] shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-2xl lg:flex xl:w-[380px]">
+      <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 pb-4 pt-5">
         <div className="min-w-0">
           <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-white">Empresas nesta área</h2>
           <p className="mt-1 text-[11px] text-stone-400">
@@ -48,7 +48,7 @@ function ResultsPanel({
         </div>
       </div>
 
-      <div className="border-b border-white/8 px-5 py-3">
+      <div className="border-b border-white/[0.08] px-5 py-3">
         <div className="flex items-center gap-2 text-[10px] text-stone-400">
           <MapPin className="h-3.5 w-3.5 text-[#FF5A12]" />
           <span className="truncate">{currentRegionName}</span>
@@ -79,14 +79,14 @@ function ResultsPanel({
                   className={`group w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 ${
                     isSelected
                       ? 'border-[#FF5A12]/65 bg-[#FF5A12]/10 shadow-[0_0_0_1px_rgba(255,90,18,0.08)]'
-                      : 'border-white/9 bg-white/[0.028] hover:border-white/16 hover:bg-white/[0.055]'
+                      : 'border-white/[0.09] bg-white/[0.028] hover:border-white/[0.16] hover:bg-white/[0.055]'
                   }`}
                 >
                   <div className="flex gap-3">
                     <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border ${
                       isSelected
                         ? 'border-[#FF5A12]/35 bg-[#FF5A12]/16 text-[#FF6A26]'
-                        : 'border-white/8 bg-gradient-to-br from-stone-800 to-stone-900 text-stone-400'
+                        : 'border-white/[0.08] bg-gradient-to-br from-stone-800 to-stone-900 text-stone-400'
                     }`}>
                       <Building2 className="h-5 w-5" />
                     </div>
@@ -115,7 +115,7 @@ function ResultsPanel({
                           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition ${
                             business.isFavorite
                               ? 'bg-[#FF5A12]/15 text-[#FF6A26]'
-                              : 'text-stone-500 hover:bg-white/8 hover:text-white'
+                              : 'text-stone-500 hover:bg-white/[0.08] hover:text-white'
                           }`}
                           aria-label={business.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                         >
@@ -160,7 +160,7 @@ function ResultsPanel({
         )}
       </div>
 
-      <div className="border-t border-white/8 p-3">
+      <div className="border-t border-white/[0.08] p-3">
         <button
           type="button"
           onClick={onOpenAll}
