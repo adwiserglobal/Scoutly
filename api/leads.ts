@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue, ensureAppUser, incrementUsage } from '../server/appDataService.js';
 import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
-import { confirmStripeCheckoutSession, createStripeBillingPortal } from '../server/stripeBillingService.js';
+import { confirmStripeCheckoutSession, createStripeBillingPortal, refreshStripeSubscriptionForUser } from '../server/stripeBillingService.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -264,6 +264,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ['go', 'pro', 'agency'].includes(targetPlan) ? (targetPlan as PaidPlan) : null
       );
       return res.status(200).json(portal);
+    }
+
+    if (action === 'refresh-subscription') {
+      const subscription = await refreshStripeSubscriptionForUser(identity.uid);
+      return res.status(200).json({ success: true, subscription });
     }
 
     if (action === 'update-profile') {
