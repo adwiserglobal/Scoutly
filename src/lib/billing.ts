@@ -13,6 +13,9 @@ export interface BillingStatus {
   hasAccess: boolean;
   monthlyPrice: number | null;
   includedSeats: number;
+  subscriptionStatus: string;
+  cancelAtPeriodEnd: boolean;
+  periodEndsAt: string;
 }
 
 export interface ScoutlyPlanDefinition {
@@ -74,6 +77,9 @@ export function getBillingStatus(
       hasAccess: true,
       monthlyPrice: definition.monthlyPrice,
       includedSeats: definition.includedSeats,
+      subscriptionStatus: persistedStatus,
+      cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+      periodEndsAt: subscription?.current_period_end || '',
     };
   }
 
@@ -92,6 +98,9 @@ export function getBillingStatus(
       hasAccess: false,
       monthlyPrice: null,
       includedSeats: 1,
+      subscriptionStatus: persistedStatus,
+      cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+      periodEndsAt: subscription?.current_period_end || '',
     };
   }
 
@@ -116,6 +125,9 @@ export function getBillingStatus(
         hasAccess: !isExpired,
         monthlyPrice: null,
         includedSeats: 1,
+        subscriptionStatus: persistedStatus,
+        cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+        periodEndsAt: subscription?.current_period_end || '',
       };
     }
   }
@@ -140,6 +152,9 @@ export function getBillingStatus(
     hasAccess: !isExpired,
     monthlyPrice: null,
     includedSeats: 1,
+    subscriptionStatus: isExpired ? 'expired' : 'trialing',
+    cancelAtPeriodEnd: false,
+    periodEndsAt: new Date(trialEndsAtMs).toISOString(),
   };
 }
 
