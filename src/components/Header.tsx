@@ -192,7 +192,7 @@ function Header({
   };
 
   return (
-    <div className="w-full pointer-events-auto pl-14 lg:pl-[176px] lg:pr-[392px]">
+    <div className="w-full pointer-events-auto pl-14 lg:pl-[72px] lg:pr-0">
       <div className="flex w-full items-center gap-2 max-[430px]:flex-wrap">
         <form
           ref={formRef}
