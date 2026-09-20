@@ -85,7 +85,7 @@ export function getBillingStatus(
     };
   }
 
-  if (paidPlan) {
+  if (paidPlan && !['canceled', 'incomplete_expired'].includes(persistedStatus)) {
     const definition = SCOUTLY_PLANS[persistedPlan];
 
     return {
