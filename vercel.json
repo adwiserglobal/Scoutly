@@ -59,6 +59,10 @@
       "dest": "/api/leads.ts"
     },
     {
+      "src": "/api/stripe-webhook",
+      "dest": "/api/stripe-webhook.ts"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
