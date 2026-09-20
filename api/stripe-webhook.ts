@@ -1,31 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue } from '../server/appDataService.js';
 import {
   normalizePaidPlan,
   retrieveStripeSubscription,
   syncStripeSubscription,
 } from '../server/stripeBillingService.js';
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-async function readRawBody(req: VercelRequest) {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req as any) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-function getHeader(req: VercelRequest, name: string) {
-  const value = req.headers[name.toLowerCase()];
-  if (Array.isArray(value)) return value[0] || '';
-  return String(value || '');
-}
 
 function verifyStripeSignature(rawBody: string, signatureHeader: string, secret: string) {
   const parts = signatureHeader.split(',').map((part) => part.trim());
@@ -46,7 +25,6 @@ function verifyStripeSignature(rawBody: string, signatureHeader: string, secret:
   const expected = createHmac('sha256', secret)
     .update(`${timestamp}.${rawBody}`, 'utf8')
     .digest('hex');
-
   const expectedBuffer = Buffer.from(expected, 'utf8');
 
   return signatures.some((signature) => {
@@ -99,100 +77,108 @@ async function saveEvent(event: any, data: {
   });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+async function handleStripeEvent(event: any) {
+  if (await alreadyProcessed(String(event.id))) {
+    return { received: true, duplicate: true };
   }
 
-  const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-  if (!webhookSecret) {
-    return res.status(503).json({ error: 'STRIPE_WEBHOOK_SECRET não configurada' });
+  const object = event?.data?.object || {};
+  let synced: any = null;
+  let customerId = stripeId(object?.customer);
+  let subscriptionId: string | null = null;
+
+  if (event.type === 'checkout.session.completed') {
+    subscriptionId = stripeId(object?.subscription);
+    if (subscriptionId) {
+      const subscription = await retrieveStripeSubscription(subscriptionId);
+      synced = await syncStripeSubscription(subscription, {
+        userUid: String(object?.client_reference_id || object?.metadata?.firebase_uid || '') || null,
+        plan: normalizePaidPlan(object?.metadata?.plan),
+      });
+      customerId = stripeId(subscription?.customer) || customerId;
+    }
+  } else if (
+    event.type === 'customer.subscription.created' ||
+    event.type === 'customer.subscription.updated' ||
+    event.type === 'customer.subscription.deleted'
+  ) {
+    subscriptionId = stripeId(object?.id);
+    synced = await syncStripeSubscription(object);
+    customerId = stripeId(object?.customer) || customerId;
+  } else if (
+    event.type === 'invoice.paid' ||
+    event.type === 'invoice.payment_failed' ||
+    event.type === 'invoice.payment_action_required'
+  ) {
+    subscriptionId = invoiceSubscriptionId(object);
+    if (subscriptionId) {
+      const subscription = await retrieveStripeSubscription(subscriptionId);
+      synced = await syncStripeSubscription(subscription);
+      customerId = stripeId(subscription?.customer) || customerId;
+    }
   }
 
-  const rawBody = await readRawBody(req);
-  const signature = getHeader(req, 'stripe-signature');
+  await saveEvent(event, {
+    userUid: synced?.user_uid || null,
+    customerId: synced?.provider_customer_id || customerId,
+    subscriptionId: synced?.provider_subscription_id || subscriptionId,
+    status: 'processed',
+  });
 
-  if (!verifyStripeSignature(rawBody, signature, webhookSecret)) {
-    return res.status(400).json({ error: 'Assinatura do webhook Stripe inválida' });
-  }
+  return { received: true };
+}
 
-  let event: any;
-  try {
-    event = JSON.parse(rawBody);
-  } catch {
-    return res.status(400).json({ error: 'Payload Stripe inválido' });
-  }
-
-  if (!event?.id || !event?.type) {
-    return res.status(400).json({ error: 'Evento Stripe inválido' });
-  }
-
-  try {
-    if (await alreadyProcessed(String(event.id))) {
-      return res.status(200).json({ received: true, duplicate: true });
+export default {
+  async fetch(request: Request) {
+    if (request.method !== 'POST') {
+      return Response.json({ error: `Method ${request.method} Not Allowed` }, {
+        status: 405,
+        headers: { Allow: 'POST' },
+      });
     }
 
-    const object = event?.data?.object || {};
-    let synced: any = null;
-    let customerId = stripeId(object?.customer);
-    let subscriptionId: string | null = null;
-
-    if (event.type === 'checkout.session.completed') {
-      subscriptionId = stripeId(object?.subscription);
-      if (subscriptionId) {
-        const subscription = await retrieveStripeSubscription(subscriptionId);
-        synced = await syncStripeSubscription(subscription, {
-          userUid: String(object?.client_reference_id || object?.metadata?.firebase_uid || '') || null,
-          plan: normalizePaidPlan(object?.metadata?.plan),
-        });
-        customerId = stripeId(subscription?.customer) || customerId;
-      }
-    } else if (
-      event.type === 'customer.subscription.created' ||
-      event.type === 'customer.subscription.updated' ||
-      event.type === 'customer.subscription.deleted'
-    ) {
-      subscriptionId = stripeId(object?.id);
-      synced = await syncStripeSubscription(object);
-      customerId = stripeId(object?.customer) || customerId;
-    } else if (
-      event.type === 'invoice.paid' ||
-      event.type === 'invoice.payment_failed' ||
-      event.type === 'invoice.payment_action_required'
-    ) {
-      subscriptionId = invoiceSubscriptionId(object);
-      if (subscriptionId) {
-        const subscription = await retrieveStripeSubscription(subscriptionId);
-        synced = await syncStripeSubscription(subscription);
-        customerId = stripeId(subscription?.customer) || customerId;
-      }
+    const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+    if (!webhookSecret) {
+      return Response.json({ error: 'STRIPE_WEBHOOK_SECRET não configurada' }, { status: 503 });
     }
 
-    await saveEvent(event, {
-      userUid: synced?.user_uid || null,
-      customerId: synced?.provider_customer_id || customerId,
-      subscriptionId: synced?.provider_subscription_id || subscriptionId,
-      status: 'processed',
-    });
+    const rawBody = await request.text();
+    const signature = request.headers.get('stripe-signature') || '';
 
-    return res.status(200).json({ received: true });
-  } catch (error: any) {
-    console.error('[Stripe webhook]', event?.type, error?.message || error);
+    if (!verifyStripeSignature(rawBody, signature, webhookSecret)) {
+      return Response.json({ error: 'Assinatura do webhook Stripe inválida' }, { status: 400 });
+    }
+
+    let event: any;
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      return Response.json({ error: 'Payload Stripe inválido' }, { status: 400 });
+    }
+
+    if (!event?.id || !event?.type) {
+      return Response.json({ error: 'Evento Stripe inválido' }, { status: 400 });
+    }
 
     try {
-      await saveEvent(event, {
-        customerId: stripeId(event?.data?.object?.customer),
-        subscriptionId:
-          stripeId(event?.data?.object?.subscription) ||
-          stripeId(event?.data?.object?.id),
-        status: 'failed',
-        errorMessage: String(error?.message || error).slice(0, 500),
-      });
-    } catch (logError) {
-      console.error('[Stripe webhook] Could not persist failed event:', logError);
-    }
+      return Response.json(await handleStripeEvent(event));
+    } catch (error: any) {
+      console.error('[Stripe webhook]', event?.type, error?.message || error);
 
-    return res.status(500).json({ error: 'Não foi possível processar o evento Stripe' });
-  }
-}
+      try {
+        await saveEvent(event, {
+          customerId: stripeId(event?.data?.object?.customer),
+          subscriptionId:
+            stripeId(event?.data?.object?.subscription) ||
+            stripeId(event?.data?.object?.id),
+          status: 'failed',
+          errorMessage: String(error?.message || error).slice(0, 500),
+        });
+      } catch (logError) {
+        console.error('[Stripe webhook] Could not persist failed event:', logError);
+      }
+
+      return Response.json({ error: 'Não foi possível processar o evento Stripe' }, { status: 500 });
+    }
+  },
+};
