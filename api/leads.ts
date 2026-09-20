@@ -161,11 +161,11 @@ async function createStripeCheckout(
 
   if (
     existing?.provider_subscription_id &&
-    ['active', 'trialing', 'past_due'].includes(String(existing.status || '')) &&
+    ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'].includes(String(existing.status || '')) &&
     ['go', 'pro', 'agency'].includes(String(existing.plan || ''))
   ) {
     throw Object.assign(
-      new Error('Sua conta já possui uma assinatura Stripe ativa.'),
+      new Error('Sua conta já possui uma assinatura Stripe existente. Gerencie-a pelo portal de cobrança.'),
       { statusCode: 409 }
     );
   }
