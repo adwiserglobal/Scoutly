@@ -219,12 +219,17 @@ export async function confirmStripeCheckoutSession(sessionId: string, expectedUs
   return { session, subscription: row };
 }
 
-export async function createStripeBillingPortal(userUid: string, returnUrl: string) {
+export async function createStripeBillingPortal(
+  userUid: string,
+  returnUrl: string,
+  targetPlan?: PaidPlan | null
+) {
   const rows = await appDataRequest<any[]>(
     `subscriptions?user_uid=eq.${dbValue(userUid)}&select=provider_customer_id,provider_subscription_id,plan,status&limit=1`
   );
   const subscription = rows[0] || null;
   const customerId = String(subscription?.provider_customer_id || '').trim();
+  const subscriptionId = String(subscription?.provider_subscription_id || '').trim();
 
   if (!customerId) {
     throw Object.assign(new Error('Cliente Stripe ainda não associado a esta conta.'), {
@@ -232,15 +237,79 @@ export async function createStripeBillingPortal(userUid: string, returnUrl: stri
     });
   }
 
-  const params = new URLSearchParams();
-  params.set('customer', customerId);
-  params.set('return_url', returnUrl);
+  const buildBaseParams = () => {
+    const params = new URLSearchParams();
+    params.set('customer', customerId);
+    params.set('return_url', returnUrl);
 
-  const portal = await stripeRequest<any>('billing_portal/sessions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+    const portalConfiguration = String(process.env.STRIPE_PORTAL_CONFIGURATION_ID || '').trim();
+    if (portalConfiguration.startsWith('bpc_')) {
+      params.set('configuration', portalConfiguration);
+    }
+
+    return params;
+  };
+
+  let params = buildBaseParams();
+
+  if (targetPlan && subscriptionId.startsWith('sub_')) {
+    const targetPrice = getStripePriceByPlan()[targetPlan];
+
+    if (targetPrice?.startsWith('price_')) {
+      const stripeSubscription = await retrieveStripeSubscription(subscriptionId);
+      const firstItem = Array.isArray(stripeSubscription?.items?.data)
+        ? stripeSubscription.items.data[0]
+        : null;
+      const itemId = String(firstItem?.id || '').trim();
+
+      if (itemId.startsWith('si_')) {
+        params.set('flow_data[type]', 'subscription_update_confirm');
+        params.set(
+          'flow_data[after_completion][type]',
+          'redirect'
+        );
+        params.set(
+          'flow_data[after_completion][redirect][return_url]',
+          returnUrl
+        );
+        params.set(
+          'flow_data[subscription_update_confirm][subscription]',
+          subscriptionId
+        );
+        params.set(
+          'flow_data[subscription_update_confirm][items][0][id]',
+          itemId
+        );
+        params.set(
+          'flow_data[subscription_update_confirm][items][0][price]',
+          targetPrice
+        );
+        params.set(
+          'flow_data[subscription_update_confirm][items][0][quantity]',
+          '1'
+        );
+      }
+    }
+  }
+
+  const createPortal = (body: URLSearchParams) =>
+    stripeRequest<any>('billing_portal/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+  let portal: any;
+  try {
+    portal = await createPortal(params);
+  } catch (error) {
+    // A direct plan-change flow requires the target price to be enabled in the
+    // Stripe Portal configuration. Fall back to the portal homepage so billing
+    // remains manageable even when the configuration is not ready yet.
+    if (!targetPlan) throw error;
+    params = buildBaseParams();
+    portal = await createPortal(params);
+  }
 
   if (!portal?.url) {
     throw Object.assign(new Error('A Stripe não retornou uma URL do portal de cobrança.'), {
