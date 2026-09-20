@@ -16,6 +16,7 @@ export interface BillingStatus {
   subscriptionStatus: string;
   cancelAtPeriodEnd: boolean;
   periodEndsAt: string;
+  paidPlanId: 'go' | 'pro' | 'agency' | null;
 }
 
 export interface ScoutlyPlanDefinition {
@@ -80,6 +81,28 @@ export function getBillingStatus(
       subscriptionStatus: persistedStatus,
       cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
       periodEndsAt: subscription?.current_period_end || '',
+      paidPlanId: persistedPlan,
+    };
+  }
+
+  if (paidPlan) {
+    const definition = SCOUTLY_PLANS[persistedPlan];
+
+    return {
+      plan: 'expired',
+      planName: definition.name,
+      trialStartedAt: subscription?.current_period_start || '',
+      trialEndsAt: subscription?.current_period_end || '',
+      daysRemaining: 0,
+      isTrial: false,
+      isExpired: true,
+      hasAccess: false,
+      monthlyPrice: definition.monthlyPrice,
+      includedSeats: definition.includedSeats,
+      subscriptionStatus: persistedStatus,
+      cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+      periodEndsAt: subscription?.current_period_end || '',
+      paidPlanId: persistedPlan,
     };
   }
 
@@ -101,6 +124,7 @@ export function getBillingStatus(
       subscriptionStatus: persistedStatus,
       cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
       periodEndsAt: subscription?.current_period_end || '',
+      paidPlanId: null,
     };
   }
 
@@ -128,6 +152,7 @@ export function getBillingStatus(
         subscriptionStatus: persistedStatus,
         cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
         periodEndsAt: subscription?.current_period_end || '',
+        paidPlanId: null,
       };
     }
   }
@@ -155,6 +180,7 @@ export function getBillingStatus(
     subscriptionStatus: isExpired ? 'expired' : 'trialing',
     cancelAtPeriodEnd: false,
     periodEndsAt: new Date(trialEndsAtMs).toISOString(),
+    paidPlanId: null,
   };
 }
 
