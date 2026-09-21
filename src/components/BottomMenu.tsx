@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Columns3, Home, MapPin, Menu, Settings, Star, X } from 'lucide-react';
+import { Columns3, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
 
 interface BottomMenuProps {
@@ -118,9 +118,11 @@ function BottomMenu({
               className="h-10 w-auto max-w-[138px] object-contain object-left"
             />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] text-[#FF5A12]">
-              <MapPin className="h-5 w-5" strokeWidth={2.4} />
-            </div>
+            <img
+              src="/scoutly-mark.png"
+              alt="Scoutly"
+              className="h-9 w-9 object-contain"
+            />
           )}
         </div>
 
