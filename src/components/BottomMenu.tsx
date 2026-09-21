@@ -139,7 +139,7 @@ function BottomMenu({
             <img
               src="/scoutly-mark.png"
               alt="Scoutly"
-              className="h-[46px] w-[38px] object-contain"
+              className="h-8 w-8 object-contain"
             />
           )}
         </div>
