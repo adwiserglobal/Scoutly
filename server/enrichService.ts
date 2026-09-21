@@ -21,8 +21,6 @@ export interface EnrichmentResult {
   hasHttps?: boolean;
   title?: string;
   metaDescription?: string;
-  brandImageUrl?: string;
-  brandImageSource?: 'jsonld_logo' | 'apple_touch_icon' | 'favicon' | 'open_graph' | 'jsonld_image';
   whatsapp: InfoItem[];
   emails: InfoItem[];
   phones: InfoItem[];
@@ -204,40 +202,6 @@ function addEmail(result: EnrichmentResult, value: string, sourceUrl: string, ve
   }
 }
 
-function resolveImageUrl(value: unknown, sourceUrl: string): string | null {
-  if (typeof value !== 'string') return null;
-  const raw = value.trim();
-  if (!raw || raw.startsWith('data:') || raw.startsWith('blob:') || raw.startsWith('javascript:')) {
-    return null;
-  }
-
-  try {
-    const resolved = new URL(raw, sourceUrl);
-    if (!['http:', 'https:'].includes(resolved.protocol)) return null;
-    return resolved.toString();
-  } catch {
-    return null;
-  }
-}
-
-function setBrandImage(
-  result: EnrichmentResult,
-  value: unknown,
-  sourceUrl: string,
-  source: NonNullable<EnrichmentResult['brandImageSource']>,
-  priority: number,
-) {
-  const url = resolveImageUrl(value, sourceUrl);
-  if (!url) return;
-
-  const currentPriority = Number((result as any).__brandImagePriority ?? -1);
-  if (priority <= currentPriority) return;
-
-  result.brandImageUrl = url;
-  result.brandImageSource = source;
-  (result as any).__brandImagePriority = priority;
-}
-
 function walkJsonLd(value: any, visitor: (item: any) => void) {
   if (!value) return;
 
@@ -265,26 +229,6 @@ function extractDataFromPage(
 ) {
   const html = $.html();
   const text = $('body').text();
-
-  // Prefer actual brand marks over generic hero images for list avatars.
-  $('link[rel]').each((_, element) => {
-    const rel = ($(element).attr('rel') || '').toLowerCase();
-    const href = $(element).attr('href');
-
-    if (rel.includes('apple-touch-icon')) {
-      setBrandImage(result, href, sourceUrl, 'apple_touch_icon', 80);
-    } else if (/(^|\s)icon(\s|$)/.test(rel) || rel.includes('shortcut icon')) {
-      setBrandImage(result, href, sourceUrl, 'favicon', 70);
-    }
-  });
-
-  setBrandImage(
-    result,
-    $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content'),
-    sourceUrl,
-    'open_graph',
-    40,
-  );
 
   // Explicit WhatsApp links are treated as high-confidence current evidence.
   $('a[href]').each((_, element) => {
@@ -358,34 +302,6 @@ function extractDataFromPage(
       const parsed = JSON.parse($(element).html() || '{}');
 
       walkJsonLd(parsed, (item) => {
-        const itemType = Array.isArray(item?.['@type']) ? item['@type'].join(' ') : String(item?.['@type'] || '');
-        const looksLikeBusiness = /Organization|LocalBusiness|Corporation|Store|Restaurant|Hotel|ProfessionalService/i.test(itemType);
-
-        if (looksLikeBusiness && item.logo) {
-          const logoValue =
-            typeof item.logo === 'string'
-              ? item.logo
-              : typeof item.logo?.url === 'string'
-                ? item.logo.url
-                : typeof item.logo?.contentUrl === 'string'
-                  ? item.logo.contentUrl
-                  : null;
-          setBrandImage(result, logoValue, sourceUrl, 'jsonld_logo', 100);
-        }
-
-        if (looksLikeBusiness && item.image) {
-          const imageValue = Array.isArray(item.image) ? item.image[0] : item.image;
-          const resolvedImage =
-            typeof imageValue === 'string'
-              ? imageValue
-              : typeof imageValue?.url === 'string'
-                ? imageValue.url
-                : typeof imageValue?.contentUrl === 'string'
-                  ? imageValue.contentUrl
-                  : null;
-          setBrandImage(result, resolvedImage, sourceUrl, 'jsonld_image', 50);
-        }
-
         if (typeof item.telephone === 'string') {
           addPhone(result, item.telephone, sourceUrl, verifiedAt);
         }
@@ -542,8 +458,6 @@ export async function enrichBusinessWebsite(
       extractDataFromPage(cheerio.load(response.content), response.finalUrl, result, verifiedAt);
     }),
   );
-
-  delete (result as any).__brandImagePriority;
 
   result.contactFreshness = {
     checkedAt: new Date().toISOString(),
