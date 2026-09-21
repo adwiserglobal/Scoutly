@@ -1073,6 +1073,11 @@ export default function App() {
           />
       </div>
 
+      {/* Top contrast veil: keeps map visible while improving toolbar legibility */}
+      {currentTab === 'INICIO' && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-32 bg-gradient-to-b from-black/[0.78] via-black/[0.34] to-transparent" />
+      )}
+
       {/* Main Foreground Layer */}
       <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
         
