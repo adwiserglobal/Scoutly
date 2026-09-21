@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
@@ -1490,22 +1490,7 @@ export default function App() {
         }}
       />
 
-      {/* Compact Scoutly AI launcher */}
-      {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && (
-        <button
-          type="button"
-          onClick={() => setIsAIChatOpen(true)}
-          className="group fixed bottom-5 right-4 z-30 flex h-11 items-center gap-2 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.96] px-2.5 text-white shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-[#FF5A12]/40 hover:bg-[#15181c] active:scale-[0.97] sm:px-3.5 pointer-events-auto"
-          aria-label="Abrir Scoutly AI"
-        >
-          <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] text-[#FF6A26] transition group-hover:bg-[#FF5A12]/[0.15]">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          <span className="hidden text-[11px] font-semibold tracking-[-0.01em] text-stone-100 sm:inline">
-            Scoutly AI
-          </span>
-        </button>
-      )}
+
     </div>
   );
 }
