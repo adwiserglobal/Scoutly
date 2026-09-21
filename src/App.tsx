@@ -1104,8 +1104,8 @@ export default function App() {
             </div>
 
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && !isListOpen && (
-              <div className="absolute bottom-[84px] right-4 z-30 pointer-events-auto">
-                <div className="flex flex-col gap-1 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.95] p-1 shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+              <div className="absolute bottom-[84px] right-4 z-30 pointer-events-auto lg:bottom-auto lg:right-[236px] lg:top-4">
+                <div className="flex flex-col gap-1 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.95] p-1 shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl lg:flex-row">
                   <button
                     type="button"
                     onClick={handleTogglePinMode}
@@ -1120,7 +1120,7 @@ export default function App() {
                     <MapPin className="h-[18px] w-[18px]" />
                   </button>
 
-                  <div className="mx-1 h-px bg-white/[0.08]" />
+                  <div className="mx-1 h-px bg-white/[0.08] lg:my-1 lg:h-auto lg:w-px" />
 
                   <button
                     type="button"
@@ -1249,7 +1249,7 @@ export default function App() {
             />
             
             {/* The List Container */}
-            <div className="relative flex h-full w-full max-w-[980px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.10] bg-[#111315]/[0.97] pb-4 shadow-[0_-20px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]">
+            <div className="relative flex h-full w-full max-w-[860px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.10] bg-[#111315]/[0.97] pb-4 shadow-[0_-20px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]">
               {/* Drawer Handle */}
               <button 
                 onClick={() => setIsListOpen(false)}
@@ -1293,7 +1293,7 @@ export default function App() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <div className="flex flex-col gap-2.5">
                     {displayedBusinesses.map((biz, idx) => (
                       <BusinessCard
                         key={biz.id}
