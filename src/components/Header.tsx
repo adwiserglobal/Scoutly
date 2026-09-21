@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, memo, useEffect, useRef, useState } from 'react';
-import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
+import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { Business } from '../types';
 import RecommendedDropdown from './RecommendedDropdown';
 
@@ -72,6 +72,7 @@ function Header({
   currentRegionName,
   onSearch,
   onUseCurrentLocation,
+  onOpenAIAssistant,
   isLocating,
   totalBusinessesCount,
   onOpenFilters,
@@ -296,6 +297,16 @@ function Header({
             onUpgrade={onOpenRecommendationsUpgrade}
           />
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenAIAssistant}
+          className="hidden h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3.5 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-[#FF5A12]/35 hover:bg-[#171a1f] hover:text-white lg:flex"
+          title="Abrir Scoutly AI"
+        >
+          <Sparkles className="h-4 w-4 text-[#FF6A26]" />
+          <span className="hidden text-[11px] font-semibold 2xl:inline">Scoutly AI</span>
+        </button>
       </div>
 
       <div className="mt-2 flex items-center gap-2 lg:hidden">
