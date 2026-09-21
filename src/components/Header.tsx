@@ -192,14 +192,14 @@ function Header({
   };
 
   return (
-    <div className="w-full pointer-events-auto pl-14 lg:pl-[72px] lg:pr-0">
-      <div className="flex w-full items-center gap-2 max-[430px]:flex-wrap">
+    <div className="w-full pointer-events-auto pl-14 pr-1 lg:pl-[88px] lg:pr-4">
+      <div className="flex w-full max-w-[1260px] items-center gap-2 max-[430px]:flex-wrap">
         <form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full"
+          className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[620px] xl:w-[680px]"
         >
-          <div className="relative flex h-[52px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
 
             <input
@@ -221,7 +221,7 @@ function Header({
 
             <button
               type="submit"
-              className="absolute right-1.5 flex h-9 items-center justify-center rounded-xl bg-[#FF5A12] px-3.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#ff6a27] active:scale-[0.97] sm:px-4"
+              className="absolute right-1.5 flex h-8 items-center justify-center rounded-[11px] bg-[#FF5A12] px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#ff6a27] active:scale-[0.97] sm:px-4"
             >
               Buscar
             </button>
@@ -268,7 +268,7 @@ function Header({
         <button
           type="button"
           onClick={onOpenFilters}
-          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#171a1f] sm:px-4"
+          className="flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#171a1f] sm:px-4"
           title="Filtros"
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -279,7 +279,7 @@ function Header({
           type="button"
           onClick={onUseCurrentLocation}
           disabled={isLocating}
-          className="flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[#FF5A12]/70 bg-[#161413]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-[#FF6A26] shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:bg-[#FF5A12]/10 disabled:opacity-50 sm:px-4"
+          className="flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[#FF5A12]/70 bg-[#161413]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-[#FF6A26] shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:bg-[#FF5A12]/10 disabled:opacity-50 sm:px-4"
           title="Usar minha localização"
         >
           {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
