@@ -192,12 +192,12 @@ function Header({
   };
 
   return (
-    <div className="w-full pointer-events-auto pl-14 pr-1 lg:pl-[88px] lg:pr-4">
-      <div className="flex w-full max-w-[1260px] items-center gap-2 max-[430px]:flex-wrap">
+    <div className="w-full pointer-events-auto pl-14 pr-1 lg:pl-[88px] lg:pr-[300px]">
+      <div className="flex w-full items-center gap-2 max-[430px]:flex-wrap">
         <form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[620px] xl:w-[680px]"
+          className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[420px] xl:w-[470px]"
         >
           <div className="relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
@@ -288,7 +288,7 @@ function Header({
           </span>
         </button>
 
-        <div className="hidden 2xl:block">
+        <div className="hidden xl:block">
           <RecommendedDropdown
             businesses={recommendedBusinesses}
             locked={recommendationsLocked}
