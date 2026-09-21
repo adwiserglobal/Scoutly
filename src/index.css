@@ -252,8 +252,25 @@ body,
 
 @media (min-width: 1024px) {
   .maplibregl-ctrl-top-right {
-    top: 82px;
+    top: 16px;
     right: 14px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .maplibregl-ctrl-top-right .maplibregl-ctrl-group {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .maplibregl-ctrl-top-right .maplibregl-ctrl-group button + button {
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .scoutly-map-mode-control {
+    align-items: center;
   }
 }
 
