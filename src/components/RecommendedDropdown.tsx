@@ -43,7 +43,7 @@ export default function RecommendedDropdown({
       <button
         type="button"
         onClick={handleToggle}
-        className={`flex h-[52px] items-center gap-2 rounded-full border px-4 text-xs font-bold tracking-wide shadow-sm backdrop-blur-md transition active:scale-95 ${
+        className={`flex h-[46px] items-center gap-2 rounded-full border px-4 text-xs font-bold tracking-wide shadow-sm backdrop-blur-md transition active:scale-95 ${
           open
             ? 'border-[#FF4D00] bg-white text-[#D94400]'
             : 'border-white/40 bg-white/70 text-stone-700 hover:bg-white hover:text-stone-900'
