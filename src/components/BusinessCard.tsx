@@ -2,6 +2,7 @@ import { memo, useState } from 'react';
 import {
   Building2,
   Check,
+  ChevronRight,
   Copy,
   ExternalLink,
   Globe2,
@@ -34,7 +35,7 @@ function shortLocation(business: Business): string {
     .filter(Boolean);
 
   if (parts.length >= 2) return parts[parts.length - 2];
-  return parts[0] || 'Localização no mapa';
+  return parts[0] || 'Localização disponível';
 }
 
 function BusinessCard({
@@ -48,7 +49,8 @@ function BusinessCard({
   const hasWebsite = Boolean(business.website);
   const hasPhone = Boolean(business.phone || business.phones?.length);
   const hasEmail = Boolean(business.email || business.emails?.length);
-  const confidencePercent = Math.round((business.confidence || 0.8) * 100);
+  const confidence = business.confidence || 0.8;
+  const confidencePercent = Math.round(confidence * 100);
   const whatsappUrl = getWhatsAppLink(business.phone);
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const isFavorited = Boolean(business.isFavorite);
@@ -70,28 +72,24 @@ function BusinessCard({
     <article
       id={`card-${business.id}`}
       onClick={onSelect}
-      className={`group relative cursor-pointer overflow-hidden rounded-[20px] border bg-[#17191c] p-3.5 shadow-[0_10px_32px_rgba(0,0,0,0.16)] transition-all duration-200 sm:p-4 ${
+      className={`group cursor-pointer rounded-[18px] border bg-[#17191c]/95 px-4 py-3.5 transition-all duration-200 ${
         isSelected
-          ? 'border-[#FF5A12]/70 ring-1 ring-[#FF5A12]/25'
-          : 'border-white/[0.09] hover:border-white/[0.16] hover:bg-[#1b1d20]'
+          ? 'border-[#FF5A12]/65 bg-[#1b1b1d] shadow-[0_0_0_1px_rgba(255,90,18,0.12)]'
+          : 'border-white/[0.085] hover:border-white/[0.16] hover:bg-[#1b1d20]'
       }`}
     >
-      <div className="flex min-w-0 gap-3">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border transition sm:h-16 sm:w-16 ${
-          hasWebsite
-            ? 'border-emerald-500/15 bg-emerald-500/[0.055] text-stone-400'
-            : 'border-[#FF5A12]/18 bg-[#FF5A12]/[0.065] text-[#FF6A26]'
-        }`}>
-          <Building2 className="h-5 w-5" strokeWidth={1.8} />
+      <div className="flex min-w-0 items-start gap-3.5">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111315] text-stone-400 sm:h-14 sm:w-14">
+          <Building2 className="h-5 w-5" strokeWidth={1.7} />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
+              <h3 className="truncate text-[14px] font-semibold tracking-[-0.015em] text-white sm:text-[15px]">
                 {business.name}
               </h3>
-              <p className="mt-0.5 truncate text-[11px] text-stone-400">
+              <p className="mt-0.5 truncate text-[10.5px] text-stone-400">
                 {translateCategory(business.category)}
               </p>
             </div>
@@ -114,8 +112,8 @@ function BusinessCard({
             </button>
           </div>
 
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className={`rounded-full px-2.5 py-1 text-[9.5px] font-semibold ${
               hasWebsite
                 ? 'bg-emerald-500/10 text-emerald-400'
                 : 'bg-[#FF5A12]/12 text-[#FF7A3D]'
@@ -124,13 +122,13 @@ function BusinessCard({
             </span>
 
             {business.openStatus === 'ABERTO_AGORA' && (
-              <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-medium text-emerald-400">
+              <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[9.5px] font-medium text-emerald-400">
                 Aberto agora
               </span>
             )}
 
             {business.openStatus === 'FECHADO_AGORA' && (
-              <span className="rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[10px] font-medium text-rose-400">
+              <span className="rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[9.5px] font-medium text-rose-400">
                 Fechado
               </span>
             )}
@@ -141,10 +139,23 @@ function BusinessCard({
             </span>
           </div>
         </div>
+
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          <div className="text-right">
+            <div className="text-[13px] font-semibold text-stone-200">{confidencePercent}%</div>
+            <div className="mt-0.5 text-[8px] font-medium uppercase tracking-[0.1em] text-stone-600">confiança</div>
+          </div>
+          <img
+            src={getTrustIcon(confidence)}
+            alt=""
+            className="h-5 w-5 object-contain opacity-80"
+            title={`Nível de confiança dos dados: ${confidencePercent}%`}
+          />
+        </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-3 border-t border-white/[0.07] pt-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-stone-500">
+      <div className="mt-3 flex items-center gap-2 border-t border-white/[0.07] pt-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[9px] font-semibold uppercase tracking-[0.08em] text-stone-600">
           {hasWebsite && (
             <span className="flex items-center gap-1">
               <Globe2 className="h-3 w-3" />
@@ -158,87 +169,78 @@ function BusinessCard({
             </span>
           )}
           {hasEmail && (
-            <span className="hidden items-center gap-1 sm:flex">
+            <span className="hidden items-center gap-1 md:flex">
               <Mail className="h-3 w-3" />
               E-mail
             </span>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-stone-500">
-          <span>{confidencePercent}%</span>
-          <img
-            src={getTrustIcon(business.confidence || 0.8)}
-            alt=""
-            className="h-4 w-4 object-contain opacity-75"
-            title={`Nível de confiança dos dados: ${confidencePercent}%`}
-          />
-        </div>
-      </div>
-
-      <div className="mt-2.5 flex items-center gap-1.5">
-        <a
-          href={googleBusinessUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
-          title="Abrir no Google"
-        >
-          <ExternalLink className="h-3 w-3" />
-          Google
-        </a>
-
-        {business.phone && (
-          <button
-            type="button"
-            onClick={handleCopyPhone}
-            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
-            title={copiedPhone ? 'Número copiado' : 'Copiar telefone'}
-          >
-            {copiedPhone ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-            <span className="hidden sm:inline">{copiedPhone ? 'Copiado' : 'Telefone'}</span>
-          </button>
-        )}
-
-        {hasWebsite && (
+        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto no-scrollbar">
           <a
-            href={business.website!}
+            href={googleBusinessUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(event) => event.stopPropagation()}
-            className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] hover:text-white"
+            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+            title="Abrir no Google"
           >
-            Ver site
+            <ExternalLink className="h-3 w-3" />
+            <span className="hidden md:inline">Google</span>
           </a>
-        )}
 
-        {whatsappUrl && (
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          {business.phone && (
+            <button
+              type="button"
+              onClick={handleCopyPhone}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+              title={copiedPhone ? 'Número copiado' : 'Copiar telefone'}
+            >
+              {copiedPhone ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+              <span className="hidden lg:inline">{copiedPhone ? 'Copiado' : 'Telefone'}</span>
+            </button>
+          )}
+
+          {hasWebsite && (
+            <a
+              href={business.website!}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+            >
+              Site
+            </a>
+          )}
+
+          {whatsappUrl && (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => {
+                event.stopPropagation();
+                recordRecommendationWhatsApp(business);
+              }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+            >
+              <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+              <span className="hidden md:inline">WhatsApp</span>
+            </a>
+          )}
+
+          <button
+            type="button"
             onClick={(event) => {
               event.stopPropagation();
-              recordRecommendationWhatsApp(business);
+              onOpenDetails(business);
             }}
-            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[10px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+            className="inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-[9.5px] font-semibold text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.08]"
           >
-            <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
-            <span className="hidden sm:inline">WhatsApp</span>
-          </a>
-        )}
-
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenDetails(business);
-          }}
-          className="ml-auto inline-flex h-8 items-center rounded-xl px-2.5 text-[10px] font-semibold text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.08]"
-        >
-          Ver detalhes
-        </button>
+            Detalhes
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
       </div>
     </article>
   );
