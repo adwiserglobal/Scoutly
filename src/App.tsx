@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
@@ -1104,34 +1104,38 @@ export default function App() {
             </div>
 
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && !isListOpen && (
-              <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 pointer-events-auto lg:right-4">
-                <button
-                  type="button"
-                  onClick={handleTogglePinMode}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 ${
-                    radarPin?.active
-                      ? 'border-[#FF4D00] bg-[#FF4D00] text-white'
-                      : 'border-white/60 bg-white/90 text-stone-700 hover:border-[#FF4D00]/40 hover:text-[#FF4D00]'
-                  }`}
-                  title={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
-                  aria-label={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
-                >
-                  <MapPin className="h-5 w-5" />
-                </button>
+              <div className="absolute bottom-[84px] right-4 z-30 pointer-events-auto">
+                <div className="flex flex-col gap-1 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.95] p-1 shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+                  <button
+                    type="button"
+                    onClick={handleTogglePinMode}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition active:scale-95 ${
+                      radarPin?.active
+                        ? 'bg-[#FF5A12] text-white'
+                        : 'text-stone-300 hover:bg-white/[0.07] hover:text-white'
+                    }`}
+                    title={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
+                    aria-label={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
+                  >
+                    <MapPin className="h-[18px] w-[18px]" />
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleToggleRouteMode}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 ${
-                    isRouteMode
-                      ? 'border-[#FF4D00] bg-[#FF4D00] text-white'
-                      : 'border-white/60 bg-white/90 text-stone-700 hover:border-[#FF4D00]/40 hover:text-[#FF4D00]'
-                  }`}
-                  title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                  aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                >
-                  <Route className="h-5 w-5" />
-                </button>
+                  <div className="mx-1 h-px bg-white/[0.08]" />
+
+                  <button
+                    type="button"
+                    onClick={handleToggleRouteMode}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition active:scale-95 ${
+                      isRouteMode
+                        ? 'bg-[#FF5A12] text-white'
+                        : 'text-stone-300 hover:bg-white/[0.07] hover:text-white'
+                    }`}
+                    title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                    aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                  >
+                    <Route className="h-[18px] w-[18px]" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1486,22 +1490,18 @@ export default function App() {
         }}
       />
 
-      {/* Floating Action Button: Scoutly AI (Orange Liquid Glass Design) */}
+      {/* Compact Scoutly AI launcher */}
       {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && (
         <button
           type="button"
           onClick={() => setIsAIChatOpen(true)}
-          className="fixed bottom-[28px] right-4 lg:right-4 z-30 overflow-hidden orange-liquid-glass px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer active:scale-95 group transition-all duration-300 hover:scale-105 pointer-events-auto"
+          className="group fixed bottom-5 right-4 z-30 flex h-11 items-center gap-2 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.96] px-2.5 text-white shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-[#FF5A12]/40 hover:bg-[#15181c] active:scale-[0.97] sm:px-3.5 pointer-events-auto"
+          aria-label="Abrir Scoutly AI"
         >
-          {/* Glass reflection highlight overlay */}
-          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none rounded-t-full" />
-
-          <img
-            src="/ai-icon.png"
-            alt="Scoutly AI"
-            className="w-7 h-7 rounded-full object-cover shrink-0 border border-white/70 shadow-2xs relative z-10 group-hover:scale-110 transition-transform"
-          />
-          <span className="text-xs font-black text-white tracking-wider uppercase drop-shadow-xs relative z-10">
+          <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] text-[#FF6A26] transition group-hover:bg-[#FF5A12]/[0.15]">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <span className="hidden text-[11px] font-semibold tracking-[-0.01em] text-stone-100 sm:inline">
             Scoutly AI
           </span>
         </button>
