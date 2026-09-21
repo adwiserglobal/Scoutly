@@ -37,16 +37,34 @@ function BottomMenu({
       icon: Columns3,
       badge: pipelineDealsCount > 0 ? pipelineDealsCount : null,
     },
-    {
-      id: 'CONFIGURACOES' as NavigationTab,
-      label: 'Configurações',
-      icon: Settings,
-    },
   ];
 
   const navigate = (tab: NavigationTab) => {
     onTabChange(tab);
     setMobileOpen(false);
+  };
+
+  const renderSettings = (expanded: boolean) => {
+    const isActive = currentTab === 'CONFIGURACOES';
+    return (
+      <button
+        type="button"
+        onClick={() => navigate('CONFIGURACOES')}
+        title={!expanded ? 'Configurações' : undefined}
+        className={`group relative flex h-12 w-full items-center rounded-xl transition-all duration-200 ${
+          expanded ? 'gap-3 px-3' : 'justify-center px-0'
+        } ${
+          isActive
+            ? 'bg-white/[0.075] text-white shadow-[inset_2px_0_0_#FF5A12]'
+            : 'text-stone-400 hover:bg-white/[0.045] hover:text-white'
+        }`}
+      >
+        <Settings className={`h-[18px] w-[18px] shrink-0 transition ${
+          isActive ? 'text-[#FF5A12]' : 'text-stone-500 group-hover:text-stone-300'
+        }`} />
+        {expanded && <span className="text-[12px] font-medium">Configurações</span>}
+      </button>
+    );
   };
 
   const renderNavigation = (expanded: boolean) => (
@@ -108,36 +126,29 @@ function BottomMenu({
           desktopExpanded ? 'w-[190px] px-3' : 'w-[72px] px-2'
         }`}
       >
-        <div className={`mb-10 flex h-10 items-center ${
+        <div className={`mb-9 flex h-14 items-center ${
           desktopExpanded ? 'justify-start px-1' : 'justify-center'
         }`}>
           {desktopExpanded ? (
             <img
               src="/logo_white.png"
               alt="Scoutly"
-              className="h-10 w-auto max-w-[138px] object-contain object-left"
+              className="h-12 w-auto max-w-[164px] object-contain object-left"
             />
           ) : (
             <img
               src="/scoutly-mark.png"
               alt="Scoutly"
-              className="h-9 w-9 object-contain"
+              className="h-[46px] w-[38px] object-contain"
             />
           )}
         </div>
 
         <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
-        {desktopExpanded ? (
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-3">
-            <div className="mb-2 h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
-            <p className="text-[10px] font-medium leading-relaxed text-stone-400">
-              Prospecção local em tempo real
-            </p>
-          </div>
-        ) : (
-          <div className="mx-auto h-1.5 w-1.5 rounded-full bg-[#FF5A12] shadow-[0_0_10px_rgba(255,90,18,0.7)]" />
-        )}
+        <div className="border-t border-white/[0.08] pt-3">
+          {renderSettings(desktopExpanded)}
+        </div>
       </aside>
 
       <div className="lg:hidden">
@@ -186,9 +197,9 @@ function BottomMenu({
 
             <div className="flex-1">{renderNavigation(true)}</div>
 
-            <p className="px-2 text-[10px] leading-relaxed text-stone-600">
-              Scoutly
-            </p>
+            <div className="border-t border-white/[0.08] pt-3">
+              {renderSettings(true)}
+            </div>
           </aside>
         </div>
       </div>
