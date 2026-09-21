@@ -45,7 +45,6 @@ export interface Business {
   operatingStatus: string | null;
   website: string | null;
   websites: string[];
-  profileImageUrl?: string | null;
   email: string | null;
   emails: string[];
   phone: string | null;
