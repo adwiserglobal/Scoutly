@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useState } from 'react';
 import {
   Building2,
   Check,
@@ -12,11 +12,9 @@ import {
   Star,
 } from 'lucide-react';
 import { Business } from '../types';
-import { enrichBusinessData, getGoogleBusinessLink, getTrustIcon, getWhatsAppLink } from '../services/api';
+import { getGoogleBusinessLink, getTrustIcon, getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
-
-const brandImageCache = new Map<string, string | null>();
 
 interface BusinessCardProps {
   business: Business;
@@ -48,8 +46,6 @@ function BusinessCard({
   onToggleFavorite,
 }: BusinessCardProps) {
   const [copiedPhone, setCopiedPhone] = useState(false);
-  const cardRef = useRef<HTMLElement | null>(null);
-  const [brandImageUrl, setBrandImageUrl] = useState<string | null>(business.profileImageUrl || null);
   const hasWebsite = Boolean(business.website);
   const hasPhone = Boolean(business.phone || business.phones?.length);
   const hasEmail = Boolean(business.email || business.emails?.length);
@@ -58,56 +54,6 @@ function BusinessCard({
   const whatsappUrl = getWhatsAppLink(business.phone);
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const isFavorited = Boolean(business.isFavorite);
-
-  useEffect(() => {
-    setBrandImageUrl(business.profileImageUrl || null);
-
-    const website = business.website?.trim();
-    if (!website || business.profileImageUrl) return;
-    if (localStorage.getItem('scoutly_auto_enrich') === 'false') return;
-
-    if (brandImageCache.has(website)) {
-      setBrandImageUrl(brandImageCache.get(website) || null);
-      return;
-    }
-
-    let cancelled = false;
-    let observer: IntersectionObserver | null = null;
-
-    const loadBrandImage = async () => {
-      try {
-        const data = await enrichBusinessData(website);
-        if (cancelled) return;
-        const nextUrl = typeof data?.brandImageUrl === 'string' ? data.brandImageUrl : null;
-        brandImageCache.set(website, nextUrl);
-        setBrandImageUrl(nextUrl);
-      } catch {
-        if (!cancelled) brandImageCache.set(website, null);
-      }
-    };
-
-    const node = cardRef.current;
-    if ('IntersectionObserver' in window && node) {
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((entry) => entry.isIntersecting)) {
-            observer?.disconnect();
-            observer = null;
-            void loadBrandImage();
-          }
-        },
-        { rootMargin: '220px 0px' }
-      );
-      observer.observe(node);
-    } else {
-      void loadBrandImage();
-    }
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  }, [business.id, business.website, business.profileImageUrl]);
 
   const handleCopyPhone = async (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -124,7 +70,6 @@ function BusinessCard({
 
   return (
     <article
-      ref={cardRef}
       id={`card-${business.id}`}
       onClick={onSelect}
       className={`group cursor-pointer rounded-[18px] border bg-[#17191c]/95 px-4 py-3.5 transition-all duration-200 ${
@@ -134,22 +79,8 @@ function BusinessCard({
       }`}
     >
       <div className="flex min-w-0 items-start gap-3.5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-white/[0.08] bg-[#111315] text-stone-400 sm:h-14 sm:w-14">
-          {brandImageUrl ? (
-            <img
-              src={brandImageUrl}
-              alt={`Logo de ${business.name}`}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              className="h-full w-full bg-white object-contain p-1.5"
-              onError={() => {
-                if (business.website) brandImageCache.set(business.website, null);
-                setBrandImageUrl(null);
-              }}
-            />
-          ) : (
-            <Building2 className="h-5 w-5" strokeWidth={1.7} />
-          )}
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111315] text-stone-400 sm:h-14 sm:w-14">
+          <Building2 className="h-5 w-5" strokeWidth={1.7} />
         </div>
 
         <div className="min-w-0 flex-1">
