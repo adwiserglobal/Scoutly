@@ -6,6 +6,7 @@ import {
   Compass,
   Download,
   ExternalLink,
+  Filter,
   GripVertical,
   Search,
   Sparkles,
@@ -49,6 +50,9 @@ function PipelineView({
   onNavigateToExplore,
 }: PipelineViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('TODAS');
+  const [websiteFilter, setWebsiteFilter] = useState<'TODOS' | 'COM_SITE' | 'SEM_SITE'>('TODOS');
+  const [contactFilter, setContactFilter] = useState<'TODOS' | 'WHATSAPP' | 'TELEFONE' | 'SEM_CONTATO'>('TODOS');
   const [draggedBizId, setDraggedBizId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<LeadStatus | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -57,6 +61,16 @@ function PipelineView({
     () => businesses.filter((business) => business.leadStatus && business.leadStatus !== 'NOVO' && business.leadStatus !== 'ARQUIVADO'),
     [businesses]
   );
+
+  const categories = useMemo(
+    () => Array.from(new Set(activePipelineLeads.map((business) => business.category).filter(Boolean))).sort(),
+    [activePipelineLeads]
+  );
+
+  const hasActiveFilters =
+    categoryFilter !== 'TODAS' ||
+    websiteFilter !== 'TODOS' ||
+    contactFilter !== 'TODOS';
 
   const pipelineData = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -78,13 +92,23 @@ function PipelineView({
         return;
       }
 
+      if (categoryFilter !== 'TODAS' && business.category !== categoryFilter) return;
+      if (websiteFilter === 'COM_SITE' && !business.website) return;
+      if (websiteFilter === 'SEM_SITE' && business.website) return;
+
+      const hasPhone = Boolean(business.phone || business.phones?.[0]);
+      const hasWhatsApp = Boolean(getWhatsAppLink(business.phone || business.phones?.[0]));
+      if (contactFilter === 'WHATSAPP' && !hasWhatsApp) return;
+      if (contactFilter === 'TELEFONE' && !hasPhone) return;
+      if (contactFilter === 'SEM_CONTATO' && hasPhone) return;
+
       const status = business.leadStatus || 'CONTATADO';
       if (grouped[status]) grouped[status].push(business);
       else grouped.CONTATADO.push(business);
     });
 
     return grouped;
-  }, [activePipelineLeads, searchQuery]);
+  }, [activePipelineLeads, searchQuery, categoryFilter, websiteFilter, contactFilter]);
 
   const totalInPipeline = activePipelineLeads.length;
   const negotiatingCount = pipelineData.EM_NEGOCIACAO.length;
@@ -215,26 +239,81 @@ function PipelineView({
         </header>
 
         {totalInPipeline > 0 && (
-          <section className="flex flex-col gap-3 rounded-[22px] border border-white/[0.08] bg-[#101318] p-3 md:flex-row md:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Filtrar empresas por nome, categoria ou anotação"
-                className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0b0e12] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-600 focus:border-[#FF5A12]/50"
-              />
-            </div>
+          <section className="rounded-[22px] border border-white/[0.08] bg-[#101318] p-3">
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Filtrar empresas por nome, categoria ou anotação"
+                  className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0b0e12] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-600 focus:border-[#FF5A12]/50"
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={onOpenAIChat}
-              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-3.5 text-[10px] font-semibold text-[#FF7A3D] transition hover:bg-[#FF5A12]/[0.13]"
-            >
-              <Sparkles className="h-4 w-4" />
-              Sugerir abordagens
-            </button>
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <div className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3 text-stone-500">
+                  <Filter className="h-3.5 w-3.5" />
+                  <span className="hidden text-[9px] font-semibold uppercase tracking-[0.08em] 2xl:inline">Filtros</span>
+                </div>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="h-10 min-w-[145px] shrink-0 rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                >
+                  <option value="TODAS">Todas as categorias</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={websiteFilter}
+                  onChange={(event) => setWebsiteFilter(event.target.value as typeof websiteFilter)}
+                  className="h-10 min-w-[115px] shrink-0 rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                >
+                  <option value="TODOS">Qualquer site</option>
+                  <option value="COM_SITE">Com site</option>
+                  <option value="SEM_SITE">Sem site</option>
+                </select>
+
+                <select
+                  value={contactFilter}
+                  onChange={(event) => setContactFilter(event.target.value as typeof contactFilter)}
+                  className="h-10 min-w-[135px] shrink-0 rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                >
+                  <option value="TODOS">Qualquer contato</option>
+                  <option value="WHATSAPP">Com WhatsApp</option>
+                  <option value="TELEFONE">Com telefone</option>
+                  <option value="SEM_CONTATO">Sem contato</option>
+                </select>
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('TODAS');
+                      setWebsiteFilter('TODOS');
+                      setContactFilter('TODOS');
+                    }}
+                    className="h-10 shrink-0 rounded-xl px-3 text-[10px] font-semibold text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={onOpenAIChat}
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-3.5 text-[10px] font-semibold text-[#FF7A3D] transition hover:bg-[#FF5A12]/[0.13]"
+              >
+                <Sparkles className="h-4 w-4" />
+                Sugerir abordagens
+              </button>
+            </div>
           </section>
         )}
 
