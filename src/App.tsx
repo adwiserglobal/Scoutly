@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, MapPin, Route, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Route, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
@@ -10,7 +10,6 @@ import BottomMenu from './components/BottomMenu';
 import Header from './components/Header';
 import FilterBar from './components/FilterBar';
 import InteractiveMap, { MapBounds, RadarPinState } from './components/InteractiveMap';
-import { PinRadarControl } from './components/PinRadarControl';
 import BusinessCard from './components/BusinessCard';
 import BusinessDetailsModal from './components/BusinessDetailsModal';
 import BusinessSidePanel from './components/BusinessSidePanel';
@@ -923,6 +922,38 @@ export default function App() {
     return list;
   }, [businesses, activeFilters, selectedCategory, sortBy, socialVerification]);
 
+  const businessListRegionName = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const business of businesses) {
+      const city = String(business.municipio || '').trim();
+      const district = String(business.bairro || '').trim();
+      const state = String(business.uf || '').trim();
+
+      let label = '';
+      if (city && district) label = `${city} - ${district}`;
+      else if (city && state) label = `${city} - ${state}`;
+      else if (city) label = city;
+      else if (district) label = district;
+
+      if (label) counts.set(label, (counts.get(label) || 0) + 1);
+    }
+
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    if (ranked.length > 0 && ranked[0][1] >= 2) return ranked[0][0];
+
+    const normalizedCurrent = currentRegionName.trim();
+    if (
+      normalizedCurrent &&
+      normalizedCurrent !== 'São Paulo - Pinheiros' &&
+      normalizedCurrent !== 'Sua Localização Atual'
+    ) {
+      return normalizedCurrent;
+    }
+
+    return '';
+  }, [businesses, currentRegionName]);
+
   // Progressive rendering slice for buttery smooth 60fps scrolling
   const displayedBusinesses = useMemo(() => {
     return filteredBusinesses.slice(0, visibleCount);
@@ -1064,10 +1095,6 @@ export default function App() {
               setMapError(err.message);
             }}
             onBoundsChange={handleBoundsChange}
-            radarPin={radarPin}
-            onRadarPinDrag={handleRadarPinDrag}
-            onRadarPinDrop={handleRadarPinDrop}
-            isPinPlacementMode={isPinPlacementMode}
             routeMode={isRouteMode}
             routeStops={visitRouteStops}
           />
@@ -1079,7 +1106,7 @@ export default function App() {
       )}
 
       {/* Main Foreground Layer */}
-      <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
+      <div className={`relative w-full h-full flex flex-col pointer-events-none ${isListOpen ? 'z-[60]' : 'z-10'}`}>
         
         {/* Only show Header & Filters on INICIO tab */}
         {currentTab === 'INICIO' && (
@@ -1091,7 +1118,6 @@ export default function App() {
                   onSearch={handleSearch}
                   onUseCurrentLocation={handleUseCurrentLocation}
                   onSelectPreset={handleSelectPreset}
-                  onOpenAIAssistant={() => setIsAIChatOpen(true)}
                   isLocating={isLocating}
                   totalOpportunitiesCount={opportunitiesCount}
                   totalBusinessesCount={filteredBusinesses.length}
@@ -1109,38 +1135,21 @@ export default function App() {
             </div>
 
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && !isListOpen && (
-              <div className="absolute bottom-[84px] right-4 z-30 pointer-events-auto lg:bottom-auto lg:right-[236px] lg:top-4">
-                <div className="flex flex-col gap-1 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.95] p-1 shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl lg:flex-row">
-                  <button
-                    type="button"
-                    onClick={handleTogglePinMode}
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition active:scale-95 ${
-                      radarPin?.active
-                        ? 'bg-[#FF5A12] text-white'
-                        : 'text-stone-300 hover:bg-white/[0.07] hover:text-white'
-                    }`}
-                    title={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
-                    aria-label={radarPin?.active ? 'Remover pin' : 'Soltar pin'}
-                  >
-                    <MapPin className="h-[18px] w-[18px]" />
-                  </button>
-
-                  <div className="mx-1 h-px bg-white/[0.08] lg:my-1 lg:h-auto lg:w-px" />
-
-                  <button
-                    type="button"
-                    onClick={handleToggleRouteMode}
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition active:scale-95 ${
-                      isRouteMode
-                        ? 'bg-[#FF5A12] text-white'
-                        : 'text-stone-300 hover:bg-white/[0.07] hover:text-white'
-                    }`}
-                    title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                    aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                  >
-                    <Route className="h-[18px] w-[18px]" />
-                  </button>
-                </div>
+              <div className="absolute right-4 top-4 z-30 pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={handleToggleRouteMode}
+                  className={`flex h-[46px] items-center justify-center gap-2 rounded-2xl border px-3.5 text-[11px] font-semibold shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition active:scale-[0.97] ${
+                    isRouteMode
+                      ? 'border-[#FF5A12] bg-[#FF5A12] text-white'
+                      : 'border-white/10 bg-[#111418]/[0.94] text-stone-200 hover:border-[#FF5A12]/35 hover:bg-[#171a1f]'
+                  }`}
+                  title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                  aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                >
+                  <Route className="h-4 w-4" />
+                  <span className="hidden xl:inline">{isRouteMode ? 'Encerrar rota' : 'Rota'}</span>
+                </button>
               </div>
             )}
 
@@ -1158,26 +1167,6 @@ export default function App() {
                       handleUpdateStatus(business.id, 'CONTATADO', business.notes);
                     }
                   }}
-                />
-              </div>
-            )}
-
-            {/* Floating Pin Radar Control Panel (Top Left below Header) */}
-            {radarPin?.active && !isListOpen && (
-              <div className="absolute top-[135px] left-4 z-30 pointer-events-none sm:top-[80px] lg:left-[88px]">
-                <PinRadarControl
-                  active={radarPin.active}
-                  pinCoordinates={{ lat: radarPin.lat, lng: radarPin.lng }}
-                  radiusMeters={radarPin.radiusMeters}
-                  onRadiusChange={handlePinRadiusChange}
-                  onClearPin={handleClearPin}
-                  onCenterOnPin={handleCenterOnPin}
-                  businessesInRadiusCount={businessesInRadiusCount}
-                  totalBusinessesCount={businesses.length}
-                  filterOnlyInRadius={filterOnlyInRadius}
-                  onToggleFilterOnlyInRadius={() => setFilterOnlyInRadius((prev) => !prev)}
-                  isSearching={isPinSearching}
-                  locationName={radarPin.locationName}
                 />
               </div>
             )}
@@ -1242,19 +1231,19 @@ export default function App() {
 
         {/* Business List Drawer Overlay for INICIO tab */}
         {currentTab === 'INICIO' && (
-          <div 
-            className={`absolute bottom-0 left-0 right-0 top-[140px] z-20 flex justify-center pointer-events-none transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] lg:left-[72px] lg:top-[88px] ${
-              isListOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+          <div
+            className={`fixed inset-0 z-[70] flex items-end justify-center px-3 pointer-events-none transition-opacity duration-500 sm:px-5 ${
+              isListOpen ? 'opacity-100' : 'opacity-0'
             }`}
           >
             {/* Backdrop Blur effect over the map when list is open */}
             <div 
-              className={`absolute inset-0 bg-black/20 transition-opacity duration-700 ${isListOpen ? 'opacity-100 backdrop-blur-[3px] pointer-events-auto' : 'opacity-0'}`} 
+              className={`absolute inset-0 bg-black/[0.38] transition-all duration-500 ${isListOpen ? 'opacity-100 backdrop-blur-[7px] pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
               onClick={() => setIsListOpen(false)}
             />
             
             {/* The List Container */}
-            <div className="relative flex h-full w-full max-w-[860px] flex-col overflow-hidden rounded-t-[28px] border border-white/[0.10] bg-[#111315]/[0.97] pb-4 shadow-[0_-20px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]">
+            <div className={`relative flex h-[calc(100dvh-76px)] w-full max-w-[1180px] flex-col overflow-hidden rounded-t-[30px] border border-white/[0.10] bg-[#111315]/[0.97] pb-4 shadow-[0_-24px_90px_rgba(0,0,0,0.46)] backdrop-blur-2xl pointer-events-auto transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isListOpen ? 'translate-y-0' : 'translate-y-full'}`}>
               {/* Drawer Handle */}
               <button 
                 onClick={() => setIsListOpen(false)}
@@ -1269,7 +1258,7 @@ export default function App() {
               <div className="flex-1 overflow-y-auto px-3 pb-6 sm:px-5 md:px-6 custom-scrollbar">
                 <div className="mb-4 flex items-center justify-between gap-4 border-b border-white/[0.07] px-1 pb-3">
                   <span className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-300">
-                    Estabelecimentos em {currentRegionName.split(',')[0]}
+                    {businessListRegionName ? `Estabelecimentos em ${businessListRegionName}` : 'Estabelecimentos nesta área'}
                   </span>
                   <span className="shrink-0 text-[11px] font-medium text-stone-500">
                     {isBusinessesLoading ? (
@@ -1342,6 +1331,22 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && (
+          <button
+            type="button"
+            onClick={() => setIsAIChatOpen(true)}
+            className="group fixed bottom-5 right-4 z-30 flex h-11 items-center gap-2 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.96] px-2.5 text-white shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-[#FF5A12]/40 hover:bg-[#15181c] active:scale-[0.97] sm:px-3.5 pointer-events-auto"
+            aria-label="Abrir Scoutly AI"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] text-[#FF6A26] transition group-hover:bg-[#FF5A12]/[0.15]">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <span className="hidden text-[11px] font-semibold tracking-[-0.01em] text-stone-100 sm:inline">
+              Scoutly AI
+            </span>
+          </button>
         )}
 
         {/* View Businesses Button (floating below BottomMenu) */}
