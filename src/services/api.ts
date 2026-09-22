@@ -2,6 +2,23 @@ import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
 import { auth } from '../lib/firebase';
 
+async function readJsonResponse<T = any>(response: Response, fallbackMessage: string): Promise<T> {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(fallbackMessage);
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const looksLikeHtml = /<\s*!doctype|<\s*html/i.test(raw);
+    if (looksLikeHtml) {
+      throw new Error('O serviço de dados respondeu de forma inválida. Mantivemos os dados já carregados e tentaremos atualizar novamente.');
+    }
+    throw new Error(fallbackMessage);
+  }
+}
+
 export async function fetchPlacesFromOverture(
   west: number,
   south: number,
@@ -25,14 +42,17 @@ export async function fetchPlacesFromOverture(
   const res = await fetch(`/api/places-fast?${params.toString()}`, {
     method: 'GET',
     signal,
+    headers: { Accept: 'application/json' },
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao carregar dados do Overture Maps.');
-  }
+  const data = await readJsonResponse<any>(
+    res,
+    'Não foi possível atualizar os estabelecimentos desta área.'
+  );
 
-  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error || 'Erro ao carregar dados do Overture Maps.');
+  }
   const places = (data.places || []).map((p: any) => ({
     ...p,
     category: translateCategory(p.category),
@@ -128,7 +148,7 @@ export async function fetchUserLeads(): Promise<UserUserData> {
   try {
     const res = await authenticatedFetch('/api/leads');
     if (!res.ok) return { leads: {}, favorites: {} };
-    return await res.json();
+    return await readJsonResponse<UserUserData>(res, 'Não foi possível carregar os dados salvos da conta.');
   } catch (err) {
     console.warn('[API] Error fetching saved user data:', err);
     return { leads: {}, favorites: {} };
@@ -280,12 +300,13 @@ export async function sendAIChatMessage(payload: AIChatPayload): Promise<AIChatR
     }),
   });
 
+  const data = await readJsonResponse<any>(res, 'A Scoutly AI recebeu uma resposta inválida do servidor.');
+
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Erro ao comunicar com a IA');
+    throw new Error(data?.error || 'Erro ao comunicar com a IA');
   }
 
-  return res.json();
+  return data;
 }
 
 export async function fetchContextualSuggestions(
@@ -299,8 +320,8 @@ export async function fetchContextualSuggestions(
       body: JSON.stringify({ recentSearches, currentRegionName }),
     });
     if (!res.ok) return [];
-    const data = await res.json();
-    return data.suggestions || [];
+    const data = await readJsonResponse<any>(res, 'Não foi possível carregar sugestões contextuais.');
+    return Array.isArray(data?.suggestions) ? data.suggestions : [];
   } catch (err) {
     console.warn('[API] Error fetching contextual suggestions:', err);
     return [];
