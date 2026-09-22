@@ -1,21 +1,19 @@
-import { useState, useMemo, memo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import {
-  Columns3,
-  Search,
-  Download,
-  Plus,
-  ArrowRight,
   ArrowLeft,
-  ExternalLink,
+  ArrowRight,
   CheckCircle2,
-  TrendingUp,
-  Target,
-  Sparkles,
-  GripVertical,
   Compass,
+  Download,
+  ExternalLink,
+  GripVertical,
+  Search,
+  Sparkles,
+  Target,
+  TrendingUp,
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { getWhatsAppLink, getTrustIcon } from '../services/api';
+import { getTrustIcon, getWhatsAppLink } from '../services/api';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface PipelineViewProps {
@@ -29,53 +27,18 @@ interface PipelineViewProps {
 interface ColumnConfig {
   id: LeadStatus;
   title: string;
-  badgeBg: string;
-  badgeText: string;
-  headerBg: string;
-  borderColor: string;
+  accent: string;
+  badge: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
-  {
-    id: 'CONTATADO',
-    title: 'Contatados',
-    badgeBg: 'bg-blue-100',
-    badgeText: 'text-blue-800',
-    headerBg: 'bg-blue-50/50',
-    borderColor: 'border-blue-200',
-  },
-  {
-    id: 'EM_NEGOCIACAO',
-    title: 'Em Negociação',
-    badgeBg: 'bg-amber-100',
-    badgeText: 'text-amber-800',
-    headerBg: 'bg-amber-50/50',
-    borderColor: 'border-amber-200',
-  },
-  {
-    id: 'FECHADO',
-    title: 'Fechados / Clientes',
-    badgeBg: 'bg-emerald-100',
-    badgeText: 'text-emerald-800',
-    headerBg: 'bg-emerald-50/50',
-    borderColor: 'border-emerald-200',
-  },
-  {
-    id: 'PERDIDO',
-    title: 'Perdidos / Desistência',
-    badgeBg: 'bg-rose-100',
-    badgeText: 'text-rose-800',
-    headerBg: 'bg-rose-50/50',
-    borderColor: 'border-rose-200',
-  },
+  { id: 'CONTATADO', title: 'Contatados', accent: 'border-blue-500/25', badge: 'bg-blue-500/[0.10] text-blue-400' },
+  { id: 'EM_NEGOCIACAO', title: 'Em negociação', accent: 'border-amber-500/25', badge: 'bg-amber-500/[0.10] text-amber-400' },
+  { id: 'FECHADO', title: 'Fechados', accent: 'border-emerald-500/25', badge: 'bg-emerald-500/[0.10] text-emerald-400' },
+  { id: 'PERDIDO', title: 'Perdidos', accent: 'border-rose-500/25', badge: 'bg-rose-500/[0.10] text-rose-400' },
 ];
 
-const STAGE_ORDER: LeadStatus[] = [
-  'CONTATADO',
-  'EM_NEGOCIACAO',
-  'FECHADO',
-  'PERDIDO',
-];
+const STAGE_ORDER: LeadStatus[] = ['CONTATADO', 'EM_NEGOCIACAO', 'FECHADO', 'PERDIDO'];
 
 function PipelineView({
   businesses,
@@ -88,17 +51,13 @@ function PipelineView({
   const [draggedBizId, setDraggedBizId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<LeadStatus | null>(null);
 
-  // Active pipeline items ONLY (excluding 'NOVO' un-added map businesses)
-  const activePipelineLeads = useMemo(() => {
-    return businesses.filter(
-      (b) => b.leadStatus && b.leadStatus !== 'NOVO'
-    );
-  }, [businesses]);
+  const activePipelineLeads = useMemo(
+    () => businesses.filter((business) => business.leadStatus && business.leadStatus !== 'NOVO' && business.leadStatus !== 'ARQUIVADO'),
+    [businesses]
+  );
 
-  // Group businesses by status
   const pipelineData = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-
+    const q = searchQuery.trim().toLowerCase();
     const grouped: Record<LeadStatus, Business[]> = {
       NOVO: [],
       CONTATADO: [],
@@ -108,78 +67,58 @@ function PipelineView({
       ARQUIVADO: [],
     };
 
-    activePipelineLeads.forEach((biz) => {
-      const status = biz.leadStatus || 'CONTATADO';
-      if (q) {
-        const match =
-          biz.name.toLowerCase().includes(q) ||
-          biz.category.toLowerCase().includes(q) ||
-          (biz.notes || '').toLowerCase().includes(q);
-        if (!match) return;
+    activePipelineLeads.forEach((business) => {
+      if (
+        q &&
+        ![business.name, business.category, business.address, business.notes || '']
+          .some((value) => value.toLowerCase().includes(q))
+      ) {
+        return;
       }
-      if (grouped[status]) {
-        grouped[status].push(biz);
-      } else {
-        grouped.CONTATADO.push(biz);
-      }
+
+      const status = business.leadStatus || 'CONTATADO';
+      if (grouped[status]) grouped[status].push(business);
+      else grouped.CONTATADO.push(business);
     });
 
     return grouped;
   }, [activePipelineLeads, searchQuery]);
 
-  // Metrics
   const totalInPipeline = activePipelineLeads.length;
-  const contactedCount = (pipelineData.CONTATADO || []).length;
-  const negotiatingCount = (pipelineData.EM_NEGOCIACAO || []).length;
-  const closedCount = (pipelineData.FECHADO || []).length;
-  const conversionRate =
-    totalInPipeline > 0 ? Math.round((closedCount / totalInPipeline) * 100) : 0;
+  const negotiatingCount = pipelineData.EM_NEGOCIACAO.length;
+  const closedCount = pipelineData.FECHADO.length;
+  const conversionRate = totalInPipeline > 0 ? Math.round((closedCount / totalInPipeline) * 100) : 0;
 
-  // Move lead between stages
-  const moveLead = (biz: Business, direction: 'next' | 'prev') => {
-    const currentIdx = STAGE_ORDER.indexOf(biz.leadStatus || 'CONTATADO');
-    const nextIdx = direction === 'next' ? currentIdx + 1 : currentIdx - 1;
-    if (nextIdx >= 0 && nextIdx < STAGE_ORDER.length) {
-      onUpdateLeadStatus(biz.id, STAGE_ORDER[nextIdx], biz.notes);
+  const moveLead = (business: Business, direction: 'next' | 'prev') => {
+    const currentIndex = STAGE_ORDER.indexOf(business.leadStatus || 'CONTATADO');
+    const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+
+    if (nextIndex >= 0 && nextIndex < STAGE_ORDER.length) {
+      onUpdateLeadStatus(business.id, STAGE_ORDER[nextIndex], business.notes);
     }
   };
 
-  // Drag and Drop Handlers
-  const handleDragStart = (e: React.DragEvent, bizId: string) => {
-    e.dataTransfer.setData('text/plain', bizId);
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggedBizId(bizId);
+  const handleDragStart = (event: React.DragEvent, businessId: string) => {
+    event.dataTransfer.setData('text/plain', businessId);
+    event.dataTransfer.effectAllowed = 'move';
+    setDraggedBizId(businessId);
   };
 
-  const handleDragEnd = () => {
-    setDraggedBizId(null);
-    setDragOverColId(null);
+  const handleDragOver = (event: React.DragEvent, columnId: LeadStatus) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverColId(columnId);
   };
 
-  const handleDragOver = (e: React.DragEvent, colId: LeadStatus) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverColId !== colId) {
-      setDragOverColId(colId);
+  const handleDrop = (event: React.DragEvent, targetStatus: LeadStatus) => {
+    event.preventDefault();
+    const businessId = event.dataTransfer.getData('text/plain') || draggedBizId;
+    const business = businesses.find((item) => item.id === businessId);
+
+    if (business && business.leadStatus !== targetStatus) {
+      onUpdateLeadStatus(business.id, targetStatus, business.notes);
     }
-  };
 
-  const handleDragLeave = (e: React.DragEvent, colId: LeadStatus) => {
-    e.preventDefault();
-    if (dragOverColId === colId) {
-      setDragOverColId(null);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, targetStatus: LeadStatus) => {
-    e.preventDefault();
-    const bizId = e.dataTransfer.getData('text/plain') || draggedBizId;
-    if (bizId) {
-      const targetBiz = businesses.find((b) => b.id === bizId);
-      if (targetBiz && targetBiz.leadStatus !== targetStatus) {
-        onUpdateLeadStatus(bizId, targetStatus, targetBiz.notes);
-      }
-    }
     setDraggedBizId(null);
     setDragOverColId(null);
   };
@@ -187,98 +126,58 @@ function PipelineView({
   const handleExportPipeline = () => {
     if (activePipelineLeads.length === 0) return;
 
-    const headers = [
-      'ID',
-      'Nome da Empresa',
-      'Categoria',
-      'Etapa Pipeline',
-      'Telefone',
-      'Website',
-      'Endereço',
-      'Anotações',
-    ];
-
-    const rows = activePipelineLeads.map((b) => [
-      `"${b.id}"`,
-      `"${b.name.replace(/"/g, '""')}"`,
-      `"${b.category.replace(/"/g, '""')}"`,
-      `"${b.leadStatus}"`,
-      `"${b.phone || (b.phones && b.phones[0]) || ''}"`,
-      `"${b.website || ''}"`,
-      `"${b.address.replace(/"/g, '""')}"`,
-      `"${(b.notes || '').replace(/"/g, '""')}"`,
+    const headers = ['ID', 'Nome da Empresa', 'Categoria', 'Etapa Pipeline', 'Telefone', 'Website', 'Endereço', 'Anotações'];
+    const rows = activePipelineLeads.map((business) => [
+      `"${business.id}"`,
+      `"${business.name.replace(/"/g, '""')}"`,
+      `"${business.category.replace(/"/g, '""')}"`,
+      `"${business.leadStatus}"`,
+      `"${business.phone || business.phones?.[0] || ''}"`,
+      `"${business.website || ''}"`,
+      `"${business.address.replace(/"/g, '""')}"`,
+      `"${(business.notes || '').replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
+    const csv = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `scoutly-pipeline-funil-${new Date().toISOString().slice(0, 10)}.csv`
-    );
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', `scoutly-pipeline-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-y-auto p-4 md:p-8">
-      <div className="max-w-[1600px] mx-auto w-full space-y-6">
-        {/* Header and Funnel Metrics */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="h-full flex-1 overflow-y-auto bg-[#090c10] px-4 py-6 md:px-8 md:py-8">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6">
+        <header className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-[#FF4D00]/10 text-[#FF4D00] rounded-xl">
-                <Columns3 className="w-5 h-5" />
-              </div>
-              <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
-                Pipeline Comercial (Kanban)
-              </h1>
-            </div>
-            <p className="text-xs text-stone-500 font-medium mt-1">
-              Arraste as empresas entre os estágios para atualizar o progresso comercial.
-            </p>
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-white">Pipeline</h1>
+            <p className="mt-1 text-xs text-stone-500">Organize prospects por estágio e acompanhe o avanço comercial.</p>
           </div>
 
-          {/* Quick Metrics Bar */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-4 py-2 bg-white rounded-2xl border border-[#EDE8E0] shadow-2xs flex items-center gap-2.5">
-              <Target className="w-4 h-4 text-stone-400" />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-11 items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
+              <Target className="h-4 w-4 text-stone-500" />
               <div>
-                <span className="text-[10px] uppercase font-bold text-stone-400 block leading-tight">
-                  No Pipeline
-                </span>
-                <span className="text-xs font-bold text-stone-900">
-                  {totalInPipeline} empresas
-                </span>
+                <span className="block text-[8px] font-semibold uppercase tracking-[0.1em] text-stone-600">No pipeline</span>
+                <span className="text-[11px] font-semibold text-stone-200">{totalInPipeline} empresas</span>
               </div>
             </div>
 
-            <div className="px-4 py-2 bg-white rounded-2xl border border-[#EDE8E0] shadow-2xs flex items-center gap-2.5">
-              <TrendingUp className="w-4 h-4 text-amber-500" />
+            <div className="flex h-11 items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
+              <TrendingUp className="h-4 w-4 text-amber-400" />
               <div>
-                <span className="text-[10px] uppercase font-bold text-stone-400 block leading-tight">
-                  Em Negociação
-                </span>
-                <span className="text-xs font-bold text-amber-700">
-                  {negotiatingCount} leads
-                </span>
+                <span className="block text-[8px] font-semibold uppercase tracking-[0.1em] text-stone-600">Negociação</span>
+                <span className="text-[11px] font-semibold text-stone-200">{negotiatingCount}</span>
               </div>
             </div>
 
-            <div className="px-4 py-2 bg-white rounded-2xl border border-[#EDE8E0] shadow-2xs flex items-center gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <div className="flex h-11 items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               <div>
-                <span className="text-[10px] uppercase font-bold text-stone-400 block leading-tight">
-                  Fechados
-                </span>
-                <span className="text-xs font-bold text-emerald-700">
-                  {closedCount} ({conversionRate}%)
-                </span>
+                <span className="block text-[8px] font-semibold uppercase tracking-[0.1em] text-stone-600">Conversão</span>
+                <span className="text-[11px] font-semibold text-stone-200">{closedCount} · {conversionRate}%</span>
               </div>
             </div>
 
@@ -286,238 +185,213 @@ function PipelineView({
               type="button"
               onClick={handleExportPipeline}
               disabled={totalInPipeline === 0}
-              className="px-4 py-2.5 bg-white border border-[#EDE8E0] hover:bg-stone-50 disabled:opacity-50 text-stone-800 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer"
+              className="flex h-11 items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5 text-[11px] font-semibold text-stone-300 transition hover:border-white/[0.14] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Download className="w-4 h-4 text-stone-600" />
-              <span>Exportar Funil</span>
+              <Download className="h-4 w-4" />
+              Exportar
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Search Bar in Pipeline */}
         {totalInPipeline > 0 && (
-          <div className="p-3 bg-white rounded-2xl border border-[#EDE8E0] shadow-2xs flex items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+          <section className="flex flex-col gap-3 rounded-[22px] border border-white/[0.08] bg-[#101318] p-3 md:flex-row md:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filtrar empresas no pipeline por nome ou categoria..."
-                className="w-full bg-[#FAF7F2] border border-[#EDE8E0] rounded-xl pl-10 pr-4 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#FF4D00]"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Filtrar empresas por nome, categoria ou anotação"
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0b0e12] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-600 focus:border-[#FF5A12]/50"
               />
             </div>
+
             <button
               type="button"
               onClick={onOpenAIChat}
-              className="px-3.5 py-2 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-3.5 text-[10px] font-semibold text-[#FF7A3D] transition hover:bg-[#FF5A12]/[0.13]"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Sugerir Abordagens IA</span>
+              <Sparkles className="h-4 w-4" />
+              Sugerir abordagens
             </button>
-          </div>
+          </section>
         )}
 
-        {/* Empty Pipeline Banner */}
         {totalInPipeline === 0 ? (
-          <div className="p-12 bg-white rounded-3xl border border-[#EDE8E0] text-center max-w-xl mx-auto space-y-4 my-8 shadow-xs">
-            <div className="w-16 h-16 bg-[#FF4D00]/10 text-[#FF4D00] rounded-2xl flex items-center justify-center mx-auto">
-              <Columns3 className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-stone-900">
-                Seu Pipeline Comercial está vazio
-              </h3>
-              <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto leading-relaxed">
-                Nenhuma empresa foi adicionada ao pipeline ainda. Explore o mapa de prospecção, clique em uma empresa e pressione o botão <strong className="text-stone-800 font-bold">"Adicionar ao pipeline"</strong>.
-              </p>
-            </div>
+          <section className="mx-auto flex min-h-[540px] max-w-2xl flex-col items-center justify-center px-6 py-12 text-center">
+            <img
+              src="/empty-pipeline.svg"
+              alt=""
+              className="mb-7 h-36 w-36 object-contain sm:h-40 sm:w-40"
+            />
+            <h2 className="text-xl font-semibold tracking-[-0.02em] text-white">Seu pipeline está vazio</h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-stone-500">
+              Adicione empresas ao pipeline para organizar prospecções, acompanhar negociações e manter próximos passos visíveis.
+            </p>
             {onNavigateToExplore && (
               <button
                 type="button"
                 onClick={onNavigateToExplore}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
+                className="mt-6 flex h-10 items-center gap-2 rounded-xl bg-[#FF5A12] px-4 text-xs font-semibold text-white transition hover:bg-[#ff6a27]"
               >
-                <Compass className="w-4 h-4" />
-                <span>Explorar Empresas no Mapa</span>
+                <Compass className="h-4 w-4" />
+                Explorar empresas
               </button>
             )}
-          </div>
+          </section>
         ) : (
-          /* Kanban Board Columns */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start min-h-[500px]">
-            {COLUMNS.map((col) => {
-              const list = pipelineData[col.id] || [];
-              const colIdx = STAGE_ORDER.indexOf(col.id);
-              const isDragOver = dragOverColId === col.id;
+          <div className="grid min-h-[520px] grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {COLUMNS.map((column) => {
+              const list = pipelineData[column.id] || [];
+              const columnIndex = STAGE_ORDER.indexOf(column.id);
+              const isDragOver = dragOverColId === column.id;
 
               return (
-                <div
-                  key={col.id}
-                  onDragOver={(e) => handleDragOver(e, col.id)}
-                  onDragLeave={(e) => handleDragLeave(e, col.id)}
-                  onDrop={(e) => handleDrop(e, col.id)}
-                  className={`bg-[#F7F3EC]/80 rounded-3xl border transition-all duration-200 p-3 flex flex-col min-h-[480px] max-h-[calc(100vh-220px)] shadow-2xs ${
+                <section
+                  key={column.id}
+                  onDragOver={(event) => handleDragOver(event, column.id)}
+                  onDragLeave={() => setDragOverColId(null)}
+                  onDrop={(event) => handleDrop(event, column.id)}
+                  className={`flex min-h-[500px] max-h-[calc(100vh-230px)] flex-col rounded-[22px] border bg-[#0f1216] p-3 transition ${
                     isDragOver
-                      ? 'border-[#FF4D00] ring-2 ring-[#FF4D00]/20 bg-[#FFF0E6]/50 scale-[1.01]'
-                      : col.borderColor
+                      ? 'border-[#FF5A12]/60 bg-[#FF5A12]/[0.035] ring-1 ring-[#FF5A12]/20'
+                      : column.accent
                   }`}
                 >
-                  {/* Column Header */}
-                  <div
-                    className={`p-3 rounded-2xl ${col.headerBg} border border-stone-200/60 mb-3 flex items-center justify-between`}
-                  >
-                    <span className="text-xs font-bold text-stone-900">
-                      {col.title}
-                    </span>
-                    <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${col.badgeBg} ${col.badgeText}`}
-                    >
+                  <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/[0.07] bg-[#15191e] px-3 py-3">
+                    <span className="text-[11px] font-semibold text-stone-200">{column.title}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${column.badge}`}>
                       {list.length}
                     </span>
                   </div>
 
-                  {/* Card List in Column */}
-                  <div className="space-y-3 overflow-y-auto no-scrollbar flex-1 pr-0.5">
+                  <div className="flex-1 space-y-2.5 overflow-y-auto pr-0.5 no-scrollbar">
                     {list.length === 0 ? (
-                      <div
-                        className={`p-8 text-center border-2 border-dashed rounded-2xl transition ${
-                          isDragOver
-                            ? 'border-[#FF4D00] bg-[#FF4D00]/5 text-[#FF4D00]'
-                            : 'border-stone-300/70 text-stone-400'
-                        }`}
-                      >
-                        <span className="text-xs font-medium block">
-                          {isDragOver ? 'Solte para mover para esta etapa' : 'Arraste um item para cá'}
+                      <div className={`flex min-h-[110px] items-center justify-center rounded-2xl border border-dashed px-4 text-center ${
+                        isDragOver ? 'border-[#FF5A12]/50 text-[#FF7A3D]' : 'border-white/[0.09] text-stone-700'
+                      }`}>
+                        <span className="text-[10px] font-medium">
+                          {isDragOver ? 'Solte para mover para esta etapa' : 'Arraste uma empresa para cá'}
                         </span>
                       </div>
                     ) : (
-                      list.map((biz) => {
-                        const waLink = getWhatsAppLink(
-                          biz.phone || (biz.phones && biz.phones[0])
-                        );
-                        const hasWebsite = Boolean(biz.website);
-                        const confidencePercent = Math.round(
-                          (biz.confidence || 0.8) * 100
-                        );
-                        const isBeingDragged = draggedBizId === biz.id;
+                      list.map((business) => {
+                        const waLink = getWhatsAppLink(business.phone || business.phones?.[0]);
+                        const confidence = Math.round((business.confidence || 0.8) * 100);
+                        const hasWebsite = Boolean(business.website);
+                        const isBeingDragged = draggedBizId === business.id;
 
                         return (
-                          <div
-                            key={biz.id}
+                          <article
+                            key={business.id}
                             draggable
-                            onDragStart={(e) => handleDragStart(e, biz.id)}
-                            onDragEnd={handleDragEnd}
-                            className={`p-4 bg-white rounded-2xl border border-[#EDE8E0] shadow-2xs hover:shadow-md transition-all duration-200 space-y-3 group cursor-grab active:cursor-grabbing ${
-                              isBeingDragged ? 'opacity-40 scale-95 border-dashed border-[#FF4D00]' : ''
+                            onDragStart={(event) => handleDragStart(event, business.id)}
+                            onDragEnd={() => {
+                              setDraggedBizId(null);
+                              setDragOverColId(null);
+                            }}
+                            className={`group cursor-grab rounded-2xl border bg-[#171a1f] p-3.5 shadow-[0_10px_28px_rgba(0,0,0,0.16)] transition active:cursor-grabbing ${
+                              isBeingDragged
+                                ? 'scale-[0.98] border-[#FF5A12]/60 opacity-45'
+                                : 'border-white/[0.08] hover:border-white/[0.14] hover:bg-[#1a1e23]'
                             }`}
                           >
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2.5">
+                              <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-stone-700 transition group-hover:text-stone-500" />
+
                               <div className="min-w-0 flex-1">
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 uppercase tracking-wider">
-                                  {biz.category}
+                                <span className="inline-flex rounded-lg bg-white/[0.035] px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-stone-500">
+                                  {business.category}
                                 </span>
-                                <h4 className="text-xs font-bold text-stone-900 mt-1 leading-snug group-hover:text-[#FF4D00] transition flex items-center gap-1.5">
-                                  <GripVertical className="w-3.5 h-3.5 text-stone-300 shrink-0 group-hover:text-stone-500" />
-                                  <span className="truncate">{biz.name}</span>
-                                </h4>
-                                <p className="text-[11px] text-stone-500 mt-0.5 truncate">
-                                  {biz.address || 'Endereço ativo'}
-                                </p>
+                                <h3 className="mt-1.5 truncate text-[12px] font-semibold text-white">{business.name}</h3>
+                                <p className="mt-0.5 truncate text-[9.5px] text-stone-600">{business.address || 'Endereço disponível'}</p>
                               </div>
 
-                              {/* Trust Speedometer Icon */}
-                              <div className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-stone-500 bg-[#FAF7F2] px-1.5 py-0.5 rounded-md border border-[#EDE8E0]">
-                                <span>{confidencePercent}%</span>
+                              <div className="flex shrink-0 items-center gap-1 text-[9px] font-semibold text-stone-500">
+                                <span>{confidence}%</span>
                                 <img
-                                  src={getTrustIcon(biz.confidence || 0.8)}
-                                  alt="Confiança"
-                                  className="w-3.5 h-3.5 object-contain"
-                                  title={`Confiança dos dados: ${confidencePercent}%`}
+                                  src={getTrustIcon(business.confidence || 0.8)}
+                                  alt=""
+                                  className="h-3.5 w-3.5 object-contain opacity-75"
+                                  title={`Confiança dos dados: ${confidence}%`}
                                 />
                               </div>
                             </div>
 
-                            {biz.notes && (
-                              <div className="p-2 bg-[#FAF7F2] rounded-lg border border-[#EDE8E0] text-[10px] text-stone-600 line-clamp-2">
-                                {biz.notes}
+                            {business.notes && (
+                              <div className="mt-3 line-clamp-2 rounded-xl border border-white/[0.06] bg-black/[0.12] px-2.5 py-2 text-[9.5px] leading-relaxed text-stone-500">
+                                {business.notes}
                               </div>
                             )}
 
-                            {/* Action icons & Stage Transition Controls */}
-                            <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-1.5">
+                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/[0.07] pt-2.5">
                               <div className="flex items-center gap-1">
                                 {waLink && (
                                   <a
                                     href={waLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      recordRecommendationWhatsApp(biz);
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      recordRecommendationWhatsApp(business);
                                     }}
-                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg transition"
-                                    title="WhatsApp"
+                                    className="flex h-7 items-center rounded-lg border border-emerald-500/20 bg-emerald-500/[0.07] px-2 text-[9px] font-semibold text-emerald-400"
                                   >
-                                    <img
-                                      src="/whatsapp_icone.png"
-                                      alt="WhatsApp"
-                                      className="w-3.5 h-3.5 object-contain"
-                                    />
+                                    WA
                                   </a>
                                 )}
+
                                 {hasWebsite && (
                                   <a
-                                    href={biz.website!}
+                                    href={business.website!}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="p-1.5 bg-stone-50 hover:bg-stone-100 text-stone-700 rounded-lg transition"
-                                    title="Site"
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-stone-500 transition hover:text-white"
+                                    title="Abrir site"
                                   >
-                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <ExternalLink className="h-3 w-3" />
                                   </a>
                                 )}
+
                                 <button
                                   type="button"
-                                  onClick={() => onSelectBusiness(biz)}
-                                  className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-lg text-[11px] font-semibold transition"
-                                  title="Ver ficha completa"
+                                  onClick={() => onSelectBusiness(business)}
+                                  className="flex h-7 items-center rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 text-[9px] font-semibold text-stone-400 transition hover:text-white"
                                 >
                                   Ficha
                                 </button>
                               </div>
 
-                              {/* Move left / right arrows */}
                               <div className="flex items-center gap-1">
-                                {colIdx > 0 && (
+                                {columnIndex > 0 && (
                                   <button
                                     type="button"
-                                    onClick={() => moveLead(biz, 'prev')}
-                                    className="p-1 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded-md transition cursor-pointer"
+                                    onClick={() => moveLead(business, 'prev')}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-600 transition hover:bg-white/[0.05] hover:text-white"
                                     title="Recuar etapa"
                                   >
-                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                    <ArrowLeft className="h-3.5 w-3.5" />
                                   </button>
                                 )}
-                                {colIdx < STAGE_ORDER.length - 1 && (
+                                {columnIndex < STAGE_ORDER.length - 1 && (
                                   <button
                                     type="button"
-                                    onClick={() => moveLead(biz, 'next')}
-                                    className="p-1 text-stone-700 hover:text-white hover:bg-stone-900 rounded-md transition cursor-pointer"
+                                    onClick={() => moveLead(business, 'next')}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF5A12]/[0.08] text-[#FF7A3D] transition hover:bg-[#FF5A12]/[0.14]"
                                     title="Avançar etapa"
                                   >
-                                    <ArrowRight className="w-3.5 h-3.5" />
+                                    <ArrowRight className="h-3.5 w-3.5" />
                                   </button>
                                 )}
                               </div>
                             </div>
-                          </div>
+                          </article>
                         );
                       })
                     )}
                   </div>
-                </div>
+                </section>
               );
             })}
           </div>
