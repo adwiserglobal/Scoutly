@@ -1,6 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import {
   ChevronRight,
+  Columns3,
   Compass,
   Download,
   ExternalLink,
@@ -27,10 +28,12 @@ function FavoriteCard({
   biz,
   onSelect,
   onToggleFavorite,
+  onUpdateLeadStatus,
 }: {
   biz: Business;
   onSelect: (b: Business) => void;
   onToggleFavorite?: (b: Business) => void;
+  onUpdateLeadStatus: (id: string, status: LeadStatus, notes?: string) => void;
 }) {
   const waLink = getWhatsAppLink(biz.phone || biz.phones?.[0]);
   const hasWebsite = Boolean(biz.website);
@@ -138,6 +141,28 @@ function FavoriteCard({
           </a>
         )}
 
+        {(!biz.leadStatus || biz.leadStatus === 'NOVO') ? (
+          <button
+            type="button"
+            onClick={() => onUpdateLeadStatus(biz.id, 'CONTATADO', biz.notes)}
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-2.5 text-[10px] font-semibold text-[#FF7A3D] transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.13]"
+            title="Adicionar ao pipeline"
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            <span className="hidden 2xl:inline">Pipeline</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onUpdateLeadStatus(biz.id, 'NOVO', biz.notes)}
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[10px] font-semibold text-stone-400 transition hover:bg-white/[0.06] hover:text-white"
+            title="Remover do pipeline"
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            <span className="hidden 2xl:inline">No pipeline</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => onToggleFavorite?.(biz)}
@@ -163,6 +188,7 @@ function FavoriteCard({
 function FavoritesView({
   businesses,
   onSelectBusiness,
+  onUpdateLeadStatus,
   onToggleFavorite,
   onNavigateToExplore,
   onOpenAIChat,
@@ -325,6 +351,7 @@ function FavoritesView({
                 biz={business}
                 onSelect={onSelectBusiness}
                 onToggleFavorite={onToggleFavorite}
+                onUpdateLeadStatus={onUpdateLeadStatus}
               />
             ))}
           </div>
