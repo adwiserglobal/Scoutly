@@ -22,7 +22,7 @@ import PlansModal from './components/PlansModal';
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal';
 import VisitRoutePanel from './components/VisitRoutePanel';
 import LoginView from './components/LoginView';
-import { hydrateRecentlyViewedBusinesses } from './utils/recentBusinesses';
+import { hydrateRecentlyViewedBusinesses, setRecentBusinessesUserScope } from './utils/recentBusinesses';
 import { getBillingStatus, hasRecommendationsAccess } from './lib/billing';
 import {
   getRecommendedBusinesses,
@@ -30,6 +30,7 @@ import {
   recordRecommendationPipeline,
   recordRecommendationSearch,
   hydrateRecommendationSignals,
+  setRecommendationUserScope,
   RECOMMENDATION_SIGNAL_EVENT,
 } from './utils/recommendations';
 
@@ -83,6 +84,7 @@ export default function App() {
   const routeHydratedRef = useRef(false);
   const routeSyncTimerRef = useRef<number | null>(null);
   const [recommendationRevision, setRecommendationRevision] = useState(0);
+  const [recommendationHistoryBusinesses, setRecommendationHistoryBusinesses] = useState<Business[]>([]);
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
@@ -102,6 +104,17 @@ export default function App() {
   const [billingStatus, setBillingStatus] = useState(() => getBillingStatus(user));
   const [subscriptionWelcome, setSubscriptionWelcome] = useState<ReturnType<typeof getBillingStatus> | null>(null);
   const [billingSyncError, setBillingSyncError] = useState('');
+
+  useEffect(() => {
+    setRecommendationUserScope(user?.uid || null);
+    setRecentBusinessesUserScope(user?.uid || null);
+
+    if (!user) {
+      setRecommendationHistoryBusinesses([]);
+      hydrateRecommendationSignals([]);
+      hydrateRecentlyViewedBusinesses([]);
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     const refreshRecommendations = () => setRecommendationRevision((value) => value + 1);
