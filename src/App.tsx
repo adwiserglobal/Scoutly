@@ -365,13 +365,43 @@ export default function App() {
         window.dispatchEvent(new Event('scoutly-preferences-updated'));
       }
 
-      if (Array.isArray(data?.recommendationEvents)) {
-        hydrateRecommendationSignals(data.recommendationEvents);
-      }
+      hydrateRecommendationSignals(
+        Array.isArray(data?.recommendationEvents) ? data.recommendationEvents : []
+      );
+      hydrateRecentlyViewedBusinesses(
+        Array.isArray(data?.recentBusinesses) ? data.recentBusinesses : []
+      );
 
-      if (Array.isArray(data?.recentBusinesses)) {
-        hydrateRecentlyViewedBusinesses(data.recentBusinesses);
-      }
+      const historicalById = new Map<string, Business>();
+      const favorites = data?.favorites || {};
+      const leads = data?.leads || {};
+
+      const addHistoricalBusiness = (candidate: any) => {
+        if (
+          !candidate ||
+          typeof candidate.id !== 'string' ||
+          !Number.isFinite(Number(candidate.latitude)) ||
+          !Number.isFinite(Number(candidate.longitude))
+        ) {
+          return;
+        }
+
+        const lead = leads[candidate.id];
+        historicalById.set(candidate.id, {
+          ...candidate,
+          isFavorite: Boolean(favorites[candidate.id] ?? candidate.isFavorite),
+          leadStatus: lead?.status || candidate.leadStatus || 'NOVO',
+          notes: lead?.notes || candidate.notes || '',
+        } as Business);
+      };
+
+      Object.values(leads).forEach((lead: any) => addHistoricalBusiness(lead?.business));
+      (data?.favoriteBusinesses || []).forEach(addHistoricalBusiness);
+      (data?.recentBusinesses || []).forEach((item: any) =>
+        addHistoricalBusiness(item?.business_snapshot)
+      );
+
+      setRecommendationHistoryBusinesses([...historicalById.values()]);
 
       if (data?.route?.exists) {
         setVisitRouteStops(data.route.stops as VisitRouteStop[]);
