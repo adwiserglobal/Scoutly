@@ -664,6 +664,13 @@ export default function App() {
     setCurrentRegionName(preset.name);
   };
 
+  const rememberRecommendationBusiness = useCallback((business: Business) => {
+    setRecommendationHistoryBusinesses((current) => {
+      const next = [business, ...current.filter((item) => item.id !== business.id)];
+      return next.slice(0, 120);
+    });
+  }, []);
+
   const handleToggleRouteMode = useCallback(() => {
     setIsRouteMode((current) => {
       const next = !current;
@@ -681,6 +688,8 @@ export default function App() {
   }, []);
 
   const handleMapBusinessSelect = useCallback((biz: Business) => {
+    rememberRecommendationBusiness(biz);
+
     if (isRouteMode) {
       setVisitRouteStops((current) => {
         if (current.some((stop) => stop.business.id === biz.id)) return current;
@@ -700,7 +709,7 @@ export default function App() {
 
     setSelectedBusiness(biz);
     setModalBusiness(null);
-  }, [isRouteMode]);
+  }, [isRouteMode, rememberRecommendationBusiness]);
 
   const handleSetVisitStatus = useCallback((businessId: string, status: VisitStatus) => {
     setVisitRouteStops((current) =>
@@ -1004,16 +1013,20 @@ export default function App() {
 
   // Stable callbacks for BusinessCard memoization
   const handleCardSelect = useCallback((biz: Business) => {
+    rememberRecommendationBusiness(biz);
     setModalBusiness(biz);
-  }, []);
+  }, [rememberRecommendationBusiness]);
 
   const handleOpenDetails = useCallback((biz: Business) => {
+    rememberRecommendationBusiness(biz);
     setModalBusiness(biz);
-  }, []);
+  }, [rememberRecommendationBusiness]);
 
   // Toggle Favorite status (and persist in database)
   const handleToggleFavorite = useCallback((biz: Business) => {
     const nextIsFavorite = !biz.isFavorite;
+    const nextBusiness = { ...biz, isFavorite: nextIsFavorite };
+    rememberRecommendationBusiness(nextBusiness);
     recordRecommendationFavorite(biz, nextIsFavorite);
     setBusinesses((prev) =>
       prev.map((b) => (b.id === biz.id ? { ...b, isFavorite: nextIsFavorite } : b))
@@ -1040,7 +1053,7 @@ export default function App() {
       ...biz,
       isFavorite: nextIsFavorite,
     });
-  }, []);
+  }, [rememberRecommendationBusiness]);
 
   // Update Lead Status (and persist in database)
   const handleUpdateStatus = useCallback((id: string, newStatus: LeadStatus, notes?: string) => {
@@ -1052,6 +1065,8 @@ export default function App() {
       (modalBusiness?.id === id ? modalBusiness : null);
 
     if (signalBusiness) {
+      const nextBusiness = { ...signalBusiness, leadStatus: newStatus, notes: updatedNotes };
+      rememberRecommendationBusiness(nextBusiness);
       recordRecommendationPipeline(signalBusiness, newStatus !== 'NOVO' && newStatus !== 'ARQUIVADO');
     }
     setBusinesses((prev) =>
@@ -1076,22 +1091,38 @@ export default function App() {
     );
     // Save to persistent database
     saveUserLead(id, newStatus, updatedNotes, undefined, signalBusiness || undefined);
-  }, [businesses, visitRouteStops, selectedBusiness, modalBusiness]);
+  }, [businesses, visitRouteStops, selectedBusiness, modalBusiness, rememberRecommendationBusiness]);
+
+  const recommendationCandidates = useMemo(() => {
+    const byId = new Map<string, Business>();
+
+    for (const business of recommendationHistoryBusinesses) {
+      byId.set(business.id, business);
+    }
+
+    // Live map data wins over persisted snapshots when both are available.
+    for (const business of businesses) {
+      byId.set(business.id, business);
+    }
+
+    return [...byId.values()];
+  }, [businesses, recommendationHistoryBusinesses]);
 
   const recommendedBusinesses = useMemo(
-    () => getRecommendedBusinesses(businesses, 12),
-    [businesses, recommendationRevision]
+    () => getRecommendedBusinesses(recommendationCandidates, 12),
+    [recommendationCandidates, recommendationRevision]
   );
 
   const recommendationsLocked = !hasRecommendationsAccess(billingStatus);
 
   const handleSelectRecommended = useCallback((business: Business) => {
+    rememberRecommendationBusiness(business);
     setCenterCoordinates({ lat: business.latitude, lng: business.longitude });
     setCurrentRegionName(business.address || business.name);
     setSelectedBusiness(business);
     setModalBusiness(null);
     setIsFiltersOpen(false);
-  }, []);
+  }, [rememberRecommendationBusiness]);
 
   const favoritesCount = useMemo(() => {
     return businesses.filter((b) => Boolean(b.isFavorite)).length;
