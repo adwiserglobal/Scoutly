@@ -252,24 +252,25 @@ body,
 
 @media (min-width: 1024px) {
   .maplibregl-ctrl-top-right {
-    top: 16px;
+    top: 86px;
     right: 14px;
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
   }
 
   .maplibregl-ctrl-top-right .maplibregl-ctrl-group {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
   }
 
   .maplibregl-ctrl-top-right .maplibregl-ctrl-group button + button {
-    border-top: 0;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 0;
   }
 
   .scoutly-map-mode-control {
+    flex-direction: column;
     align-items: center;
   }
 }
