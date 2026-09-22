@@ -175,7 +175,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                 type="button"
                 onClick={saveProfile}
                 disabled={isSavingProfile || !displayName.trim()}
-                className="rounded-xl bg-[#FF5A12] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#FF5A12] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#FF5A12] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSavingProfile ? 'Salvando...' : 'Salvar nome'}
               </button>
@@ -190,7 +190,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               </p>
             </div>
 
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-white/[0.07]">
               <div className="flex items-center justify-between gap-5 py-4 first:pt-0">
                 <div>
                   <div className="text-sm font-medium text-stone-200">
@@ -211,7 +211,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   }`}
                 >
                   <span
-                    className={`absolute top-1 h-4 w-4 rounded-full bg-[#111418] shadow-sm transition-all ${
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
                       autoEnrich ? 'left-6' : 'left-1'
                     }`}
                   />
@@ -298,7 +298,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                       : 'Atualize o plano, método de pagamento, faturas ou cancelamento com segurança pela Stripe.'}
                 </p>
                 {billingError && (
-                  <p className="mt-2 text-[11px] font-medium text-red-600">{billingError}</p>
+                  <p className="mt-2 text-[11px] font-medium text-rose-400">{billingError}</p>
                 )}
               </div>
 
@@ -329,7 +329,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-xl border border-white/[0.08] bg-[#111418] px-4 py-2 text-xs font-semibold text-stone-300 transition hover:border-rose-500/20 hover:bg-rose-500/[0.08] hover:text-rose-400"
+                className="rounded-xl border border-white/[0.08] bg-[#111418] px-4 py-2 text-xs font-semibold text-stone-300 transition hover:border-rose-500/20 hover:bg-rose-500/[0.08]0/[0.08] hover:text-rose-400"
               >
                 Sair da conta
               </button>
