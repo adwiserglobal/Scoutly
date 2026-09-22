@@ -35,7 +35,7 @@ interface BusinessSidePanelProps {
 function LoaderRing({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   return (
     <span
-      className={`${size === 'md' ? 'h-4 w-4 border-2' : 'h-3.5 w-3.5 border-[1.5px]'} inline-block shrink-0 animate-spin rounded-full border-stone-300 border-t-[#FF4D00]`}
+      className={`${size === 'md' ? 'h-4 w-4 border-2' : 'h-3.5 w-3.5 border-[1.5px]'} inline-block shrink-0 animate-spin rounded-full border-white/[0.10] border-t-[#FF4D00]`}
       aria-label="Carregando"
     />
   );
@@ -365,7 +365,7 @@ export default function BusinessSidePanel({
                   className="shrink-0 rounded-lg p-1 text-stone-600 transition hover:bg-white/[0.06] hover:text-stone-500"
                   title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 >
-                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF4D00] text-[#FF6A26]' : ''}`} />
+                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF6A26] text-[#FF6A26]' : ''}`} />
                 </button>
               </div>
 
@@ -424,7 +424,7 @@ export default function BusinessSidePanel({
                 rel="noopener noreferrer"
                 onClick={() => recordRecommendationWhatsApp(business)}
                 title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/90 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-500"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/[0.08]0/90 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-500/[0.08]0"
               >
                 <img
                   src="/whatsapp_icone.png"
@@ -562,7 +562,7 @@ export default function BusinessSidePanel({
               )}
 
               {messageError && (
-                <p className="rounded-lg bg-rose-500/[0.08] px-3 py-2 text-[10px] text-rose-400">
+                <p className="rounded-lg bg-rose-500/[0.08]0/[0.08] px-3 py-2 text-[10px] text-rose-400">
                   {messageError}
                 </p>
               )}
