@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { BillingStatus, formatBRL, SCOUTLY_PLANS } from '../lib/billing';
 import { createBillingPortalSession, createCheckoutSession } from '../services/api';
 
@@ -14,8 +15,8 @@ type PlanId = 'go' | 'pro' | 'agency';
 
 function Feature({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 text-[11px] leading-relaxed text-stone-600">
-      <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF4D00]" />
+    <div className="flex items-start gap-2 text-[11px] leading-relaxed text-stone-400">
+      <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF5A12]" />
       <span>{children}</span>
     </div>
   );
@@ -66,16 +67,24 @@ export default function PlansModal({
     }
   };
 
+  const buttonLabel = (plan: PlanId, fallback: string) => {
+    if (isActivePaid && billing.paidPlanId === plan) return 'Plano atual';
+    if (isRedirecting && selectedPlan === plan) {
+      return isPaid ? 'Abrindo portal...' : 'Abrindo checkout...';
+    }
+    return isPaid ? 'Alterar plano' : fallback;
+  };
+
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[2px]">
-      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-[#E7E0D8] bg-[#FAF7F2] shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-[#E7E0D8] px-6 py-6 md:px-8">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-[7px]">
+      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[28px] border border-white/[0.09] bg-[#090c10] shadow-[0_28px_100px_rgba(0,0,0,0.62)]">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/[0.08] bg-[#090c10]/95 px-6 py-6 backdrop-blur-2xl md:px-8">
           <div>
-            <div className="mb-3 h-[3px] w-12 rounded-full bg-[#FF4D00]" />
-            <h2 className="text-2xl font-semibold tracking-tight text-stone-950">
+            <div className="mb-3 h-[3px] w-12 rounded-full bg-[#FF5A12]" />
+            <h2 className="text-2xl font-semibold tracking-tight text-white">
               Escolha seu plano
             </h2>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-500">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-500">
               {isPaid
                 ? 'Compare os planos e use o portal seguro da Stripe para fazer upgrade, downgrade, atualizar o pagamento ou cancelar.'
                 : 'Teste todos os recursos por 7 dias. Depois, escolha um plano para continuar usando a Scoutly.'}
@@ -86,21 +95,23 @@ export default function PlansModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-3 py-2 text-sm font-medium text-stone-400 transition hover:bg-white hover:text-stone-700"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-stone-500 transition hover:bg-white/[0.06] hover:text-white"
+              aria-label="Fechar planos"
+              title="Fechar"
             >
-              Fechar
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
         <div className="px-6 py-6 md:px-8">
-          <div className="mb-5 rounded-2xl border border-[#E7E0D8] bg-white px-4 py-3.5">
+          <div className="mb-5 rounded-2xl border border-white/[0.08] bg-[#111418] px-4 py-3.5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-600">
                   Seu acesso atual
                 </span>
-                <span className="mt-1 block text-sm font-semibold text-stone-900">
+                <span className="mt-1 block text-sm font-semibold text-white">
                   {billing.isExpired
                     ? 'Seu acesso está encerrado'
                     : billing.isTrial
@@ -119,28 +130,26 @@ export default function PlansModal({
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <article className="rounded-3xl border border-[#E7E0D8] bg-white p-5">
+            <article className="flex flex-col rounded-[24px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
               <div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
                   Começar
                 </span>
-                <h3 className="mt-1 text-xl font-semibold text-stone-950">
-                  Go
-                </h3>
+                <h3 className="mt-1 text-xl font-semibold text-white">Go</h3>
               </div>
 
               <div className="mt-5">
-                <span className="text-3xl font-semibold tracking-tight text-stone-950">
+                <span className="text-3xl font-semibold tracking-tight text-white">
                   {formatBRL(SCOUTLY_PLANS.go.monthlyPrice)}
                 </span>
-                <span className="ml-1 text-sm text-stone-400">/mês</span>
+                <span className="ml-1 text-sm text-stone-600">/mês</span>
               </div>
 
               <p className="mt-1 text-[11px] text-stone-500">
                 Para quem prospecta por conta própria
               </p>
 
-              <div className="mt-5 space-y-2.5">
+              <div className="mt-5 flex-1 space-y-2.5">
                 <Feature>1 usuário</Feature>
                 <Feature>Mapa e busca de empresas</Feature>
                 <Feature>Até {SCOUTLY_PLANS.go.monthlyAnalysisLimit} análises por mês</Feature>
@@ -153,39 +162,34 @@ export default function PlansModal({
                 type="button"
                 onClick={() => handleSelectPlan('go')}
                 disabled={isRedirecting || (isActivePaid && billing.paidPlanId === 'go')}
-                className="mt-6 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs font-semibold text-stone-900 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-6 w-full rounded-xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-xs font-semibold text-stone-200 transition hover:border-white/[0.16] hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isActivePaid && billing.paidPlanId === 'go'
-                  ? 'Plano atual'
-                  : isRedirecting && selectedPlan === 'go'
-                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
-                    : isPaid ? 'Alterar plano' : 'Continuar com Go'}
+                {buttonLabel('go', 'Continuar com Go')}
               </button>
             </article>
 
-            <article className="rounded-3xl border border-[#FF4D00]/50 bg-white p-5 shadow-sm">
+            <article className="relative flex flex-col overflow-hidden rounded-[24px] border border-[#FF5A12]/45 bg-[#131517] p-5 shadow-[0_20px_60px_rgba(255,90,18,0.08)]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#FF5A12] to-transparent" />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#D94400]">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#FF7A3D]">
                     Individual
                   </span>
-                  <h3 className="mt-1 text-xl font-semibold text-stone-950">
-                    Pro
-                  </h3>
+                  <h3 className="mt-1 text-xl font-semibold text-white">Pro</h3>
                 </div>
-                <span className="rounded-full bg-[#FFF1E8] px-2.5 py-1 text-[9px] font-semibold text-[#D94400]">
+                <span className="rounded-full border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] px-2.5 py-1 text-[9px] font-semibold text-[#FF7A3D]">
                   Mais indicado
                 </span>
               </div>
 
               <div className="mt-5">
-                <span className="text-3xl font-semibold tracking-tight text-stone-950">
+                <span className="text-3xl font-semibold tracking-tight text-white">
                   {formatBRL(SCOUTLY_PLANS.pro.monthlyPrice)}
                 </span>
-                <span className="ml-1 text-sm text-stone-400">/mês</span>
+                <span className="ml-1 text-sm text-stone-600">/mês</span>
               </div>
 
-              <div className="mt-5 space-y-2.5">
+              <div className="mt-5 flex-1 space-y-2.5">
                 <Feature>1 usuário</Feature>
                 <Feature>Mapa, busca e filtros avançados</Feature>
                 <Feature>Enriquecimento de contatos públicos</Feature>
@@ -198,38 +202,32 @@ export default function PlansModal({
                 type="button"
                 onClick={() => handleSelectPlan('pro')}
                 disabled={isRedirecting || (isActivePaid && billing.paidPlanId === 'pro')}
-                className="mt-6 w-full rounded-xl bg-[#FF4D00] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-6 w-full rounded-xl bg-[#FF5A12] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isActivePaid && billing.paidPlanId === 'pro'
-                  ? 'Plano atual'
-                  : isRedirecting && selectedPlan === 'pro'
-                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
-                    : isPaid ? 'Alterar plano' : 'Continuar com Pro'}
+                {buttonLabel('pro', 'Continuar com Pro')}
               </button>
             </article>
 
-            <article className="rounded-3xl border border-[#E7E0D8] bg-white p-5">
+            <article className="flex flex-col rounded-[24px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
               <div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
                   Equipes
                 </span>
-                <h3 className="mt-1 text-xl font-semibold text-stone-950">
-                  Agency
-                </h3>
+                <h3 className="mt-1 text-xl font-semibold text-white">Agency</h3>
               </div>
 
               <div className="mt-5">
-                <span className="text-3xl font-semibold tracking-tight text-stone-950">
+                <span className="text-3xl font-semibold tracking-tight text-white">
                   {formatBRL(SCOUTLY_PLANS.agency.monthlyPrice)}
                 </span>
-                <span className="ml-1 text-sm text-stone-400">/mês</span>
+                <span className="ml-1 text-sm text-stone-600">/mês</span>
               </div>
 
               <p className="mt-1 text-[11px] text-stone-500">
                 Até 5 usuários incluídos
               </p>
 
-              <div className="mt-5 space-y-2.5">
+              <div className="mt-5 flex-1 space-y-2.5">
                 <Feature>Tudo do Pro</Feature>
                 <Feature>5 usuários incluídos</Feature>
                 <Feature>{formatBRL(SCOUTLY_PLANS.agency.additionalSeatPrice)} por usuário adicional</Feature>
@@ -241,26 +239,22 @@ export default function PlansModal({
                 type="button"
                 onClick={() => handleSelectPlan('agency')}
                 disabled={isRedirecting || (isActivePaid && billing.paidPlanId === 'agency')}
-                className="mt-6 w-full rounded-xl border border-stone-200 bg-stone-950 px-4 py-3 text-xs font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-6 w-full rounded-xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-xs font-semibold text-stone-200 transition hover:border-[#FF5A12]/30 hover:bg-[#FF5A12]/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isActivePaid && billing.paidPlanId === 'agency'
-                  ? 'Plano atual'
-                  : isRedirecting && selectedPlan === 'agency'
-                    ? isPaid ? 'Abrindo portal...' : 'Abrindo checkout...'
-                    : isPaid ? 'Alterar plano' : 'Continuar com Agency'}
+                {buttonLabel('agency', 'Continuar com Agency')}
               </button>
             </article>
           </div>
 
           {checkoutError && (
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-medium text-red-700">
+            <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/[0.08] px-4 py-3 text-[11px] font-medium text-rose-300">
               {checkoutError}
             </div>
           )}
 
           {selectedPlan && isRedirecting && (
-            <div className="mt-5 rounded-2xl border border-[#E7E0D8] bg-white px-4 py-3.5">
-              <span className="block text-xs font-semibold text-stone-900">
+            <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#111418] px-4 py-3.5">
+              <span className="block text-xs font-semibold text-white">
                 {isPaid ? 'Abrindo portal seguro' : 'Preparando checkout seguro'}
               </span>
               <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
@@ -271,8 +265,8 @@ export default function PlansModal({
             </div>
           )}
 
-          <div className="mt-5 flex flex-col items-center gap-2">
-            <p className="text-center text-[10px] text-stone-400">
+          <div className="mt-5 flex flex-col items-center gap-2 border-t border-white/[0.06] pt-5">
+            <p className="text-center text-[10px] text-stone-600">
               Não existe plano gratuito permanente. Após o teste, é necessário um plano ativo para continuar usando a Scoutly.
             </p>
 
@@ -280,7 +274,7 @@ export default function PlansModal({
               <button
                 type="button"
                 onClick={() => onSignOut()}
-                className="text-[10px] font-medium text-stone-500 underline underline-offset-4 transition hover:text-stone-800"
+                className="text-[10px] font-medium text-stone-500 underline underline-offset-4 transition hover:text-white"
               >
                 Sair da conta
               </button>
