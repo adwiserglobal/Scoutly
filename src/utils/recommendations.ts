@@ -1,8 +1,29 @@
 import { Business } from '../types';
 import { saveRecommendationEvent } from '../services/api';
 
-const STORAGE_KEY = 'scoutly_recommendation_signals';
+const LEGACY_STORAGE_KEY = 'scoutly_recommendation_signals';
+const STORAGE_KEY_PREFIX = 'scoutly_recommendation_signals';
 export const RECOMMENDATION_SIGNAL_EVENT = 'scoutly-recommendation-signals-updated';
+
+let activeUserScope = 'anonymous';
+
+function storageKey() {
+  return `${STORAGE_KEY_PREFIX}:${activeUserScope}`;
+}
+
+export function setRecommendationUserScope(userUid?: string | null) {
+  activeUserScope = userUid ? encodeURIComponent(userUid) : 'anonymous';
+
+  if (typeof window !== 'undefined') {
+    // Never reuse the old global key: it could contain signals from another account.
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    window.dispatchEvent(
+      new CustomEvent(RECOMMENDATION_SIGNAL_EVENT, {
+        detail: { scope: activeUserScope },
+      })
+    );
+  }
+}
 
 type SearchSignal = {
   query: string;
@@ -40,7 +61,7 @@ function readSignals(): RecommendationSignals {
   if (typeof window === 'undefined') return EMPTY_SIGNALS;
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey()) || '{}');
     return {
       searches: Array.isArray(parsed.searches) ? parsed.searches.slice(-30) : [],
       favorites: parsed.favorites && typeof parsed.favorites === 'object' ? parsed.favorites : {},
@@ -61,8 +82,12 @@ function readSignals(): RecommendationSignals {
 
 function writeSignals(next: RecommendationSignals) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  window.dispatchEvent(new CustomEvent(RECOMMENDATION_SIGNAL_EVENT));
+  window.localStorage.setItem(storageKey(), JSON.stringify(next));
+  window.dispatchEvent(
+    new CustomEvent(RECOMMENDATION_SIGNAL_EVENT, {
+      detail: { scope: activeUserScope },
+    })
+  );
 }
 
 export function recordRecommendationSearch(query: string, location: string) {
@@ -140,7 +165,7 @@ export function recordRecommendationWhatsApp(business: Business) {
 }
 
 export function hydrateRecommendationSignals(events: any[]) {
-  if (!Array.isArray(events) || events.length === 0) return;
+  const sourceEvents = Array.isArray(events) ? events : [];
 
   const next: RecommendationSignals = {
     searches: [],
@@ -150,7 +175,7 @@ export function hydrateRecommendationSignals(events: any[]) {
     whatsappBusinesses: {},
   };
 
-  const ordered = [...events].sort(
+  const ordered = [...sourceEvents].sort(
     (a, b) => new Date(a?.created_at || 0).getTime() - new Date(b?.created_at || 0).getTime()
   );
 
