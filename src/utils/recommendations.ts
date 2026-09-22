@@ -95,12 +95,9 @@ export function recordRecommendationSearch(query: string, location: string) {
   if (!cleanQuery) return;
 
   const current = readSignals();
+  // Keep repeated searches: frequency is a real intent signal, not just recency.
   const searches = [
-    ...current.searches.filter(
-      (item) =>
-        normalize(item.query) !== normalize(cleanQuery) ||
-        normalize(item.location) !== normalize(location)
-    ),
+    ...current.searches,
     { query: cleanQuery, location: location || '', at: Date.now() },
   ].slice(-30);
 
@@ -124,6 +121,7 @@ export function recordRecommendationFavorite(business: Business, active: boolean
     eventType: active ? 'favorite_add' : 'favorite_remove',
     businessId: business.id,
     category: business.category || '',
+    metadata: { business },
   });
 }
 
@@ -139,6 +137,7 @@ export function recordRecommendationPipeline(business: Business, active: boolean
     eventType: active ? 'pipeline_add' : 'pipeline_remove',
     businessId: business.id,
     category: business.category || '',
+    metadata: { business },
   });
 }
 
@@ -161,6 +160,7 @@ export function recordRecommendationWhatsApp(business: Business) {
     eventType: 'whatsapp_click',
     businessId: business.id,
     category: business.category || '',
+    metadata: { business },
   });
 }
 
