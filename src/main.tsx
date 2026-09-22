@@ -1,6 +1,5 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import './map3dSetup';
 import App from './App.tsx';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
