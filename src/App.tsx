@@ -660,9 +660,13 @@ export default function App() {
     setIsLocating(true);
     setBusinessesError(null);
 
+    const hasBusinessKeyword =
+      /\b(despachant|restaurant|cl[ií]nic|dentist|mec[aâ]nic|oficina|ag[eê]ncia|marketing|farm[aá]ci|drogaria|hotel|pousada|academia|padaria|advogad|contabil|imobili|pet|veterin|sal[aã]o|barbear|loja|mercado|supermercado)\w*/i.test(cleanQuery);
+    const hasExplicitRegion =
+      /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\b/i.test(cleanQuery);
+
     const hasBusinessAndRegionShape =
-      /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\b/i.test(cleanQuery) &&
-      cleanQuery.split(/\s+/).length >= 3;
+      hasBusinessKeyword || (hasExplicitRegion && cleanQuery.split(/\s+/).length >= 3);
 
     if (hasBusinessAndRegionShape) {
       try {
