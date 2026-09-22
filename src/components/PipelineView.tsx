@@ -10,6 +10,7 @@ import {
   Search,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
@@ -50,6 +51,7 @@ function PipelineView({
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedBizId, setDraggedBizId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<LeadStatus | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const activePipelineLeads = useMemo(
     () => businesses.filter((business) => business.leadStatus && business.leadStatus !== 'NOVO' && business.leadStatus !== 'ARQUIVADO'),
@@ -88,6 +90,25 @@ function PipelineView({
   const negotiatingCount = pipelineData.EM_NEGOCIACAO.length;
   const closedCount = pipelineData.FECHADO.length;
   const conversionRate = totalInPipeline > 0 ? Math.round((closedCount / totalInPipeline) * 100) : 0;
+
+  const saveComment = (business: Business) => {
+    const draft = noteDrafts[business.id] ?? business.notes ?? '';
+    if (draft === (business.notes || '')) return;
+    onUpdateLeadStatus(
+      business.id,
+      business.leadStatus && business.leadStatus !== 'NOVO' ? business.leadStatus : 'CONTATADO',
+      draft
+    );
+  };
+
+  const removeFromPipeline = (business: Business) => {
+    setNoteDrafts((current) => {
+      const next = { ...current };
+      delete next[business.id];
+      return next;
+    });
+    onUpdateLeadStatus(business.id, 'NOVO', business.notes || '');
+  };
 
   const moveLead = (business: Business, direction: 'next' | 'prev') => {
     const currentIndex = STAGE_ORDER.indexOf(business.leadStatus || 'CONTATADO');
@@ -318,11 +339,27 @@ function PipelineView({
                               </div>
                             </div>
 
-                            {business.notes && (
-                              <div className="mt-3 line-clamp-2 rounded-xl border border-white/[0.06] bg-black/[0.12] px-2.5 py-2 text-[9.5px] leading-relaxed text-stone-500">
-                                {business.notes}
-                              </div>
-                            )}
+                            <div className="mt-3">
+                              <textarea
+                                value={noteDrafts[business.id] ?? business.notes ?? ''}
+                                onChange={(event) =>
+                                  setNoteDrafts((current) => ({
+                                    ...current,
+                                    [business.id]: event.target.value,
+                                  }))
+                                }
+                                onBlur={() => saveComment(business)}
+                                onKeyDown={(event) => {
+                                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                                    event.currentTarget.blur();
+                                  }
+                                }}
+                                onClick={(event) => event.stopPropagation()}
+                                placeholder="Adicionar comentário..."
+                                rows={2}
+                                className="w-full resize-none rounded-xl border border-white/[0.07] bg-black/[0.14] px-2.5 py-2 text-[9.5px] leading-relaxed text-stone-300 outline-none placeholder:text-stone-700 focus:border-[#FF5A12]/35"
+                              />
+                            </div>
 
                             <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/[0.07] pt-2.5">
                               <div className="flex items-center gap-1">
@@ -360,6 +397,19 @@ function PipelineView({
                                   className="flex h-7 items-center rounded-lg border border-white/[0.07] bg-white/[0.025] px-2 text-[9px] font-semibold text-stone-400 transition hover:text-white"
                                 >
                                   Ficha
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    removeFromPipeline(business);
+                                  }}
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-500/10 bg-rose-500/[0.04] text-stone-600 transition hover:border-rose-500/25 hover:bg-rose-500/[0.09] hover:text-rose-400"
+                                  title="Remover do pipeline"
+                                  aria-label="Remover do pipeline"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
 
