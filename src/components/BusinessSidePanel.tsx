@@ -45,9 +45,9 @@ function StatusIcon({ ok, loading = false }: { ok: boolean; loading?: boolean })
   if (loading) return <LoaderRing />;
 
   return ok ? (
-    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
   ) : (
-    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
   );
 }
 
@@ -70,14 +70,14 @@ function SignalRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-3 py-3 border-b border-stone-200/70 last:border-b-0"
+      className="flex items-center justify-between gap-3 py-3 border-b border-white/[0.07] last:border-b-0"
       title={title}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="text-stone-400">{icon}</span>
+        <span className="text-stone-600">{icon}</span>
         <div className="min-w-0">
-          <span className="block text-[10px] font-medium text-stone-400">{label}</span>
-          <span className="mt-0.5 block truncate text-[11px] font-semibold text-stone-800">
+          <span className="block text-[10px] font-medium text-stone-600">{label}</span>
+          <span className="mt-0.5 block truncate text-[11px] font-semibold text-stone-200">
             {loading ? 'Verificando' : value}
           </span>
         </div>
@@ -98,9 +98,9 @@ function DetailRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-stone-200/70 last:border-b-0">
-      <span className="text-[10px] text-stone-400">{label}</span>
-      <span className="max-w-[64%] text-right text-[10px] font-medium text-stone-700">
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-white/[0.07] last:border-b-0">
+      <span className="text-[10px] text-stone-600">{label}</span>
+      <span className="max-w-[64%] text-right text-[10px] font-medium text-stone-600">
         {value}
       </span>
     </div>
@@ -117,7 +117,7 @@ function TrackingItem({
   loading?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5">
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-[#15191e] px-3 py-2.5">
       <span className="text-[10px] font-medium text-stone-600">{label}</span>
       <StatusIcon ok={ok} loading={loading} />
     </div>
@@ -133,7 +133,7 @@ function SectionTitle({
 }) {
   return (
     <div className="mb-3 flex items-center gap-2">
-      <span className="text-[#FF4D00]">{icon}</span>
+      <span className="text-[#FF6A26]">{icon}</span>
       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">
         {children}
       </span>
@@ -345,27 +345,27 @@ export default function BusinessSidePanel({
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/10 pointer-events-auto"
+        className="fixed inset-0 z-40 bg-black/[0.42] backdrop-blur-[2px] pointer-events-auto"
         onClick={onClose}
       />
 
-      <aside className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-[#E7E0D8] bg-[#FAF7F2] shadow-2xl pointer-events-auto sm:w-[420px]">
-        <div className="shrink-0 border-b border-[#E7E0D8] bg-[#FFFDFC] px-5 py-5">
-          <div className="mb-4 h-[3px] w-12 rounded-full bg-[#FF4D00]" />
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-white/[0.08] bg-[#0b0e12]/[0.98] shadow-[0_0_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl pointer-events-auto sm:w-[440px]">
+        <div className="shrink-0 border-b border-white/[0.08] bg-[#101318] px-5 py-5">
+          <div className="mb-4 h-[3px] w-12 rounded-full bg-[#FF5A12]" />
 
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[18px] font-semibold tracking-tight text-stone-950">
+                <h2 className="truncate text-[18px] font-semibold tracking-tight text-white">
                   {business.name}
                 </h2>
                 <button
                   type="button"
                   onClick={() => onToggleFavorite?.(business)}
-                  className="shrink-0 rounded-lg p-1 text-stone-300 transition hover:bg-stone-100 hover:text-stone-500"
+                  className="shrink-0 rounded-lg p-1 text-stone-600 transition hover:bg-white/[0.06] hover:text-stone-500"
                   title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                 >
-                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF4D00] text-[#FF4D00]' : ''}`} />
+                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF4D00] text-[#FF6A26]' : ''}`} />
                 </button>
               </div>
 
@@ -377,7 +377,7 @@ export default function BusinessSidePanel({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-xl p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+              className="shrink-0 rounded-xl p-2 text-stone-600 transition hover:bg-white/[0.06] hover:text-stone-600"
               title="Fechar"
             >
               <X className="h-5 w-5" />
@@ -386,7 +386,7 @@ export default function BusinessSidePanel({
 
           {business.address && (
             <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-stone-500">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF4D00]" />
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF6A26]" />
               <span>{business.address}</span>
             </div>
           )}
@@ -396,12 +396,12 @@ export default function BusinessSidePanel({
               href={googleBusinessUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-600 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]"
               title="Abrir este negócio no Google Maps"
             >
-              <MapPin className="h-3.5 w-3.5 text-[#FF4D00]" />
+              <MapPin className="h-3.5 w-3.5 text-[#FF6A26]" />
               Ver no Google
-              <ExternalLink className="h-3 w-3 text-stone-400" />
+              <ExternalLink className="h-3 w-3 text-stone-600" />
             </a>
 
             {hasWebsite && (
@@ -409,11 +409,11 @@ export default function BusinessSidePanel({
                 href={business.website!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-600 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]"
               >
-                <Globe2 className="h-3.5 w-3.5 text-[#FF4D00]" />
+                <Globe2 className="h-3.5 w-3.5 text-[#FF6A26]" />
                 Ver site
-                <ExternalLink className="h-3 w-3 text-stone-400" />
+                <ExternalLink className="h-3 w-3 text-stone-600" />
               </a>
             )}
 
@@ -424,7 +424,7 @@ export default function BusinessSidePanel({
                 rel="noopener noreferrer"
                 onClick={() => recordRecommendationWhatsApp(business)}
                 title="Este número de WhatsApp foi verificado com base nas informações disponibilizadas pela empresa no site"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-700"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/90 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-emerald-500"
               >
                 <img
                   src="/whatsapp_icone.png"
@@ -439,16 +439,16 @@ export default function BusinessSidePanel({
             {!whatsappUrl && verifiedPhone && (
               <a
                 href={`tel:${verifiedPhone}`}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DBD2] bg-white px-3 py-2 text-[10px] font-semibold text-stone-700 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-600 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]"
               >
-                <Phone className="h-3.5 w-3.5 text-[#FF4D00]" />
+                <Phone className="h-3.5 w-3.5 text-[#FF6A26]" />
                 Ligar
               </a>
             )}
           </div>
 
           {isAnythingLoading && (
-            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-400">
+            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-600">
               <LoaderRing />
               Atualizando sinais do negócio
             </div>
@@ -461,7 +461,7 @@ export default function BusinessSidePanel({
               Visão rápida
             </SectionTitle>
 
-            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
               <SignalRow
                 icon={<Globe2 className="h-4 w-4" />}
                 label="Site"
@@ -505,7 +505,7 @@ export default function BusinessSidePanel({
               Contato atual
             </SectionTitle>
 
-            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
               <SignalRow
                 icon={<Phone className="h-4 w-4" />}
                 label="Telefone"
@@ -517,10 +517,10 @@ export default function BusinessSidePanel({
                     <button
                       type="button"
                       onClick={handleCopyPhone}
-                      className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-[#FF4D00]"
+                      className="rounded-md p-1.5 text-stone-600 transition hover:bg-white/[0.06] hover:text-[#FF6A26]"
                       title={copiedPhone ? 'Número copiado' : 'Copiar número'}
                     >
-                      {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
                   ) : undefined
                 }
@@ -554,7 +554,7 @@ export default function BusinessSidePanel({
               Gerar abordagem
             </SectionTitle>
 
-            <div className="rounded-2xl border border-[#E7E0D8] bg-white p-3.5">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
               {!generatedMessage && !messageError && (
                 <p className="text-[10px] leading-relaxed text-stone-500">
                   Crie uma primeira mensagem usando os sinais encontrados para este negócio.
@@ -562,7 +562,7 @@ export default function BusinessSidePanel({
               )}
 
               {messageError && (
-                <p className="rounded-lg bg-red-50 px-3 py-2 text-[10px] text-red-600">
+                <p className="rounded-lg bg-rose-500/[0.08] px-3 py-2 text-[10px] text-rose-400">
                   {messageError}
                 </p>
               )}
@@ -579,13 +579,13 @@ export default function BusinessSidePanel({
                     <button
                       type="button"
                       onClick={handleCopyMessage}
-                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-500 transition hover:bg-white hover:text-[#FF4D00]"
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-500 transition hover:bg-[#15191e] hover:text-[#FF6A26]"
                     >
-                      {isMessageCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {isMessageCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
                       {isMessageCopied ? 'Copiado' : 'Copiar'}
                     </button>
                   </div>
-                  <p className="whitespace-pre-wrap text-[10px] leading-relaxed text-stone-700">
+                  <p className="whitespace-pre-wrap text-[10px] leading-relaxed text-stone-600">
                     {generatedMessage}
                   </p>
                 </div>
@@ -596,7 +596,7 @@ export default function BusinessSidePanel({
                   type="button"
                   onClick={() => handleGenerateApproach(Boolean(generatedMessage))}
                   disabled={isGeneratingMessage}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FF4D00] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FF5A12] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isGeneratingMessage ? (
                     <LoaderRing />
@@ -652,7 +652,7 @@ export default function BusinessSidePanel({
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-[#E7E0D8] bg-white p-3.5">
+              <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     ['FCP', pageSpeed.fcp || '-'],
@@ -661,15 +661,15 @@ export default function BusinessSidePanel({
                     ['CLS', pageSpeed.cls || '-'],
                   ].map(([label, value]) => (
                     <div key={label} className="text-center">
-                      <span className="block text-[8px] font-semibold text-stone-400">{label}</span>
-                      <span className="mt-1 block text-[10px] font-semibold text-stone-700">{value}</span>
+                      <span className="block text-[8px] font-semibold text-stone-600">{label}</span>
+                      <span className="mt-1 block text-[10px] font-semibold text-stone-600">{value}</span>
                     </div>
                   ))}
                 </div>
 
                 {pageSpeed.opportunityTitle && (
-                  <div className="mt-3 border-t border-stone-100 pt-3">
-                    <span className="text-[10px] font-semibold text-stone-800">
+                  <div className="mt-3 border-t border-white/[0.07] pt-3">
+                    <span className="text-[10px] font-semibold text-stone-200">
                       {pageSpeed.opportunityTitle}
                     </span>
                     {pageSpeed.opportunityDescription && (
@@ -688,7 +688,7 @@ export default function BusinessSidePanel({
               Dados do negócio
             </SectionTitle>
 
-            <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
               <DetailRow label="Confiança da fonte" value={`${confidencePercent}%`} />
               <DetailRow
                 label="Status"
@@ -717,10 +717,10 @@ export default function BusinessSidePanel({
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2DBD2] bg-white px-2.5 py-1.5 text-[9px] font-medium text-stone-600 transition hover:border-[#FF4D00]/40 hover:bg-[#FFF6F1]"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-[#15191e] px-2.5 py-1.5 text-[9px] font-medium text-stone-600 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]"
                   >
                     {item.network}
-                    <ExternalLink className="h-3 w-3 text-stone-400" />
+                    <ExternalLink className="h-3 w-3 text-stone-600" />
                   </a>
                 ))}
               </div>
@@ -733,13 +733,13 @@ export default function BusinessSidePanel({
                 Oportunidades
               </SectionTitle>
 
-              <div className="rounded-2xl border border-[#E7E0D8] bg-white px-3.5">
+              <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
                 {opportunities.map((item) => (
                   <div
                     key={item}
-                    className="flex items-center gap-2 py-2.5 border-b border-stone-200/70 last:border-b-0 text-[10px] text-stone-600"
+                    className="flex items-center gap-2 py-2.5 border-b border-white/[0.07] last:border-b-0 text-[10px] text-stone-600"
                   >
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
                     <span>{item}</span>
                   </div>
                 ))}
