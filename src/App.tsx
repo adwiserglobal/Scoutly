@@ -610,10 +610,29 @@ export default function App() {
           if (err.name === 'AbortError') {
             return;
           }
+
           console.warn('[Places Fetch Warning]:', err.message || err);
-          setBusinessesError(
-            err.message || 'Não foi possível obter dados para esta área.'
-          );
+
+          const cachedPlaces = mapCacheService.getPlacesInBounds(bounds);
+          if (cachedPlaces.length > 0) {
+            const currentLeads = leadsMapRef.current;
+            const currentFavorites = favoritesMapRef.current;
+            const mergedPlaces = cachedPlaces.map((place) => {
+              const saved = currentLeads[place.id];
+              return {
+                ...place,
+                isFavorite: Boolean(currentFavorites[place.id]),
+                leadStatus: saved ? (saved.status as LeadStatus) : place.leadStatus || 'NOVO',
+                notes: saved ? saved.notes : place.notes || '',
+              };
+            });
+
+            setBusinesses(mergedPlaces);
+            setBusinessesError(null);
+            return;
+          }
+
+          setBusinessesError('Não foi possível atualizar esta área agora. Tente mover o mapa ou buscar novamente em instantes.');
         } finally {
           setIsBusinessesLoading(false);
         }
