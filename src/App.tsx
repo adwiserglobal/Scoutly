@@ -400,6 +400,9 @@ export default function App() {
       (data?.recentBusinesses || []).forEach((item: any) =>
         addHistoricalBusiness(item?.business_snapshot)
       );
+      (data?.recommendationEvents || []).forEach((event: any) =>
+        addHistoricalBusiness(event?.metadata?.business)
+      );
 
       setRecommendationHistoryBusinesses([...historicalById.values()]);
 
