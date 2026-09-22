@@ -198,7 +198,7 @@ function Header({
           onSubmit={handleSubmit}
           className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[420px] xl:w-[470px]"
         >
-          <div className="relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="scoutly-search-focus-ring relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
 
             <input
@@ -211,7 +211,7 @@ function Header({
               autoComplete="off"
               aria-autocomplete="list"
               aria-expanded={suggestionsOpen}
-              className="h-full w-full rounded-2xl bg-transparent pl-11 pr-[88px] text-[13px] text-white outline-none placeholder:text-stone-500 focus:ring-1 focus:ring-inset focus:ring-[#FF5A12]/45 sm:pr-[104px]"
+              className="h-full w-full rounded-2xl bg-transparent pl-11 pr-[88px] text-[13px] text-white outline-none placeholder:text-stone-500 sm:pr-[104px]"
             />
 
             {isSuggesting && (
