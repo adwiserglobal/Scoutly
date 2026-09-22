@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Route, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
@@ -88,6 +88,10 @@ export default function App() {
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  const [listCategoryFilter, setListCategoryFilter] = useState('TODAS');
+  const [listWebsiteFilter, setListWebsiteFilter] = useState<'TODOS' | 'COM_SITE' | 'SEM_SITE'>('TODOS');
+  const [listContactFilter, setListContactFilter] = useState<'TODOS' | 'COM_CONTATO' | 'SEM_CONTATO'>('TODOS');
 
   const [currentRegionName, setCurrentRegionName] = useState('São Paulo - Pinheiros');
   const [centerCoordinates, setCenterCoordinates] = useState({
@@ -1028,10 +1032,73 @@ export default function App() {
     return '';
   }, [businesses, currentRegionName]);
 
+  const listAvailableCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(filteredBusinesses.map((business) => business.category).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b)),
+    [filteredBusinesses]
+  );
+
+  const listFilteredBusinesses = useMemo(() => {
+    const query = listSearchQuery.trim().toLowerCase();
+
+    return filteredBusinesses.filter((business) => {
+      if (
+        query &&
+        ![
+          business.name,
+          business.category,
+          business.address,
+          business.bairro || '',
+          business.municipio || '',
+        ].some((value) => String(value || '').toLowerCase().includes(query))
+      ) {
+        return false;
+      }
+
+      if (listCategoryFilter !== 'TODAS' && business.category !== listCategoryFilter) {
+        return false;
+      }
+
+      if (listWebsiteFilter === 'COM_SITE' && !business.website) return false;
+      if (listWebsiteFilter === 'SEM_SITE' && business.website) return false;
+
+      const hasContact = Boolean(
+        business.phone ||
+        (business.phones && business.phones.length > 0) ||
+        business.email ||
+        (business.emails && business.emails.length > 0)
+      );
+
+      if (listContactFilter === 'COM_CONTATO' && !hasContact) return false;
+      if (listContactFilter === 'SEM_CONTATO' && hasContact) return false;
+
+      return true;
+    });
+  }, [
+    filteredBusinesses,
+    listSearchQuery,
+    listCategoryFilter,
+    listWebsiteFilter,
+    listContactFilter,
+  ]);
+
+  const hasListFilters =
+    Boolean(listSearchQuery.trim()) ||
+    listCategoryFilter !== 'TODAS' ||
+    listWebsiteFilter !== 'TODOS' ||
+    listContactFilter !== 'TODOS';
+
   // Progressive rendering slice for buttery smooth 60fps scrolling
   const displayedBusinesses = useMemo(() => {
-    return filteredBusinesses.slice(0, visibleCount);
-  }, [filteredBusinesses, visibleCount]);
+    return listFilteredBusinesses.slice(0, visibleCount);
+  }, [listFilteredBusinesses, visibleCount]);
+
+  useEffect(() => {
+    const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
+    setVisibleCount([30, 60, 100].includes(stored) ? stored : 30);
+  }, [listSearchQuery, listCategoryFilter, listWebsiteFilter, listContactFilter]);
 
   // Stable callbacks for BusinessCard memoization
   const handleCardSelect = useCallback((biz: Business) => {
@@ -1360,9 +1427,81 @@ export default function App() {
                     {isBusinessesLoading ? (
                       <span className="font-semibold text-[#FF6A26] animate-pulse">Carregando dados...</span>
                     ) : (
-                      `${filteredBusinesses.length} ${filteredBusinesses.length === 1 ? 'negócio' : 'negócios'}`
+                      `${listFilteredBusinesses.length} ${listFilteredBusinesses.length === 1 ? 'negócio' : 'negócios'}`
                     )}
                   </span>
+                </div>
+
+                <div className="mb-4 rounded-[20px] border border-white/[0.08] bg-[#0d1014] p-2.5">
+                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                    <div className="relative min-w-0 flex-1">
+                      <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
+                      <input
+                        type="text"
+                        value={listSearchQuery}
+                        onChange={(event) => setListSearchQuery(event.target.value)}
+                        placeholder="Buscar nestes resultados"
+                        className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#090c10] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-700 focus:border-[#FF5A12]/45"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                      <div className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-stone-500">
+                        <Filter className="h-3.5 w-3.5" />
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.08em]">Filtros</span>
+                      </div>
+
+                      <select
+                        value={listCategoryFilter}
+                        onChange={(event) => setListCategoryFilter(event.target.value)}
+                        className="h-10 min-w-[150px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                      >
+                        <option value="TODAS">Todas as categorias</option>
+                        {listAvailableCategories.map((category) => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={listWebsiteFilter}
+                        onChange={(event) =>
+                          setListWebsiteFilter(event.target.value as typeof listWebsiteFilter)
+                        }
+                        className="h-10 min-w-[118px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                      >
+                        <option value="TODOS">Qualquer site</option>
+                        <option value="COM_SITE">Com site</option>
+                        <option value="SEM_SITE">Sem site</option>
+                      </select>
+
+                      <select
+                        value={listContactFilter}
+                        onChange={(event) =>
+                          setListContactFilter(event.target.value as typeof listContactFilter)
+                        }
+                        className="h-10 min-w-[132px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                      >
+                        <option value="TODOS">Qualquer contato</option>
+                        <option value="COM_CONTATO">Com contato</option>
+                        <option value="SEM_CONTATO">Sem contato</option>
+                      </select>
+
+                      {hasListFilters && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setListSearchQuery('');
+                            setListCategoryFilter('TODAS');
+                            setListWebsiteFilter('TODOS');
+                            setListContactFilter('TODOS');
+                          }}
+                          className="h-10 shrink-0 rounded-xl px-3 text-[10px] font-semibold text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Error Banner */}
@@ -1373,7 +1512,7 @@ export default function App() {
                 )}
 
                 {/* List or Empty State */}
-                {filteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
+                {listFilteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
                   <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-8 text-center">
                     <p className="mb-1 text-sm font-semibold text-stone-200">
                       Nenhum estabelecimento encontrado nesta área.
@@ -1397,28 +1536,28 @@ export default function App() {
                     ))}
 
                     {/* Progressive Load More button */}
-                    {visibleCount < filteredBusinesses.length && (
+                    {visibleCount < listFilteredBusinesses.length && (
                       <div className="col-span-full mt-2 flex flex-col items-center gap-2 pb-4 pt-2">
                         <button
                           type="button"
                           onClick={() => {
                             const stored = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
                             const batchSize = [30, 60, 100].includes(stored) ? stored : 30;
-                            setVisibleCount((prev) => Math.min(prev + batchSize, filteredBusinesses.length));
+                            setVisibleCount((prev) => Math.min(prev + batchSize, listFilteredBusinesses.length));
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-3 text-xs font-semibold text-stone-300 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.06] hover:text-white active:scale-[0.99] cursor-pointer"
                         >
                           <span>Carregar mais 30 estabelecimentos</span>
                           <span className="text-[11px] text-stone-400 font-normal">
-                            ({displayedBusinesses.length} de {filteredBusinesses.length} visíveis)
+                            ({displayedBusinesses.length} de {listFilteredBusinesses.length} visíveis)
                           </span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => setVisibleCount(filteredBusinesses.length)}
+                          onClick={() => setVisibleCount(listFilteredBusinesses.length)}
                           className="cursor-pointer text-[11px] font-medium text-stone-500 underline underline-offset-2 transition hover:text-stone-300"
                         >
-                          Exibir todos ({filteredBusinesses.length})
+                          Exibir todos ({listFilteredBusinesses.length})
                         </button>
                       </div>
                     )}
