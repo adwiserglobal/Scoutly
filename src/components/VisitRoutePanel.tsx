@@ -185,7 +185,7 @@ export default function VisitRoutePanel({
             <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
-              className="h-4.5 w-4.5 shrink-0"
+              className="h-[18px] w-[18px] shrink-0"
             >
               <path fill="#4285F4" d="M12 2.25a6.75 6.75 0 0 0-6.75 6.75c0 4.83 6.75 12.75 6.75 12.75s6.75-7.92 6.75-12.75A6.75 6.75 0 0 0 12 2.25Z"/>
               <path fill="#34A853" d="M12 21.75s6.75-7.92 6.75-12.75c0-.44-.04-.88-.12-1.29L12 14.25v7.5Z"/>
