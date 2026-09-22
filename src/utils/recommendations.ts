@@ -243,6 +243,92 @@ function meaningfulTokens(value: string) {
     .filter((token) => token.length >= 3 && !SEARCH_STOPWORDS.has(token));
 }
 
+export function getRecommendationPromptContext(
+  currentRegionName: string,
+  businesses: Business[] = []
+): { recentSearches: string[]; suggestions: string[] } {
+  const signals = readSignals();
+  const region = currentRegionName?.trim() || 'esta região';
+  const categoryScores = new Map<string, { label: string; score: number }>();
+
+  const bump = (category: string, score: number) => {
+    const label = String(category || '').trim();
+    const key = normalize(label);
+    if (!key) return;
+    const current = categoryScores.get(key);
+    categoryScores.set(key, {
+      label: current?.label || label,
+      score: (current?.score || 0) + score,
+    });
+  };
+
+  Object.values(signals.favorites).forEach((category) => bump(category, 4));
+  Object.values(signals.pipeline).forEach((category) => bump(category, 6));
+  Object.entries(signals.whatsappClicks).forEach(([category, clicks]) =>
+    bump(category, Math.min(18, Number(clicks) * 3))
+  );
+
+  if (categoryScores.size === 0) {
+    const counts = new Map<string, { label: string; count: number }>();
+    businesses.slice(0, 120).forEach((business) => {
+      const label = String(business.category || '').trim();
+      const key = normalize(label);
+      if (!key) return;
+      const current = counts.get(key);
+      counts.set(key, { label: current?.label || label, count: (current?.count || 0) + 1 });
+    });
+    [...counts.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 2)
+      .forEach((item) => bump(item.label, 1));
+  }
+
+  const topCategories = [...categoryScores.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .map((item) => item.label);
+
+  const recentSignals = [...signals.searches]
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 5);
+
+  const recentSearches = recentSignals.map((search) =>
+    [search.query, search.location].filter(Boolean).join(' em ')
+  );
+
+  const suggestions: string[] = [];
+  const lastSearch = recentSignals[0];
+
+  if (lastSearch?.query) {
+    suggestions.push(
+      `Continue minha busca por ${lastSearch.query}${lastSearch.location ? ` em ${lastSearch.location}` : ''}`
+    );
+  }
+
+  if (topCategories[0]) {
+    suggestions.push(`Encontre mais ${topCategories[0]} sem site em ${region}`);
+  }
+
+  if (Object.keys(signals.pipeline).length > 0) {
+    suggestions.push(`Quais oportunidades em ${region} combinam com o meu pipeline atual?`);
+  } else if (topCategories[1]) {
+    suggestions.push(`Mostre ${topCategories[1]} com maior potencial em ${region}`);
+  }
+
+  if (Object.keys(signals.favorites).length > 0) {
+    suggestions.push(`Encontre empresas parecidas com os meus favoritos em ${region}`);
+  } else if (Object.keys(signals.whatsappBusinesses).length > 0) {
+    suggestions.push(`Mostre prospects com WhatsApp e alto potencial em ${region}`);
+  } else {
+    suggestions.push(`Quais empresas desta área têm os melhores sinais para prospecção?`);
+  }
+
+  return {
+    recentSearches,
+    suggestions: [...new Set(suggestions)].slice(0, 4),
+  };
+}
+
 export function getRecommendedBusinesses(businesses: Business[], limit = 12): Business[] {
   if (businesses.length === 0) return [];
 
