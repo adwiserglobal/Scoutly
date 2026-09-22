@@ -1457,7 +1457,7 @@ export default function App() {
 
         {/* Other Tabs Content */}
         {currentTab === 'FAVORITOS' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
+          <div className="absolute inset-0 z-20 bg-[#090c10] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <FavoritesView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1472,7 +1472,7 @@ export default function App() {
         )}
 
         {currentTab === 'PIPELINE' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
+          <div className="absolute inset-0 z-20 bg-[#090c10] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <PipelineView
               businesses={businesses}
               onSelectBusiness={(biz) => {
@@ -1486,7 +1486,7 @@ export default function App() {
         )}
 
         {currentTab === 'CONFIGURACOES' && (
-          <div className="absolute inset-0 z-20 bg-[#FAF7F2] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
+          <div className="absolute inset-0 z-20 bg-[#090c10] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
             <SettingsView
               billing={billingStatus}
               onOpenPlans={() => setIsPlansOpen(true)}
