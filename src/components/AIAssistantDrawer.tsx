@@ -17,6 +17,10 @@ import {
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { sendAIChatMessage, fetchContextualSuggestions, getWhatsAppLink } from '../services/api';
+import {
+  getRecommendationPromptContext,
+  RECOMMENDATION_SIGNAL_EVENT,
+} from '../utils/recommendations';
 
 interface ChatMessage {
   id: string;
@@ -39,13 +43,6 @@ interface AIAssistantDrawerProps {
     businesses?: Business[];
   }) => void;
 }
-
-const QUICK_SUGGESTIONS = [
-  'Ache restaurantes sem site em Florianópolis',
-  'Busque clínicas e consultórios em Curitiba',
-  'Quais as melhores oportunidades no Rio de Janeiro?',
-  'Gere um roteiro de abordagem comercial para WhatsApp',
-];
 
 const THINKING_PHRASES = [
   'Pensando...',
@@ -79,6 +76,7 @@ function AIAssistantDrawer({
   const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
+  const [quickSuggestions, setQuickSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +108,46 @@ function AIAssistantDrawer({
       }, 150);
     }
   }, [isOpen]);
+
+  // Suggestions are derived from the same persisted signals used by Recomendados.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const refreshSuggestions = async () => {
+      const local = getRecommendationPromptContext(currentRegionName, businesses);
+      let suggestions = local.suggestions;
+
+      if (local.recentSearches.length > 0) {
+        const remote = await fetchContextualSuggestions(local.recentSearches, currentRegionName);
+        suggestions = [...local.suggestions, ...remote];
+      }
+
+      const fallback = [
+        `Quais empresas desta área têm os melhores sinais para prospecção?`,
+        `Encontre negócios sem site em ${currentRegionName || 'esta região'}`,
+        `Mostre prospects com telefone ou WhatsApp em ${currentRegionName || 'esta região'}`,
+      ];
+
+      const unique = [...new Set([...suggestions, ...fallback])]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 4);
+
+      if (!cancelled) setQuickSuggestions(unique);
+    };
+
+    void refreshSuggestions();
+
+    const onSignalsUpdated = () => void refreshSuggestions();
+    window.addEventListener(RECOMMENDATION_SIGNAL_EVENT, onSignalsUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(RECOMMENDATION_SIGNAL_EVENT, onSignalsUpdated);
+    };
+  }, [isOpen, currentRegionName, businesses]);
 
   const handleSendMessage = async (customText?: string) => {
     const textToSend = (customText || inputMessage).trim();
@@ -220,17 +258,17 @@ function AIAssistantDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-end"
+      className="fixed inset-0 z-50 flex justify-end bg-black/65 backdrop-blur-[5px]"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl h-full bg-[#FAF7F2] border-l border-[#EDE8E0] shadow-2xl flex flex-col justify-between overflow-hidden"
+        className="relative flex h-full w-full max-w-xl flex-col justify-between overflow-hidden border-l border-white/[0.09] bg-[#090c10] shadow-[0_0_80px_rgba(0,0,0,0.55)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="p-4 sm:px-6 bg-white border-b border-[#EDE8E0] flex items-center justify-between shrink-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#0d1014] p-4 sm:px-6">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 shadow-xs border border-stone-200 bg-white p-0.5 flex items-center justify-center">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5 shadow-lg">
               <img
                 src="/ai-icon.png"
                 alt="Scoutly AI"
@@ -238,8 +276,8 @@ function AIAssistantDrawer({
               />
             </div>
             <div>
-              <h3 className="text-base font-bold text-stone-900 tracking-tight">Scoutly AI</h3>
-              <p className="text-xs text-stone-500 font-medium">
+              <h3 className="text-base font-bold tracking-tight text-white">Scoutly AI</h3>
+              <p className="text-xs font-medium text-stone-500">
                 Copiloto de prospecção e inteligência comercial
               </p>
             </div>
@@ -250,7 +288,7 @@ function AIAssistantDrawer({
               type="button"
               onClick={handleResetChat}
               title="Reiniciar conversa"
-              className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-xl transition cursor-pointer"
+              className="cursor-pointer rounded-xl p-2 text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -258,7 +296,7 @@ function AIAssistantDrawer({
               type="button"
               onClick={onClose}
               title="Fechar"
-              className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-xl transition cursor-pointer"
+              className="cursor-pointer rounded-xl p-2 text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -277,7 +315,7 @@ function AIAssistantDrawer({
                 className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {!isUser && (
-                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 shadow-2xs mt-1 border border-stone-200 bg-white p-0.5 flex items-center justify-center">
+                  <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5">
                     <img
                       src="/ai-icon.png"
                       alt="Scoutly AI"
@@ -290,21 +328,21 @@ function AIAssistantDrawer({
                   <div
                     className={`p-4 rounded-2xl text-sm ${
                       isUser
-                        ? 'bg-[#FF4D00] text-white rounded-tr-xs shadow-xs'
-                        : 'bg-white border border-[#EDE8E0] text-stone-800 rounded-tl-xs shadow-xs'
+                        ? 'bg-[#FF5A12] text-white rounded-tr-xs shadow-lg'
+                        : 'bg-[#15191e] border border-white/[0.08] text-stone-200 rounded-tl-xs shadow-lg'
                     }`}
                   >
-                    <div className="prose prose-sm max-w-none prose-stone dark:prose-invert">
+                    <div className="prose prose-sm max-w-none prose-invert prose-p:text-stone-200 prose-strong:text-white prose-em:text-stone-300">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
 
                     {!isUser && (
-                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-stone-100 text-[11px] text-stone-400">
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/[0.07] text-[11px] text-stone-600">
                         <span>{msg.timestamp}</span>
                         <button
                           type="button"
                           onClick={() => copyToClipboard(msg.content, msg.id)}
-                          className="flex items-center gap-1 text-stone-500 hover:text-stone-800 transition cursor-pointer"
+                          className="flex cursor-pointer items-center gap-1 text-stone-500 transition hover:text-white"
                         >
                           {copiedIndex === msg.id ? (
                             <>
@@ -325,8 +363,8 @@ function AIAssistantDrawer({
                   {/* Render matched businesses as rich cards if present */}
                   {matchedList.length > 0 && (
                     <div className="space-y-2 pt-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-stone-700">
-                        <Sparkles className="w-3.5 h-3.5 text-[#FF4D00]" />
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
+                        <Sparkles className="h-3.5 w-3.5 text-[#FF6A26]" />
                         <span>Empresas Encontradas ({matchedList.length}):</span>
                       </div>
 
@@ -339,11 +377,11 @@ function AIAssistantDrawer({
                           return (
                             <div
                               key={biz.id}
-                              className="p-3.5 bg-white rounded-2xl border border-[#EDE8E0] shadow-xs hover:border-stone-400 transition flex flex-col gap-2.5"
+                              className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5 transition hover:border-white/[0.14] hover:bg-[#15191e]"
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <h4 className="text-xs font-bold text-stone-900 leading-snug">
+                                  <h4 className="text-xs font-bold leading-snug text-white">
                                     {biz.name}
                                   </h4>
                                   <p className="text-[11px] text-stone-500">
@@ -351,25 +389,25 @@ function AIAssistantDrawer({
                                   </p>
                                 </div>
                                 {hasWebsite ? (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
+                                  <span className="shrink-0 rounded-md bg-emerald-500/[0.08] px-2 py-0.5 text-[10px] font-bold text-emerald-400">
                                     Com site
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#FFF0E6] text-[#FF4D00] border border-[#FF4D00]/20 shrink-0">
+                                  <span className="shrink-0 rounded-md border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-2 py-0.5 text-[10px] font-bold text-[#FF7A3D]">
                                     Sem site
                                   </span>
                                 )}
                               </div>
 
                               {/* Action Buttons Row */}
-                              <div className="flex items-center flex-wrap gap-1.5 pt-2 border-t border-stone-100">
+                              <div className="flex items-center flex-wrap gap-1.5 pt-2 border-t border-white/[0.07]">
                                 {/* Button: WhatsApp */}
                                 {waLink && (
                                   <a
                                     href={waLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl text-xs font-bold transition shadow-2xs"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-400 hover:bg-emerald-500/[0.13] rounded-xl text-xs font-bold transition shadow-2xs"
                                   >
                                     <img
                                       src="/whatsapp_icone.png"
@@ -386,7 +424,7 @@ function AIAssistantDrawer({
                                     href={biz.website!}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-xs font-bold transition shadow-2xs"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-white/[0.08] bg-white/[0.03] text-stone-300 hover:bg-white/[0.06] hover:text-white rounded-xl text-xs font-bold transition shadow-2xs"
                                   >
                                     <span>Site</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -404,8 +442,8 @@ function AIAssistantDrawer({
                                   }
                                   className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
                                     isSaved
-                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                      : 'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200'
+                                      ? 'border border-amber-500/20 bg-amber-500/[0.08] text-amber-400'
+                                      : 'border border-white/[0.08] bg-white/[0.04] text-stone-300 hover:bg-white/[0.07] hover:text-white'
                                   }`}
                                 >
                                   {isSaved ? (
@@ -451,7 +489,7 @@ function AIAssistantDrawer({
                                     };
                                     onSelectBusiness(safeBiz);
                                   }}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-xl text-xs font-bold transition shadow-2xs ml-auto cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FF5A12] hover:bg-[#ff6a27] text-white rounded-xl text-xs font-bold transition shadow-2xs ml-auto cursor-pointer"
                                 >
                                   <span>Ver detalhes</span>
                                   <ChevronRight className="w-3 h-3" />
@@ -466,7 +504,7 @@ function AIAssistantDrawer({
                 </div>
 
                 {isUser && (
-                  <div className="w-8 h-8 rounded-xl bg-stone-900 text-white flex items-center justify-center shrink-0 shadow-2xs mt-1">
+                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-[#15191e] text-stone-300">
                     <User className="w-4 h-4" />
                   </div>
                 )}
@@ -477,7 +515,7 @@ function AIAssistantDrawer({
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex gap-3 items-start">
-              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 shadow-2xs mt-1 border border-stone-200 bg-white p-0.5 flex items-center justify-center">
+              <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5">
                 <img
                   src="/ai-icon.png"
                   alt="Scoutly AI"
@@ -495,8 +533,8 @@ function AIAssistantDrawer({
                 </div>
 
                 {/* Thinking Box */}
-                <div className="p-3.5 bg-white border border-[#EDE8E0] rounded-2xl rounded-tl-xs text-xs text-stone-700 flex items-center gap-2 shadow-xs font-medium">
-                  <span className="w-2 h-2 rounded-full bg-[#FF4D00] animate-pulse"></span>
+                <div className="flex items-center gap-2 rounded-2xl rounded-tl-xs border border-white/[0.08] bg-[#15191e] p-3.5 text-xs font-medium text-stone-300">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-[#FF5A12]"></span>
                   <span>Scoutly AI está buscando e analisando os dados em tempo real...</span>
                 </div>
               </div>
@@ -507,19 +545,19 @@ function AIAssistantDrawer({
         </div>
 
         {/* Quick Suggestion Chips */}
-        <div className="px-4 pt-2 pb-1 bg-white border-t border-[#EDE8E0] shrink-0">
-          <p className="text-[11px] font-semibold text-stone-500 mb-1.5 flex items-center gap-1">
-            <Info className="w-3 h-3 text-stone-400" />
+        <div className="shrink-0 border-t border-white/[0.08] bg-[#0d1014] px-4 pb-2 pt-3">
+          <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-stone-500">
+            <Info className="h-3 w-3 text-stone-600" />
             Sugestões rápidas de prospecção:
           </p>
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            {QUICK_SUGGESTIONS.map((sug, i) => (
+            {quickSuggestions.map((sug, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => handleSendMessage(sug)}
                 disabled={isLoading}
-                className="text-[11px] font-medium px-3 py-1 bg-stone-50 hover:bg-stone-100 hover:text-stone-900 text-stone-600 border border-[#EDE8E0] rounded-xl whitespace-nowrap transition cursor-pointer shrink-0 disabled:opacity-50"
+                className="shrink-0 cursor-pointer whitespace-nowrap rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-[10px] font-medium text-stone-400 transition hover:border-[#FF5A12]/25 hover:bg-[#FF5A12]/[0.07] hover:text-[#FF7A3D] disabled:opacity-50"
               >
                 {sug}
               </button>
@@ -528,7 +566,7 @@ function AIAssistantDrawer({
         </div>
 
         {/* Input Bar */}
-        <div className="p-4 bg-white border-t border-[#EDE8E0] shrink-0">
+        <div className="shrink-0 border-t border-white/[0.08] bg-[#0d1014] p-4">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -543,7 +581,7 @@ function AIAssistantDrawer({
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder="Ex: Ache clínicas em Curitiba, restaurantes sem site no Rio..."
               disabled={isLoading}
-              className="flex-1 px-4 py-3 bg-[#FAF7F2] border border-[#EDE8E0] rounded-2xl text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#FF4D00]/30 focus:border-[#FF4D00] transition disabled:opacity-50"
+              className="flex-1 rounded-2xl border border-white/[0.09] bg-[#090c10] px-4 py-3 text-sm text-white outline-none placeholder:text-stone-700 transition focus:border-[#FF5A12]/50 focus:ring-2 focus:ring-[#FF5A12]/10 disabled:opacity-50"
             />
 
             {/* ChatGPT style mini dropdown for Search Mode */}
@@ -552,7 +590,7 @@ function AIAssistantDrawer({
                 type="button"
                 onClick={() => setIsSearchModeOpen(!isSearchModeOpen)}
                 disabled={isLoading}
-                className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer select-none shrink-0 border border-stone-200"
+                className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-[#15191e] px-3 py-3 text-xs font-semibold text-stone-300 transition hover:bg-white/[0.06] hover:text-white"
                 title="Selecionar modo de busca"
               >
                 <span>{searchMode === 'deep' ? 'Deep Search' : 'Busca padrão'}</span>
@@ -560,19 +598,19 @@ function AIAssistantDrawer({
               </button>
 
               {isSearchModeOpen && (
-                <div className="absolute bottom-full mb-2 right-0 w-40 bg-white border border-stone-200 rounded-xl shadow-lg py-1.5 z-50 text-xs">
+                <div className="absolute bottom-full right-0 z-50 mb-2 w-40 rounded-xl border border-white/[0.09] bg-[#15191e] py-1.5 text-xs shadow-2xl">
                   <button
                     type="button"
                     onClick={() => {
                       setSearchMode('default');
                       setIsSearchModeOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between cursor-pointer font-medium ${
-                      searchMode === 'default' ? 'text-[#FF4D00] font-bold bg-orange-50/50' : 'text-stone-700'
+                    className={`w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between cursor-pointer font-medium ${
+                      searchMode === 'default' ? 'text-[#FF7A3D] font-bold bg-[#FF5A12]/[0.08]' : 'text-stone-400'
                     }`}
                   >
                     <span>Busca padrão</span>
-                    {searchMode === 'default' && <Check className="w-3.5 h-3.5 text-[#FF4D00]" />}
+                    {searchMode === 'default' && <Check className="h-3.5 w-3.5 text-[#FF6A26]" />}
                   </button>
                   <button
                     type="button"
@@ -580,12 +618,12 @@ function AIAssistantDrawer({
                       setSearchMode('deep');
                       setIsSearchModeOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between cursor-pointer font-medium ${
-                      searchMode === 'deep' ? 'text-[#FF4D00] font-bold bg-orange-50/50' : 'text-stone-700'
+                    className={`w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between cursor-pointer font-medium ${
+                      searchMode === 'deep' ? 'text-[#FF7A3D] font-bold bg-[#FF5A12]/[0.08]' : 'text-stone-400'
                     }`}
                   >
                     <span>Deep Search</span>
-                    {searchMode === 'deep' && <Check className="w-3.5 h-3.5 text-[#FF4D00]" />}
+                    {searchMode === 'deep' && <Check className="h-3.5 w-3.5 text-[#FF6A26]" />}
                   </button>
                 </div>
               )}
@@ -594,7 +632,7 @@ function AIAssistantDrawer({
             <button
               type="submit"
               disabled={isLoading || !inputMessage.trim()}
-              className="px-4 py-3 bg-[#FF4D00] hover:bg-[#E04400] text-white rounded-2xl font-bold transition shadow-xs flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+              className="px-4 py-3 bg-[#FF5A12] hover:bg-[#ff6a27] text-white rounded-2xl font-bold transition shadow-xs flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
