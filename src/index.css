@@ -22,6 +22,80 @@
   border-top-color: #EDE8E0 !important;
 }
 
+@property --scoutly-search-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes scoutlySearchOrbit {
+  to {
+    --scoutly-search-angle: 360deg;
+  }
+}
+
+.scoutly-search-focus-ring {
+  isolation: isolate;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.scoutly-search-focus-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 18px;
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    conic-gradient(
+      from var(--scoutly-search-angle),
+      rgba(255, 90, 18, 0.16) 0deg,
+      rgba(255, 90, 18, 0.95) 55deg,
+      rgba(255, 145, 52, 0.72) 105deg,
+      rgba(255, 90, 18, 0.12) 165deg,
+      rgba(255, 54, 0, 0.86) 235deg,
+      rgba(255, 125, 35, 0.48) 300deg,
+      rgba(255, 90, 18, 0.16) 360deg
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  transition: opacity 180ms ease;
+}
+
+.scoutly-search-focus-ring:focus-within {
+  border-color: transparent;
+  box-shadow:
+    0 14px 44px rgba(0, 0, 0, 0.34),
+    0 0 22px rgba(255, 90, 18, 0.10);
+}
+
+.scoutly-search-focus-ring:focus-within::before {
+  opacity: 1;
+  animation: scoutlySearchOrbit 3.2s linear infinite;
+}
+
+@keyframes scoutlyBusinessChevronFloat {
+  0%,
+  100% {
+    transform: translateY(1px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.scoutly-view-businesses-chevron {
+  animation: scoutlyBusinessChevronFloat 1.65s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* Scoutly map mode switcher */
 .scoutly-map-mode-control {
   display: flex;
@@ -187,6 +261,11 @@
   .scoutly-map-mode-btn,
   .orange-liquid-glass {
     transition: none !important;
+  }
+
+  .scoutly-search-focus-ring::before,
+  .scoutly-view-businesses-chevron {
+    animation: none !important;
   }
 }
 
