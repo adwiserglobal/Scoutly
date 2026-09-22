@@ -100,11 +100,16 @@ async function bootstrap(userUid: string, workspaceId: string) {
   const favorites: Record<string, boolean> = {};
   for (const row of favoriteRows) favorites[row.business_id] = true;
 
+  const favoriteBusinesses = favoriteRows
+    .map((row) => row.business_snapshot)
+    .filter((business) => business && typeof business.id === 'string');
+
   return {
     user: profileRows[0] || null,
     workspaceId,
     leads,
     favorites,
+    favoriteBusinesses,
     settings: settingsRows[0] || { auto_enrich: true, results_batch_size: 30 },
     recommendationEvents: eventRows,
     recentBusinesses: recentRows,
