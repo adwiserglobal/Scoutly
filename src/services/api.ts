@@ -107,6 +107,7 @@ async function appDataAction(action: string, payload: Record<string, unknown> = 
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string; business?: Business | null }>;
   favorites: Record<string, boolean>;
+  favoriteBusinesses?: Business[];
   settings?: {
     auto_enrich?: boolean;
     results_batch_size?: number;
