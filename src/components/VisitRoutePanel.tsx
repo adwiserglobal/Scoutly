@@ -182,11 +182,17 @@ export default function VisitRoutePanel({
             rel="noopener noreferrer"
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF5A12] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#ff6a27]"
           >
-            <img
-              src="/google-maps-icon.png"
-              alt=""
-              className="h-4 w-4 rounded-[4px] object-contain"
-            />
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-4.5 w-4.5 shrink-0"
+            >
+              <path fill="#4285F4" d="M12 2.25a6.75 6.75 0 0 0-6.75 6.75c0 4.83 6.75 12.75 6.75 12.75s6.75-7.92 6.75-12.75A6.75 6.75 0 0 0 12 2.25Z"/>
+              <path fill="#34A853" d="M12 21.75s6.75-7.92 6.75-12.75c0-.44-.04-.88-.12-1.29L12 14.25v7.5Z"/>
+              <path fill="#FBBC04" d="M5.8 6.31A6.7 6.7 0 0 0 5.25 9c0 1.42.58 3.11 1.42 4.83L12 8.5 5.8 6.31Z"/>
+              <path fill="#EA4335" d="M12 2.25A6.74 6.74 0 0 0 5.8 6.31L12 12.5l4.76-4.76A6.75 6.75 0 0 0 12 2.25Z"/>
+              <circle cx="12" cy="9" r="2.3" fill="#fff"/>
+            </svg>
             <span>Abrir rota no Google Maps</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
