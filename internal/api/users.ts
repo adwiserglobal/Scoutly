@@ -33,17 +33,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const query = String(req.query?.q || '').trim().toLowerCase();
-    const rows = await appDataRequest<any[]>(
-      'app_users?select=firebase_uid,email,display_name,photo_url,created_at,last_seen_at&order=last_seen_at.desc.nullslast&limit=300'
+    const [rows, subscriptions] = await Promise.all([
+      appDataRequest<any[]>(
+        'app_users?select=firebase_uid,email,display_name,photo_url,created_at,last_seen_at&order=last_seen_at.desc.nullslast&limit=300'
+      ),
+      appDataRequest<any[]>(
+        'subscriptions?select=user_uid,plan,status,current_period_end&limit=1000'
+      ),
+    ]);
+
+    const subscriptionByUser = new Map(
+      subscriptions.map((subscription) => [subscription.user_uid, subscription])
     );
 
-    const users = query
+    const filtered = query
       ? rows.filter((user) =>
           [user.email, user.display_name, user.firebase_uid]
             .filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query))
         ).slice(0, 50)
       : rows.slice(0, 100);
+
+    const users = filtered.map((user) => ({
+      ...user,
+      subscription: subscriptionByUser.get(user.firebase_uid) || null,
+    }));
 
     return res.status(200).json({ users });
   } catch (error: any) {
