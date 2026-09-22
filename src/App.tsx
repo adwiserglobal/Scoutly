@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute } from './services/api';
+import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -83,6 +83,7 @@ export default function App() {
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
   const routeHydratedRef = useRef(false);
   const routeSyncTimerRef = useRef<number | null>(null);
+  const suppressNextBoundsFetchRef = useRef(false);
   const [recommendationRevision, setRecommendationRevision] = useState(0);
   const [recommendationHistoryBusinesses, setRecommendationHistoryBusinesses] = useState<Business[]>([]);
   
@@ -566,6 +567,11 @@ export default function App() {
     (bounds: MapBounds | null, zoom: number) => {
       setCurrentZoom(zoom);
 
+      if (suppressNextBoundsFetchRef.current) {
+        suppressNextBoundsFetchRef.current = false;
+        return;
+      }
+
       // Cancel any pending debounce timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -645,18 +651,65 @@ export default function App() {
     []
   );
 
-  // Geocoding Search
+  // Search understands both pure locations ("Pinheiros") and business + region
+  // ("despachantes em Pinheiros", "clínicas na Mooca").
   const handleSearch = async (query: string) => {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return;
+
     setIsLocating(true);
-    const result = await searchAddressOrCity(query);
+    setBusinessesError(null);
+
+    const hasBusinessAndRegionShape =
+      /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\b/i.test(cleanQuery) &&
+      cleanQuery.split(/\s+/).length >= 3;
+
+    if (hasBusinessAndRegionShape) {
+      try {
+        const result = await searchBusinessesByQuery(cleanQuery, currentRegionName);
+        const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
+        const region = result?.region;
+
+        if (region?.center && Number.isFinite(region.center.lat) && Number.isFinite(region.center.lng)) {
+          suppressNextBoundsFetchRef.current = true;
+          setCenterCoordinates({ lat: region.center.lat, lng: region.center.lng });
+          setCurrentRegionName(region.name || cleanQuery);
+        }
+
+        const currentLeads = leadsMapRef.current;
+        const currentFavorites = favoritesMapRef.current;
+        const merged = nextBusinesses.map((business: Business) => {
+          const saved = currentLeads[business.id];
+          return {
+            ...business,
+            isFavorite: Boolean(currentFavorites[business.id]),
+            leadStatus: saved ? (saved.status as LeadStatus) : business.leadStatus || 'NOVO',
+            notes: saved ? saved.notes : business.notes || '',
+          };
+        });
+
+        setBusinesses(merged);
+        setIsListOpen(true);
+        setSelectedBusiness(null);
+        setModalBusiness(null);
+        recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
+        setIsLocating(false);
+        return;
+      } catch (error: any) {
+        console.warn('[Scoutly Search] Composite search failed; falling back to geocoding:', error);
+      }
+    }
+
+    const result = await searchAddressOrCity(cleanQuery);
 
     if (result) {
-      recordRecommendationSearch(query, result.name);
+      recordRecommendationSearch(cleanQuery, result.name);
       setCenterCoordinates({ lat: result.lat, lng: result.lng });
       setCurrentRegionName(result.name);
     } else {
-      recordRecommendationSearch(query, currentRegionName);
-      alert(`Local não encontrado para "${query}". Tente um nome de cidade ou bairro.`);
+      recordRecommendationSearch(cleanQuery, currentRegionName);
+      setBusinessesError(`Não encontramos "${cleanQuery}". Tente combinar o tipo de negócio com bairro ou cidade.`);
+      setIsListOpen(true);
     }
     setIsLocating(false);
   };
@@ -1285,9 +1338,14 @@ export default function App() {
                   totalOpportunitiesCount={opportunitiesCount}
                   totalBusinessesCount={filteredBusinesses.length}
                   onOpenFilters={() => {
-                    setSelectedBusiness(null);
-                    setIsListOpen(false);
-                    setIsFiltersOpen(true);
+                    setIsFiltersOpen((current) => {
+                      const next = !current;
+                      if (next) {
+                        setSelectedBusiness(null);
+                        setIsListOpen(false);
+                      }
+                      return next;
+                    });
                   }}
                   recommendedBusinesses={recommendedBusinesses}
                   recommendationsLocked={recommendationsLocked}
@@ -1513,12 +1571,17 @@ export default function App() {
 
                 {/* List or Empty State */}
                 {listFilteredBusinesses.length === 0 && !isBusinessesLoading && !isZoomTooLow ? (
-                  <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-8 text-center">
+                  <div className="mt-4 flex min-h-[330px] flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] px-8 py-10 text-center">
+                    <img
+                      src="/empty-businesses.svg"
+                      alt=""
+                      className="mb-6 h-28 w-28 object-contain sm:h-32 sm:w-32"
+                    />
                     <p className="mb-1 text-sm font-semibold text-stone-200">
                       Nenhum estabelecimento encontrado nesta área.
                     </p>
-                    <p className="text-xs text-stone-500">
-                      Mova o mapa para outra região ou ajuste os filtros acima.
+                    <p className="max-w-md text-xs leading-relaxed text-stone-500">
+                      Tente outra combinação de negócio e região, mova o mapa ou ajuste os filtros acima.
                     </p>
                   </div>
                 ) : (
