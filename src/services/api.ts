@@ -189,6 +189,56 @@ export async function saveUserLead(
   }
 }
 
+export async function searchBusinessesByQuery(query: string, currentRegionName: string) {
+  const params = new URLSearchParams({
+    q: query,
+    currentRegionName,
+  });
+
+  const res = await fetch(`/api/search?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  const data = await readJsonResponse<any>(res, 'Não foi possível concluir a busca.');
+
+  if (!res.ok) {
+    throw new Error(data?.error || 'Não foi possível concluir a busca.');
+  }
+
+  const businesses = Array.isArray(data?.businesses)
+    ? data.businesses.map((item: any) => {
+        const lat = Number(item.latitude ?? item.lat ?? item.coordinates?.lat);
+        const lng = Number(item.longitude ?? item.lng ?? item.coordinates?.lng);
+
+        return {
+          ...item,
+          latitude: lat,
+          longitude: lng,
+          coordinates: { lat, lng },
+          websites: Array.isArray(item.websites) ? item.websites : item.website ? [item.website] : [],
+          email: item.email || item.emails?.[0] || null,
+          emails: Array.isArray(item.emails) ? item.emails : item.email ? [item.email] : [],
+          phone: item.phone || item.phones?.[0] || null,
+          phones: Array.isArray(item.phones) ? item.phones : item.phone ? [item.phone] : [],
+          socials: Array.isArray(item.socials) ? item.socials : [],
+          operatingStatus: item.operatingStatus || null,
+          source: item.source || item.sources?.[0] || 'Scoutly Search',
+          leadStatus: item.leadStatus || 'NOVO',
+          confidence: typeof item.confidence === 'number' ? item.confidence : 0.8,
+          address: item.address || '',
+          category: item.category || item.basicCategory || item.taxonomyPrimary || 'Serviços Gerais',
+          website: item.website || null,
+        };
+      })
+      .filter((item: any) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+    : [];
+
+  return {
+    ...data,
+    businesses,
+  };
+}
+
 export function getGoogleBusinessLink(
   business: Pick<Business, 'name' | 'address' | 'latitude' | 'longitude'>
 ): string {
