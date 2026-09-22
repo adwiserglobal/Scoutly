@@ -180,8 +180,8 @@ async function createStripeCheckout(
   params.set('mode', 'subscription');
   params.set('line_items[0][price]', priceId);
   params.set('line_items[0][quantity]', '1');
-  params.set('success_url', `${origin}/?billing=success&session_id={CHECKOUT_SESSION_ID}`);
-  params.set('cancel_url', `${origin}/?billing=cancel`);
+  params.set('success_url', `${origin}/dashboard?billing=success&session_id={CHECKOUT_SESSION_ID}`);
+  params.set('cancel_url', `${origin}/dashboard?billing=cancel`);
   params.set('client_reference_id', identity.uid);
   params.set('metadata[firebase_uid]', identity.uid);
   params.set('metadata[plan]', plan);
@@ -265,7 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const targetPlan = String(req.body?.plan || '').toLowerCase();
       const portal = await createStripeBillingPortal(
         identity.uid,
-        `${origin}/?billing=portal-return`,
+        `${origin}/dashboard?billing=portal-return`,
         ['go', 'pro', 'agency'].includes(targetPlan) ? (targetPlan as PaidPlan) : null
       );
       return res.status(200).json(portal);
