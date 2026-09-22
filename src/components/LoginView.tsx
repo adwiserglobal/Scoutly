@@ -4,7 +4,7 @@ import { Sparkles, Mail, Lock, AlertCircle, CheckCircle, ArrowRight } from 'luci
 
 export default function LoginView() {
   const { signIn, signInWithGoogle, signUp, resetPassword } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(() => new URLSearchParams(window.location.search).get('mode') === 'signup');
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -81,6 +81,13 @@ export default function LoginView() {
 
         {/* Right Side: Form Card */}
         <div className="lg:col-span-6 p-8 sm:p-12 flex flex-col justify-center bg-white">
+          <button
+            type="button"
+            onClick={() => window.location.assign('/')}
+            className="mb-5 self-start text-[11px] font-medium text-stone-400 transition hover:text-stone-700"
+          >
+            ← Voltar para scoutly.pro
+          </button>
           <div className="max-w-md w-full mx-auto">
             
             <div className="mb-8">
