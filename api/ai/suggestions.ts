@@ -2,6 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { generateContextualSuggestions } from '../../server/aiService.js';
 import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
+import {
+  handleInternalAction,
+  requireInternalAccess,
+  verifyInternalGateCode,
+} from '../../server/internalService.js';
 
 const ONBOARDING_VERSION = 1;
 
@@ -72,14 +77,31 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
   return res.status(400).json({ error: 'Ação de onboarding inválida.' });
 }
 
+async function handleInternalRequest(req: VercelRequest, res: VercelResponse, action: string) {
+  if (action === 'internal-verify-code') {
+    const result = await verifyInternalGateCode(req as any, String(req.body?.code || ''));
+    return res.status(200).json(result);
+  }
+
+  const identity = await requireFirebaseIdentity(req as any);
+  const staff = await requireInternalAccess(req as any, identity);
+  const result = await handleInternalAction(action, req.body || {}, identity, staff);
+  return res.status(result.status).json(result.body);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
+  const action = String(req.body?.action || '').trim();
+
   try {
-    const action = String(req.body?.action || '').trim();
+    if (action.startsWith('internal-')) {
+      return await handleInternalRequest(req, res, action);
+    }
+
     if (action.startsWith('onboarding-') || action === 'save-onboarding' || action === 'complete-onboarding-tutorial') {
       return await handleOnboardingAction(req, res, action);
     }
@@ -92,10 +114,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ suggestions });
   } catch (err: any) {
     console.error('[API /api/ai/suggestions]:', err?.message || err);
+    const statusCode = Number(err?.statusCode || 500);
 
-    if (String(req.body?.action || '').trim()) {
-      const statusCode = Number(err?.statusCode || 500);
-      return res.status(statusCode).json({ error: statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível salvar o onboarding.' });
+    if (action.startsWith('internal-')) {
+      return res.status(statusCode).json({
+        error: err?.message || 'Não foi possível acessar o Scoutly Internal.',
+      });
+    }
+
+    if (action) {
+      return res.status(statusCode).json({
+        error: statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível salvar o onboarding.',
+      });
     }
 
     return res.status(500).json({
