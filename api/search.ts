@@ -12,6 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const currentRegionName = typeof req.query.currentRegionName === 'string'
     ? req.query.currentRegionName
     : 'São Paulo - SP';
+  const agentMode = req.query.agent === '1' || req.query.agent === 'true';
 
   if (!query) {
     return res.status(400).json({ error: 'Parâmetro q é obrigatório.', businesses: [] });
@@ -20,10 +21,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const result = await searchBusinessesAdaptive(query, currentRegionName);
 
-    // Last-resort recovery for source taxonomies that are exceptionally sparse.
-    // Adaptive search already expands neighbourhood searches to city level first;
-    // this fallback is therefore reserved for genuinely underrepresented niches.
-    if (result.businesses.length < 12) {
+    // Agent runs need deterministic latency. They already retry and broaden their
+    // own search strategy, so the expensive sparse-recovery layer is intentionally
+    // skipped here. Interactive searches keep the richer fallback behavior.
+    if (!agentMode && result.businesses.length < 12) {
       try {
         const fallback = await findSparseSearchFallback({
           query,
@@ -45,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
+    res.setHeader('Cache-Control', agentMode ? 'no-store' : 's-maxage=30, stale-while-revalidate=120');
     return res.status(200).json(result);
   } catch (err: any) {
     console.error('[API /api/search Error]:', err);
