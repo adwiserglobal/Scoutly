@@ -2,8 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 
-const VIDEO_URL =
+const VIDEO_URL_EN =
   'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/1ba4952b23e445a52cb8ae04bc79209405e435925229841b4c20fb8165bccf03.mp4';
+const VIDEO_URL_PT =
+  'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/1da8309837a368784dc99a7145a47b20bd0d9f133236fb0bb2d8cd03666c6d5e.mp4';
+
+function getCurrentLanguage(): 'en' | 'pt' {
+  return document.documentElement.lang.toLowerCase().startsWith('pt') ? 'pt' : 'en';
+}
 
 function OverviewVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -11,6 +17,32 @@ function OverviewVideo() {
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'pt'>(getCurrentLanguage);
+
+  useEffect(() => {
+    const syncLanguage = () => setLanguage(getCurrentLanguage());
+    syncLanguage();
+
+    const observer = new MutationObserver(syncLanguage);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['lang'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const videoUrl = language === 'pt' ? VIDEO_URL_PT : VIDEO_URL_EN;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    hasAutoPlayedRef.current = false;
+    setFailed(false);
+    setPlaying(false);
+    video.load();
+  }, [videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -47,7 +79,7 @@ function OverviewVideo() {
 
     observer.observe(video);
     return () => observer.disconnect();
-  }, []);
+  }, [videoUrl]);
 
   const togglePlayback = async () => {
     const video = videoRef.current;
@@ -72,15 +104,35 @@ function OverviewVideo() {
     setMuted(nextMuted);
   };
 
+  const labels = language === 'pt'
+    ? {
+        loadError: 'Não foi possível carregar o vídeo.',
+        overview: 'Visão geral da plataforma Scoutly',
+        controls: 'Controles do vídeo',
+        pause: 'Pausar vídeo',
+        play: 'Reproduzir vídeo',
+        soundOn: 'Ativar som',
+        mute: 'Silenciar vídeo',
+      }
+    : {
+        loadError: 'Unable to load the video.',
+        overview: 'Scoutly platform overview',
+        controls: 'Video controls',
+        pause: 'Pause video',
+        play: 'Play video',
+        soundOn: 'Turn sound on',
+        mute: 'Mute video',
+      };
+
   return (
     <div className="site-product-video-layer" onContextMenu={(event) => event.preventDefault()}>
       {failed ? (
-        <div className="site-video-status">Unable to load the video.</div>
+        <div className="site-video-status">{labels.loadError}</div>
       ) : (
         <>
           <video
             ref={videoRef}
-            src={VIDEO_URL}
+            src={videoUrl}
             className="site-product-video"
             playsInline
             preload="auto"
@@ -93,15 +145,15 @@ function OverviewVideo() {
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
-            aria-label="Scoutly platform overview"
+            aria-label={labels.overview}
           />
 
-          <div className="site-video-controls" aria-label="Video controls">
+          <div className="site-video-controls" aria-label={labels.controls}>
             <button
               type="button"
               className="site-video-control"
               onClick={togglePlayback}
-              aria-label={playing ? 'Pause video' : 'Play video'}
+              aria-label={playing ? labels.pause : labels.play}
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </button>
@@ -109,7 +161,7 @@ function OverviewVideo() {
               type="button"
               className="site-video-control"
               onClick={toggleSound}
-              aria-label={muted ? 'Turn sound on' : 'Mute video'}
+              aria-label={muted ? labels.soundOn : labels.mute}
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </button>
