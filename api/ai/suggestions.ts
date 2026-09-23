@@ -3,6 +3,7 @@ import { generateContextualSuggestions } from '../../server/aiService.js';
 import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
+import { requireProductAccess, startTrialForUser } from '../../server/subscriptionAccessService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -16,14 +17,28 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
   await ensureAppUser(identity);
 
   if (action === 'onboarding-status') {
-    const rows = await appDataRequest<any[]>(
-      `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
-    );
+    const [rows, subscriptionRows] = await Promise.all([
+      appDataRequest<any[]>(
+        `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
+      ),
+      appDataRequest<any[]>(
+        `subscriptions?user_uid=eq.${dbValue(identity.uid)}&select=plan,status,current_period_start,current_period_end&limit=1`
+      ),
+    ]);
     const settings = rows[0] || null;
+    const subscription = subscriptionRows[0] || null;
     return res.status(200).json({
       onboardingVersion: Number(settings?.onboarding_version || 0),
       tutorialCompleted: Boolean(settings?.tutorial_completed),
       completedAt: settings?.onboarding_completed_at || null,
+      subscription: subscription
+        ? {
+            plan: subscription.plan || 'trial',
+            status: subscription.status || 'pending',
+            currentPeriodStart: subscription.current_period_start || null,
+            currentPeriodEnd: subscription.current_period_end || null,
+          }
+        : null,
     });
   }
 
@@ -58,6 +73,19 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
     });
 
     return res.status(200).json({ success: true, onboardingVersion: ONBOARDING_VERSION });
+  }
+
+  if (action === 'start-trial') {
+    const rows = await appDataRequest<any[]>(
+      `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_completed_at&limit=1`
+    );
+    const settings = rows[0] || null;
+    if (Number(settings?.onboarding_version || 0) < ONBOARDING_VERSION || !settings?.onboarding_completed_at) {
+      return res.status(409).json({ error: 'Conclua o onboarding antes de iniciar seu período de teste.' });
+    }
+
+    const subscription = await startTrialForUser(identity.uid);
+    return res.status(200).json({ success: true, subscription });
   }
 
   if (action === 'complete-onboarding-tutorial') {
@@ -142,9 +170,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await handleSupportRequest(req, res, action);
     }
 
-    if (action.startsWith('onboarding-') || action === 'save-onboarding' || action === 'complete-onboarding-tutorial') {
+    if (
+      action.startsWith('onboarding-') ||
+      action === 'save-onboarding' ||
+      action === 'complete-onboarding-tutorial' ||
+      action === 'start-trial'
+    ) {
       return await handleOnboardingAction(req, res, action);
     }
+
+    const identity = await requireFirebaseIdentity(req as any);
+    await requireProductAccess(identity.uid);
 
     const { recentSearches, currentRegionName } = req.body || {};
     const suggestions = await generateContextualSuggestions(
@@ -159,19 +195,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action.startsWith('internal-')) {
       return res.status(statusCode).json({
         error: err?.message || 'Não foi possível acessar o Scoutly Internal.',
+        code: err?.code || undefined,
       });
     }
 
     if (action.startsWith('support-')) {
       return res.status(statusCode).json({
         error: err?.message || 'Não foi possível acessar o suporte.',
+        code: err?.code || undefined,
       });
     }
 
     if (action) {
       return res.status(statusCode).json({
-        error: statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível salvar o onboarding.',
+        error: err?.message || (statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível concluir a operação.'),
+        code: err?.code || undefined,
       });
+    }
+
+    if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
+      return res.status(statusCode).json({ error: err?.message || 'Acesso indisponível.', code: err?.code || undefined });
     }
 
     return res.status(500).json({
