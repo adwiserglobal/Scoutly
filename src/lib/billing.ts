@@ -108,7 +108,7 @@ export function getBillingStatus(
 
   if (
     persistedPlan === 'expired' ||
-    ['canceled', 'unpaid', 'incomplete_expired'].includes(persistedStatus)
+    ['canceled', 'unpaid', 'incomplete_expired', 'expired'].includes(persistedStatus)
   ) {
     return {
       plan: 'expired',
@@ -124,6 +124,25 @@ export function getBillingStatus(
       subscriptionStatus: persistedStatus,
       cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
       periodEndsAt: subscription?.current_period_end || '',
+      paidPlanId: null,
+    };
+  }
+
+  if (persistedPlan === 'trial' && persistedStatus === 'pending') {
+    return {
+      plan: 'trial',
+      planName: 'Teste Pro',
+      trialStartedAt: '',
+      trialEndsAt: '',
+      daysRemaining: 7,
+      isTrial: false,
+      isExpired: false,
+      hasAccess: false,
+      monthlyPrice: null,
+      includedSeats: 1,
+      subscriptionStatus: 'pending',
+      cancelAtPeriodEnd: false,
+      periodEndsAt: '',
       paidPlanId: null,
     };
   }
@@ -157,6 +176,9 @@ export function getBillingStatus(
     }
   }
 
+  // Legacy fallback only applies while the server subscription has not hydrated.
+  // Persisted pending/expired states are handled above and can never be upgraded
+  // into access by this client-side fallback.
   const createdAt = parseTime(user?.metadata?.creationTime) || TRIAL_ROLLOUT_AT;
   const trialStartedAtMs = Math.max(createdAt, TRIAL_ROLLOUT_AT);
   const trialEndsAtMs = trialStartedAtMs + TRIAL_DAYS * 24 * 60 * 60 * 1000;
@@ -230,5 +252,5 @@ export function formatBRL(value: number) {
 }
 
 export function hasRecommendationsAccess(billing: BillingStatus) {
-  return billing.plan === 'pro' || billing.plan === 'agency' || billing.plan === 'trial';
+  return billing.hasAccess && (billing.plan === 'pro' || billing.plan === 'agency' || billing.plan === 'trial');
 }
