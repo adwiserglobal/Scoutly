@@ -64,6 +64,16 @@ export interface UserDetail {
   leads: any[];
   favorites: any[];
   recentEvents: any[];
+  onboarding?: {
+    version: number;
+    role: string | null;
+    teamSize: string | null;
+    goal: string | null;
+    goalOther: string | null;
+    completedAt: string | null;
+    tutorialCompleted: boolean;
+    tutorialCompletedAt: string | null;
+  } | null;
 }
 
 export interface DashboardData {
