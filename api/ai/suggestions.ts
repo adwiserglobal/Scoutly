@@ -3,7 +3,7 @@ import { generateContextualSuggestions } from '../../server/aiService.js';
 import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
-import { requireProductAccess, startTrialForUser } from '../../server/subscriptionAccessService.js';
+import { startTrialForUser } from '../../server/subscriptionAccessService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -179,9 +179,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await handleOnboardingAction(req, res, action);
     }
 
-    const identity = await requireFirebaseIdentity(req as any);
-    await requireProductAccess(identity.uid);
-
     const { recentSearches, currentRegionName } = req.body || {};
     const suggestions = await generateContextualSuggestions(
       Array.isArray(recentSearches) ? recentSearches : [],
@@ -211,10 +208,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: err?.message || (statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível concluir a operação.'),
         code: err?.code || undefined,
       });
-    }
-
-    if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
-      return res.status(statusCode).json({ error: err?.message || 'Acesso indisponível.', code: err?.code || undefined });
     }
 
     return res.status(500).json({
