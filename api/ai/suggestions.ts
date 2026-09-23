@@ -78,6 +78,42 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
   return res.status(400).json({ error: 'Ação de onboarding inválida.' });
 }
 
+async function enrichInternalUserDetail(body: any, uid: string) {
+  if (!body || !uid) return body;
+
+  const rows = await appDataRequest<any[]>(
+    `user_settings?user_uid=eq.${dbValue(uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
+  );
+  const settings = rows[0] || null;
+  if (!settings) return { ...body, onboarding: null };
+
+  const onboarding = {
+    version: Number(settings.onboarding_version || 0),
+    role: settings.onboarding_role || null,
+    teamSize: settings.onboarding_team_size || null,
+    goal: settings.onboarding_goal || null,
+    goalOther: settings.onboarding_goal_other || null,
+    completedAt: settings.onboarding_completed_at || null,
+    tutorialCompleted: Boolean(settings.tutorial_completed),
+    tutorialCompletedAt: settings.tutorial_completed_at || null,
+  };
+
+  const onboardingEvents = onboarding.completedAt
+    ? [
+        { event_type: 'Onboarding · Perfil', query: onboarding.role || 'Não informado', created_at: onboarding.completedAt },
+        { event_type: 'Onboarding · Equipe', query: onboarding.teamSize || 'Não informado', created_at: onboarding.completedAt },
+        { event_type: 'Onboarding · Objetivo', query: onboarding.goalOther || onboarding.goal || 'Não informado', created_at: onboarding.completedAt },
+        { event_type: 'Onboarding · Tutorial', query: onboarding.tutorialCompleted ? 'Concluído' : 'Pendente', created_at: onboarding.tutorialCompletedAt || onboarding.completedAt },
+      ]
+    : [];
+
+  return {
+    ...body,
+    onboarding,
+    recentEvents: [...onboardingEvents, ...(Array.isArray(body.recentEvents) ? body.recentEvents : [])],
+  };
+}
+
 async function handleInternalRequest(req: VercelRequest, res: VercelResponse, action: string) {
   if (action === 'internal-verify-code') {
     const result = await verifyInternalGateCode(req as any, String(req.body?.code || ''));
@@ -87,6 +123,11 @@ async function handleInternalRequest(req: VercelRequest, res: VercelResponse, ac
   const identity = await requireFirebaseIdentity(req as any);
   const staff = await requireInternalAccess(req as any, identity);
   const result = await handleInternalAction(action, req.body || {}, identity, staff);
+
+  if (action === 'internal-user-detail') {
+    result.body = await enrichInternalUserDetail(result.body, String(req.body?.uid || ''));
+  }
+
   return res.status(result.status).json(result.body);
 }
 
