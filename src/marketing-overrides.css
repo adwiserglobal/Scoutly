@@ -27,30 +27,29 @@ main > section:first-child {
   background-size: 100% 900px, 100% 900px, auto 900px;
 }
 
+/* The old map screenshot only remains in the DOM as the portal anchor. */
 .site-product-image {
-  display: block;
-  width: 100%;
-  height: auto;
-  min-height: 220px;
-  object-fit: cover;
-  background: #090c10;
-  opacity: 0;
-  pointer-events: none;
+  display: none !important;
 }
 
 .site-product-video-layer {
-  position: absolute;
-  inset: 0;
+  position: relative;
   z-index: 4;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: #05070a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .site-product-video {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
   background: #05070a;
   cursor: pointer;
 }
@@ -133,10 +132,6 @@ main > section:first-child {
   main > section:first-child {
     background-size: 100% 720px, 100% 720px, auto 720px;
     background-position: center top;
-  }
-
-  .site-product-image {
-    min-height: 150px;
   }
 
   .site-video-controls {
