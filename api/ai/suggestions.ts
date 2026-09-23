@@ -87,30 +87,18 @@ async function enrichInternalUserDetail(body: any, uid: string) {
   const settings = rows[0] || null;
   if (!settings) return { ...body, onboarding: null };
 
-  const onboarding = {
-    version: Number(settings.onboarding_version || 0),
-    role: settings.onboarding_role || null,
-    teamSize: settings.onboarding_team_size || null,
-    goal: settings.onboarding_goal || null,
-    goalOther: settings.onboarding_goal_other || null,
-    completedAt: settings.onboarding_completed_at || null,
-    tutorialCompleted: Boolean(settings.tutorial_completed),
-    tutorialCompletedAt: settings.tutorial_completed_at || null,
-  };
-
-  const onboardingEvents = onboarding.completedAt
-    ? [
-        { event_type: 'Onboarding · Perfil', query: onboarding.role || 'Não informado', created_at: onboarding.completedAt },
-        { event_type: 'Onboarding · Equipe', query: onboarding.teamSize || 'Não informado', created_at: onboarding.completedAt },
-        { event_type: 'Onboarding · Objetivo', query: onboarding.goalOther || onboarding.goal || 'Não informado', created_at: onboarding.completedAt },
-        { event_type: 'Onboarding · Tutorial', query: onboarding.tutorialCompleted ? 'Concluído' : 'Pendente', created_at: onboarding.tutorialCompletedAt || onboarding.completedAt },
-      ]
-    : [];
-
   return {
     ...body,
-    onboarding,
-    recentEvents: [...onboardingEvents, ...(Array.isArray(body.recentEvents) ? body.recentEvents : [])],
+    onboarding: {
+      version: Number(settings.onboarding_version || 0),
+      role: settings.onboarding_role || null,
+      teamSize: settings.onboarding_team_size || null,
+      goal: settings.onboarding_goal || null,
+      goalOther: settings.onboarding_goal_other || null,
+      completedAt: settings.onboarding_completed_at || null,
+      tutorialCompleted: Boolean(settings.tutorial_completed),
+      tutorialCompletedAt: settings.tutorial_completed_at || null,
+    },
   };
 }
 
