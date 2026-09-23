@@ -76,6 +76,16 @@ export default function OnboardingGate() {
 
   useEffect(() => {
     if (mode !== 'tutorial') return;
+
+    // The guided tour is anchored to the dashboard controls. If a returning user
+    // entered through Pipeline/Favorites, bring them to the dashboard once, then
+    // spotlight the live controls there.
+    if (pathname !== '/dashboard') {
+      window.history.replaceState({}, '', '/dashboard');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      return;
+    }
+
     markTutorialTargets();
     const timers = [100, 350, 800].map((delay) => window.setTimeout(markTutorialTargets, delay));
     return () => timers.forEach(window.clearTimeout);
