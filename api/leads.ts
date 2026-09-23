@@ -123,12 +123,68 @@ async function bootstrap(userUid: string, workspaceId: string) {
 
 
 type PaidPlan = 'go' | 'pro' | 'agency';
+const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
 
 function getRequestOrigin(req: VercelRequest) {
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
   const forwardedProto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
   if (host) return `${forwardedProto}://${host}`;
   return String(process.env.APP_URL || 'https://www.scoutly.pro').replace(/\/$/, '');
+}
+
+function getRequestedPromotionCode(req: VercelRequest) {
+  const explicitCode = String(req.body?.promotionCode || '').trim().toLowerCase();
+  if (explicitCode === SHAREABLE_PROMOTION_CODE) return explicitCode;
+
+  const cookieHeader = String(req.headers.cookie || '');
+  for (const part of cookieHeader.split(';')) {
+    const [rawKey, ...rawValueParts] = part.trim().split('=');
+    if (rawKey !== 'scoutly_promo_code') continue;
+
+    const cookieCode = decodeURIComponent(rawValueParts.join('=') || '')
+      .trim()
+      .toLowerCase();
+    if (cookieCode === SHAREABLE_PROMOTION_CODE) return cookieCode;
+  }
+
+  const referer = String(req.headers.referer || '').trim();
+  if (referer) {
+    try {
+      const refererCode = String(new URL(referer).searchParams.get('promo') || '')
+        .trim()
+        .toLowerCase();
+      if (refererCode === SHAREABLE_PROMOTION_CODE) return refererCode;
+    } catch {
+      // Ignore malformed referrer URLs and continue without an automatic promotion.
+    }
+  }
+
+  return null;
+}
+
+async function resolveStripePromotionCode(stripeSecret: string, code: string) {
+  const params = new URLSearchParams({
+    active: 'true',
+    code,
+    limit: '1',
+  });
+
+  const response = await fetch(`https://api.stripe.com/v1/promotion_codes?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${stripeSecret}`,
+    },
+    signal: AbortSignal.timeout(12000),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data?.error?.message || `Stripe HTTP ${response.status}`;
+    throw Object.assign(new Error(message), { statusCode: 502 });
+  }
+
+  const promotionCodeId = String(data?.data?.[0]?.id || '').trim();
+  return promotionCodeId.startsWith('promo_') ? promotionCodeId : null;
 }
 
 async function createStripeCheckout(
@@ -139,6 +195,18 @@ async function createStripeCheckout(
   const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '');
   if (!stripeSecret) {
     throw Object.assign(new Error('STRIPE_SECRET_KEY não configurada'), { statusCode: 503 });
+  }
+
+  const requestedPromotionCode = getRequestedPromotionCode(req);
+  const promotionCodeId = requestedPromotionCode
+    ? await resolveStripePromotionCode(stripeSecret, requestedPromotionCode)
+    : null;
+
+  if (requestedPromotionCode && !promotionCodeId) {
+    throw Object.assign(
+      new Error('O cupom scoutlypro10 não está ativo ou não foi encontrado na Stripe.'),
+      { statusCode: 409 }
+    );
   }
 
   const priceByPlan: Record<PaidPlan, string> = {
@@ -182,7 +250,12 @@ async function createStripeCheckout(
   params.set('metadata[plan]', plan);
   params.set('subscription_data[metadata][firebase_uid]', identity.uid);
   params.set('subscription_data[metadata][plan]', plan);
-  params.set('allow_promotion_codes', 'true');
+
+  if (promotionCodeId) {
+    params.set('discounts[0][promotion_code]', promotionCodeId);
+  } else {
+    params.set('allow_promotion_codes', 'true');
+  }
 
   if (existing?.provider_customer_id) {
     params.set('customer', String(existing.provider_customer_id));
