@@ -43,15 +43,14 @@ function OverviewVideo() {
           <video
             ref={videoRef}
             src={VIDEO_URL}
-            poster="/scoutly-product-screen.webp"
             className="site-product-video"
             playsInline
-            preload="metadata"
+            preload="auto"
             muted={muted}
             disablePictureInPicture
             controlsList="nodownload noplaybackrate nofullscreen"
             onClick={togglePlayback}
-            onLoadedMetadata={() => setFailed(false)}
+            onLoadedData={() => setFailed(false)}
             onError={() => setFailed(true)}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
