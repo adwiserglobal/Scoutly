@@ -10,12 +10,18 @@ export interface GeocodedLocation {
 }
 
 interface BusinessSearchApiResponse {
-  region?: {
-    name: string;
-    center: { lat: number; lng: number };
-  };
+  region?: { name: string; center: { lat: number; lng: number } };
   businesses?: any[];
   precisionMode?: boolean;
+}
+
+interface LocationSuggestion {
+  label: string;
+  primary: string;
+  secondary?: string;
+  kind?: string;
+  lat: number;
+  lng: number;
 }
 
 export const PRESET_REGIONS: GeocodedLocation[] = [
@@ -43,21 +49,15 @@ const BUSINESS_TERMS = [
 const LOCATION_PREFIXES = ['rua ', 'r. ', 'avenida ', 'av. ', 'alameda ', 'rodovia ', 'estrada ', 'bairro '];
 
 function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function isPresetLocation(query: string): GeocodedLocation | null {
   const normalized = normalizeText(query);
-  const match = PRESET_REGIONS.find((p) => {
-    const preset = normalizeText(p.name);
-    return preset.includes(normalized) || normalized.includes(preset);
-  });
-  return match || null;
+  return PRESET_REGIONS.find((preset) => {
+    const value = normalizeText(preset.name);
+    return value.includes(normalized) || normalized.includes(value);
+  }) || null;
 }
 
 function looksLikeAddress(query: string): boolean {
@@ -68,9 +68,7 @@ function looksLikeAddress(query: string): boolean {
 function looksLikeBusinessSearch(query: string): boolean {
   const normalized = normalizeText(query);
   if (BUSINESS_TERMS.some((term) => normalized.includes(normalizeText(term)))) return true;
-
-  const hasLocationClause = /\s+(em|no|na|perto de|perto do|perto da)\s+/.test(normalized);
-  return hasLocationClause && !looksLikeAddress(query);
+  return /\s+(em|no|na|perto de|perto do|perto da)\s+/.test(normalized) && !looksLikeAddress(query);
 }
 
 function toBusiness(raw: any): Business | null {
@@ -88,9 +86,9 @@ function toBusiness(raw: any): Business | null {
     operatingStatus: raw.operatingStatus || null,
     website: raw.website || null,
     websites: Array.isArray(raw.websites) ? raw.websites : raw.website ? [raw.website] : [],
-    email: raw.email || (Array.isArray(raw.emails) ? raw.emails[0] : null) || null,
+    email: raw.email || raw.emails?.[0] || null,
     emails: Array.isArray(raw.emails) ? raw.emails : raw.email ? [raw.email] : [],
-    phone: raw.phone || (Array.isArray(raw.phones) ? raw.phones[0] : null) || null,
+    phone: raw.phone || raw.phones?.[0] || null,
     phones: Array.isArray(raw.phones) ? raw.phones : raw.phone ? [raw.phone] : [],
     socials: Array.isArray(raw.socials) ? raw.socials : [],
     address: raw.address || [raw.logradouro, raw.numero, raw.bairro, raw.municipio, raw.uf].filter(Boolean).join(', ') || 'Endereço não identificado',
@@ -126,31 +124,63 @@ async function searchBusinesses(query: string, currentRegionName?: string): Prom
     if (!res.ok) return null;
 
     const data: BusinessSearchApiResponse = await res.json();
-    const businesses = (data.businesses || []).map(toBusiness).filter((b): b is Business => Boolean(b));
+    const businesses = (data.businesses || []).map(toBusiness).filter((business): business is Business => Boolean(business));
     if (businesses.length === 0 && !data.region?.center) return null;
 
     mapCacheService.setTargetedSearchResults(businesses, query);
+    if (!data.region?.center) return null;
 
-    if (data.region?.center) {
-      return {
-        name: data.region.name,
-        lat: data.region.center.lat,
-        lng: data.region.center.lng,
-        businesses,
-        searchType: 'business',
-      };
-    }
+    return {
+      name: data.region.name,
+      lat: data.region.center.lat,
+      lng: data.region.center.lng,
+      businesses,
+      searchType: 'business',
+    };
   } catch (err) {
     console.warn('[Scoutly Search] Falha na busca por empresas:', err);
+    return null;
   }
-  return null;
+}
+
+async function resolveLocation(query: string, currentRegionName?: string): Promise<GeocodedLocation | null> {
+  try {
+    const params = new URLSearchParams({ q: query });
+    if (currentRegionName) params.set('currentRegionName', currentRegionName);
+    const res = await fetch(`/api/location-suggestions?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const suggestions: LocationSuggestion[] = Array.isArray(data?.suggestions) ? data.suggestions : [];
+    if (suggestions.length === 0) return null;
+
+    const needle = normalizeText(query);
+    const best = suggestions.find((item) => normalizeText(item.primary) === needle)
+      || suggestions.find((item) => normalizeText(item.label).startsWith(needle))
+      || suggestions[0];
+
+    const lat = Number(best.lat);
+    const lng = Number(best.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    return {
+      name: best.label || best.primary,
+      lat,
+      lng,
+      searchType: 'location',
+    };
+  } catch (err) {
+    console.warn('[Scoutly Geocoding] Falha ao resolver localização:', err);
+    return null;
+  }
 }
 
 export async function searchAddressOrCity(query: string, currentRegionName?: string): Promise<GeocodedLocation | null> {
   const trimmed = query.trim();
   if (!trimmed) return null;
 
-  // Known locations and explicit addresses should remain geocoding searches.
   const matchedPreset = isPresetLocation(trimmed);
   if (matchedPreset && !looksLikeBusinessSearch(trimmed)) {
     mapCacheService.clearTargetedSearch();
@@ -163,29 +193,10 @@ export async function searchAddressOrCity(query: string, currentRegionName?: str
   }
 
   mapCacheService.clearTargetedSearch();
-
-  try {
-    const encoded = encodeURIComponent(trimmed);
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&countrycodes=br&limit=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return {
-        name: data[0].display_name.split(',').slice(0, 2).join(','),
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        searchType: 'location',
-      };
-    }
-  } catch (err) {
-    console.warn('Falha na geocodificação externa:', err);
-  }
+  const location = await resolveLocation(trimmed, currentRegionName);
+  if (location) return location;
 
   // A company name may not contain a known segment word. Try business search last.
-  if (!looksLikeAddress(trimmed)) {
-    return searchBusinesses(trimmed, currentRegionName);
-  }
-
+  if (!looksLikeAddress(trimmed)) return searchBusinesses(trimmed, currentRegionName);
   return null;
 }
