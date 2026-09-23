@@ -2,10 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'crypto';
 import { processAgentQueueOnce } from '../../server/agenticService.js';
 
-export const config = {
-  maxDuration: 60,
-};
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -22,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const results: any[] = [];
 
     for (let index = 0; index < 3; index += 1) {
-      if (Date.now() - startedAt > 42_000) break;
+      if (Date.now() - startedAt > 25_000) break;
       const workerId = `vercel-${randomUUID()}`;
       const result = await processAgentQueueOnce(workerId);
       results.push(result);
