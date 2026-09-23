@@ -3,7 +3,7 @@ import { generateContextualSuggestions } from '../../server/aiService.js';
 import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
-import { startTrialForUser } from '../../server/subscriptionAccessService.js';
+import { getSubscriptionAccess, startTrialForUser } from '../../server/subscriptionAccessService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -17,28 +17,23 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
   await ensureAppUser(identity);
 
   if (action === 'onboarding-status') {
-    const [rows, subscriptionRows] = await Promise.all([
+    const [rows, access] = await Promise.all([
       appDataRequest<any[]>(
         `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
       ),
-      appDataRequest<any[]>(
-        `subscriptions?user_uid=eq.${dbValue(identity.uid)}&select=plan,status,current_period_start,current_period_end&limit=1`
-      ),
+      getSubscriptionAccess(identity.uid),
     ]);
     const settings = rows[0] || null;
-    const subscription = subscriptionRows[0] || null;
     return res.status(200).json({
       onboardingVersion: Number(settings?.onboarding_version || 0),
       tutorialCompleted: Boolean(settings?.tutorial_completed),
       completedAt: settings?.onboarding_completed_at || null,
-      subscription: subscription
-        ? {
-            plan: subscription.plan || 'trial',
-            status: subscription.status || 'pending',
-            currentPeriodStart: subscription.current_period_start || null,
-            currentPeriodEnd: subscription.current_period_end || null,
-          }
-        : null,
+      subscription: {
+        plan: access.plan,
+        status: access.status,
+        currentPeriodStart: access.current_period_start,
+        currentPeriodEnd: access.current_period_end,
+      },
     });
   }
 
