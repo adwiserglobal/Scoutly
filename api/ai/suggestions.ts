@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { generateContextualSuggestions } from '../../server/aiService.js';
 import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
+import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -89,6 +90,13 @@ async function handleInternalRequest(req: VercelRequest, res: VercelResponse, ac
   return res.status(result.status).json(result.body);
 }
 
+async function handleSupportRequest(req: VercelRequest, res: VercelResponse, action: string) {
+  const identity = await requireFirebaseIdentity(req as any);
+  await ensureAppUser(identity);
+  const result = await handleCustomerSupportAction(action, req.body || {}, identity);
+  return res.status(result.status).json(result.body);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -100,6 +108,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (action.startsWith('internal-')) {
       return await handleInternalRequest(req, res, action);
+    }
+
+    if (action.startsWith('support-')) {
+      return await handleSupportRequest(req, res, action);
     }
 
     if (action.startsWith('onboarding-') || action === 'save-onboarding' || action === 'complete-onboarding-tutorial') {
@@ -119,6 +131,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action.startsWith('internal-')) {
       return res.status(statusCode).json({
         error: err?.message || 'Não foi possível acessar o Scoutly Internal.',
+      });
+    }
+
+    if (action.startsWith('support-')) {
+      return res.status(statusCode).json({
+        error: err?.message || 'Não foi possível acessar o suporte.',
       });
     }
 
