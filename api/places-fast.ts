@@ -23,6 +23,21 @@ function fullyInsideBrazilIndex(
   );
 }
 
+async function queryOvertureDirect(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  limit: number,
+  zoom?: number,
+) {
+  // This same Vercel function also serves the internal /api/places alias.
+  // Load DuckDB only for the internal fallback request so regular indexed-map
+  // requests do not pay the native-module initialization cost.
+  const { queryPlacesInBBox } = await import('../server/overtureService.js');
+  return queryPlacesInBBox(west, south, east, north, limit, zoom);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -42,13 +57,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
+    const internalFallback = String(req.headers['x-scoutly-internal-fallback'] || '') === '1';
+
+    // /api/places is intentionally routed to this function to stay within the
+    // Vercel function budget. The internal header distinguishes that request
+    // from a normal /api/places-fast request and prevents recursive self-calls.
+    if (internalFallback) {
+      const overture = await queryOvertureDirect(west, south, east, north, safeLimit, zoom);
+      res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+      return res.status(200).json({
+        ...overture,
+        source: 'overture',
+        total: overture.places.length,
+      });
+    }
+
     const insideBrazilIndex = fullyInsideBrazilIndex(west, south, east, north);
 
     if (insideBrazilIndex && hasBrazilPlacesDatabase()) {
       try {
         const result = await queryBrazilPlaces(west, south, east, north, safeLimit);
-        res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-        return res.status(200).json({ ...result, total: result.places.length });
+        if (result.places.length > 0) {
+          res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+          return res.status(200).json({ ...result, total: result.places.length });
+        }
+        console.warn('[Fast Places] Local index returned 0 places; falling back to Overture.');
       } catch (err: any) {
         console.warn('[Fast Places] Supabase unavailable, using isolated Overture fallback:', err.message);
       }
