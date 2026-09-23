@@ -48,11 +48,11 @@ interface AIAssistantDrawerProps {
 }
 
 const AGENT_STEPS = [
-  'Entendendo sua solicitação',
-  'Explorando empresas e presença digital',
-  'Cruzando localização, categoria e sinais comerciais',
-  'Priorizando as melhores oportunidades',
-  'Preparando a resposta',
+  'Interpretando segmento, região e critérios',
+  'Validando a localização solicitada',
+  'Consultando fontes de negócios',
+  'Eliminando resultados fora da região',
+  'Aplicando filtros e priorizando oportunidades',
 ];
 
 function AIAssistantDrawer({
@@ -81,11 +81,9 @@ function AIAssistantDrawer({
       return;
     }
 
-    setActiveAgentStep(0);
     const timers = AGENT_STEPS.slice(1).map((_, index) =>
-      window.setTimeout(() => setActiveAgentStep(index + 1), 900 + index * 1150)
+      window.setTimeout(() => setActiveAgentStep(index + 1), 850 + index * 1000)
     );
-
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [isLoading]);
 
@@ -96,7 +94,7 @@ function AIAssistantDrawer({
 
   useEffect(() => {
     if (!isOpen) return;
-    window.setTimeout(() => inputRef.current?.focus(), 150);
+    window.setTimeout(() => inputRef.current?.focus(), 120);
   }, [isOpen]);
 
   useEffect(() => {
@@ -114,7 +112,7 @@ function AIAssistantDrawer({
 
       const fallback = [
         `Encontre empresas com maior potencial em ${currentRegionName || 'esta região'}`,
-        `Mostre negócios sem site em ${currentRegionName || 'esta região'}`,
+        `Mostre negócios com site não identificado em ${currentRegionName || 'esta região'}`,
         `Encontre prospects com telefone ou WhatsApp em ${currentRegionName || 'esta região'}`,
       ];
 
@@ -136,11 +134,19 @@ function AIAssistantDrawer({
     };
   }, [isOpen, currentRegionName, businesses]);
 
+  const getBusinessesFromIds = (ids?: string[]) => {
+    if (!ids?.length) return [];
+    const pool = discoveredBusinesses.length > 0 ? discoveredBusinesses : businesses;
+    return ids
+      .map((id) => pool.find((business) => business.id === id))
+      .filter((business): business is Business => Boolean(business));
+  };
+
   const handleSendMessage = async (customText?: string) => {
     const textToSend = (customText || inputMessage).trim();
     if (!textToSend || isLoading) return;
 
-    const newHistory: ChatMessage[] = [
+    const nextHistory: ChatMessage[] = [
       ...messages,
       {
         id: `usr_${Date.now()}`,
@@ -150,31 +156,29 @@ function AIAssistantDrawer({
       },
     ];
 
-    setMessages(newHistory);
+    setMessages(nextHistory);
     setInputMessage('');
     setIsLoading(true);
+    setActiveAgentStep(0);
 
     try {
-      const historyPayload = newHistory.map((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
-
+      const contextBusinesses = discoveredBusinesses.length > 0 ? discoveredBusinesses : businesses;
       const result = await sendAIChatMessage({
         message: textToSend,
-        history: historyPayload,
-        businesses: [...businesses, ...discoveredBusinesses],
+        history: nextHistory.map((message) => ({ role: message.role, content: message.content })),
+        businesses: contextBusinesses,
         currentRegionName,
       });
 
       if (result.newRegion) {
-        if (result.newRegion.businesses?.length) {
-          setDiscoveredBusinesses((previous) => [
-            ...previous,
-            ...(result.newRegion?.businesses as Business[]),
-          ]);
-        }
-        onApplyNewRegion?.(result.newRegion);
+        const newBusinesses = Array.isArray(result.newRegion.businesses)
+          ? (result.newRegion.businesses as Business[])
+          : [];
+
+        // A new geographic search replaces previous Agentic discoveries instead
+        // of accumulating businesses from older cities in the same chat session.
+        setDiscoveredBusinesses(newBusinesses);
+        onApplyNewRegion?.({ ...result.newRegion, businesses: newBusinesses });
       }
 
       setMessages((previous) => [
@@ -195,7 +199,7 @@ function AIAssistantDrawer({
         {
           id: `err_${Date.now()}`,
           role: 'assistant',
-          content: `Não consegui concluir esta execução agora. ${error?.message || 'Tente novamente em instantes.'}`,
+          content: `Não consegui concluir a execução agora. ${error?.message || 'Tente novamente em instantes.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -218,14 +222,6 @@ function AIAssistantDrawer({
     window.setTimeout(() => setCopiedIndex(null), 1800);
   };
 
-  const getBusinessesFromIds = (ids?: string[]) => {
-    if (!ids?.length) return [];
-    const pool = [...businesses, ...discoveredBusinesses];
-    return ids
-      .map((id) => pool.find((business) => business.id === id))
-      .filter((business): business is Business => Boolean(business));
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -236,9 +232,7 @@ function AIAssistantDrawer({
       >
         <header className="flex h-[74px] shrink-0 items-center justify-between border-b border-white/[0.07] px-5 sm:px-7">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08]">
-              <img src="/ai-icon.png" alt="Scoutly Agentic" className="h-7 w-7 rounded-lg object-cover" />
-            </div>
+            <img src="/logo.png" alt="Scoutly" className="h-7 w-7 object-contain" />
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">Scoutly Agentic</h2>
               <p className="mt-0.5 text-[10px] text-stone-600">Agente de prospecção comercial</p>
@@ -246,20 +240,10 @@ function AIAssistantDrawer({
           </div>
 
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleResetChat}
-              title="Nova conversa"
-              className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200"
-            >
+            <button type="button" onClick={handleResetChat} title="Nova conversa" className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200">
               <RotateCcw className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              title="Fechar"
-              className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200"
-            >
+            <button type="button" onClick={onClose} title="Fechar" className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -272,11 +256,9 @@ function AIAssistantDrawer({
                 <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] text-[#FF6A26]">
                   <Sparkles className="h-4 w-4" />
                 </span>
-                <h3 className="max-w-lg text-[25px] font-semibold leading-[1.12] tracking-[-0.04em] text-white">
-                  O que você quer encontrar hoje?
-                </h3>
-                <p className="mt-3 max-w-[520px] text-[12px] leading-6 text-stone-500">
-                  Peça um segmento, cidade, quantidade ou critério. O Scoutly Agentic explora os dados, aplica contexto e organiza as melhores oportunidades.
+                <h3 className="max-w-lg text-[25px] font-semibold leading-[1.12] tracking-[-0.04em] text-white">O que você quer encontrar hoje?</h3>
+                <p className="mt-3 max-w-[540px] text-[12px] leading-6 text-stone-500">
+                  Informe segmento, região e critérios. O Agentic valida a localização antes de consultar as fontes e não troca silenciosamente a cidade solicitada.
                 </p>
               </div>
 
@@ -306,7 +288,7 @@ function AIAssistantDrawer({
 
               if (isUser) {
                 return (
-                  <div key={message.id} className="rounded-2xl border border-white/[0.09] bg-[#111418] px-5 py-4 text-[15px] font-medium leading-7 text-white shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
+                  <div key={message.id} className="rounded-2xl border border-white/[0.09] bg-[#111418] px-5 py-4 text-[15px] font-medium leading-7 text-white">
                     {message.content}
                   </div>
                 );
@@ -331,31 +313,15 @@ function AIAssistantDrawer({
                       <span className="text-stone-700">•</span>
                       <span>{message.searchSummary.regionName}</span>
                       {message.searchSummary.appliedFilters.slice(0, 2).map((filter) => (
-                        <span key={filter} className="rounded-full border border-[#FF5A12]/15 bg-[#FF5A12]/[0.05] px-2 py-0.5 text-[#FF7A3D]">
-                          {filter}
-                        </span>
+                        <span key={filter} className="rounded-full border border-[#FF5A12]/15 bg-[#FF5A12]/[0.05] px-2 py-0.5 text-[#FF7A3D]">{filter}</span>
                       ))}
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3 text-[9px] text-stone-700">
-                    <span>{message.timestamp}</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(message.content, message.id)}
-                      className="flex items-center gap-1 transition hover:text-stone-400"
-                    >
-                      {copiedIndex === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedIndex === message.id ? 'Copiado' : 'Copiar'}</span>
-                    </button>
-                  </div>
-
                   {matchedBusinesses.length > 0 && (
-                    <div className="space-y-3 pt-2">
+                    <div className="space-y-3 pt-1">
                       <div className="flex items-center justify-between gap-4">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
-                          Oportunidades encontradas · {matchedBusinesses.length}
-                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">Oportunidades · {matchedBusinesses.length}</p>
                         {message.suggestedAction?.type === 'add_to_pipeline' && (
                           <button
                             type="button"
@@ -374,48 +340,38 @@ function AIAssistantDrawer({
                       </div>
 
                       {matchedBusinesses.map((business) => {
-                        const hasWebsite = Boolean(business.website);
-                        const whatsappLink = getWhatsAppLink(business.phone || business.phones?.[0]);
+                        const waLink = getWhatsAppLink(business.phone || business.phones?.[0]);
                         const isSaved = Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
-
                         return (
-                          <article key={business.id} className="rounded-2xl border border-white/[0.07] bg-[#0c0f13] p-4 transition hover:border-white/[0.12]">
+                          <article key={business.id} className="rounded-2xl border border-white/[0.08] bg-[#0d1014] p-4">
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0">
                                 <h4 className="truncate text-[12px] font-semibold text-white">{business.name}</h4>
-                                <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-stone-600">
-                                  {business.category} · {business.address}
-                                </p>
+                                <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-stone-600">{business.category} · {business.address}</p>
                               </div>
-                              <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${hasWebsite ? 'bg-emerald-500/[0.07] text-emerald-400' : 'bg-[#FF5A12]/[0.08] text-[#FF7A3D]'}`}>
-                                {hasWebsite ? 'Com site' : 'Sem site'}
+                              <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${business.website ? 'bg-emerald-500/[0.08] text-emerald-400' : 'border border-[#FF5A12]/15 bg-[#FF5A12]/[0.05] text-[#FF7A3D]'}`}>
+                                {business.website ? 'Com site' : 'Site não identificado'}
                               </span>
                             </div>
 
                             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
-                              {whatsappLink && (
-                                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[9px] font-medium text-stone-400 transition hover:bg-white/[0.04] hover:text-white">
-                                  WhatsApp
-                                </a>
+                              {waLink && (
+                                <a href={waLink} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white">WhatsApp</a>
                               )}
-                              {hasWebsite && (
-                                <a href={business.website!} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[9px] font-medium text-stone-400 transition hover:bg-white/[0.04] hover:text-white">
+                              {business.website && (
+                                <a href={business.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white">
                                   Site <ExternalLink className="h-3 w-3" />
                                 </a>
                               )}
                               <button
                                 type="button"
                                 onClick={() => onUpdateLeadStatus(business.id, isSaved ? 'NOVO' : 'CONTATADO')}
-                                className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[9px] font-medium transition ${isSaved ? 'border-emerald-500/15 bg-emerald-500/[0.05] text-emerald-400' : 'border-white/[0.07] text-stone-400 hover:bg-white/[0.04] hover:text-white'}`}
+                                className="inline-flex items-center gap-1 rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white"
                               >
                                 {isSaved ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
                                 {isSaved ? 'No pipeline' : 'Pipeline'}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => onSelectBusiness(business)}
-                                className="ml-auto flex items-center gap-1 text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d]"
-                              >
+                              <button type="button" onClick={() => onSelectBusiness(business)} className="ml-auto inline-flex items-center gap-1 text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d]">
                                 Ver detalhes <ChevronRight className="h-3 w-3" />
                               </button>
                             </div>
@@ -424,81 +380,65 @@ function AIAssistantDrawer({
                       })}
                     </div>
                   )}
+
+                  <div className="flex items-center gap-3 text-[9px] text-stone-700">
+                    <span>{message.timestamp}</span>
+                    <button type="button" onClick={() => copyToClipboard(message.content, message.id)} className="flex items-center gap-1 transition hover:text-stone-400">
+                      {copiedIndex === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedIndex === message.id ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
                 </div>
               );
             })}
 
             {isLoading && (
-              <div className="space-y-4 py-1">
-                <div className="flex items-center gap-2 text-[10px] font-semibold text-[#FF6A26]">
-                  <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                  <span>Scoutly Agentic está trabalhando</span>
-                </div>
-
-                <div className="space-y-1">
-                  {AGENT_STEPS.map((step, index) => {
-                    const isDone = index < activeAgentStep;
-                    const isActive = index === activeAgentStep;
-                    return (
-                      <div key={step} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${isActive ? 'bg-white/[0.025]' : ''}`}>
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] ${isDone ? 'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-400' : isActive ? 'border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] text-[#FF6A26]' : 'border-white/[0.06] text-stone-800'}`}>
-                          {isDone ? <Check className="h-3 w-3" /> : isActive ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#FF5A12]" /> : index + 1}
-                        </span>
-                        <span className={`text-[11px] ${isDone ? 'text-stone-500' : isActive ? 'text-stone-200' : 'text-stone-700'}`}>
-                          {step}{isActive ? '…' : ''}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="space-y-3 border-l border-white/[0.08] pl-4">
+                {AGENT_STEPS.map((step, index) => {
+                  const complete = index < activeAgentStep;
+                  const active = index === activeAgentStep;
+                  return (
+                    <div key={step} className={`flex items-center gap-3 text-[11px] ${active ? 'text-stone-200' : complete ? 'text-stone-500' : 'text-stone-700'}`}>
+                      <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${active ? 'border-[#FF5A12] bg-[#FF5A12]/10' : complete ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-white/[0.08]'}`}>
+                        {complete ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#FF5A12]" /> : null}
+                      </span>
+                      <span>{step}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
-
             <div ref={messagesEndRef} />
           </div>
         </main>
 
-        {messages.length > 0 && quickSuggestions.length > 0 && (
-          <div className="shrink-0 overflow-x-auto border-t border-white/[0.05] bg-[#07090c] px-5 py-2.5 no-scrollbar sm:px-8">
-            <div className="flex gap-2">
+        <footer className="shrink-0 border-t border-white/[0.07] bg-[#090b0e] px-5 py-4 sm:px-7">
+          {messages.length > 0 && quickSuggestions.length > 0 && (
+            <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar">
               {quickSuggestions.slice(0, 3).map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => void handleSendMessage(suggestion)}
-                  disabled={isLoading}
-                  className="shrink-0 rounded-full border border-white/[0.07] px-3 py-1.5 text-[9px] text-stone-600 transition hover:border-white/[0.12] hover:text-stone-300 disabled:opacity-40"
-                >
+                <button key={suggestion} type="button" onClick={() => void handleSendMessage(suggestion)} disabled={isLoading} className="shrink-0 rounded-full border border-white/[0.07] px-3 py-1.5 text-[9px] text-stone-600 transition hover:text-stone-300 disabled:opacity-40">
                   {suggestion}
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        <footer className="shrink-0 border-t border-white/[0.07] bg-[#090c10] px-5 py-4 sm:px-8">
           <form
             onSubmit={(event) => {
               event.preventDefault();
               void handleSendMessage();
             }}
-            className="mx-auto flex max-w-[620px] items-center gap-2 rounded-2xl border border-white/[0.09] bg-[#111418] p-1.5 pl-4 transition focus-within:border-white/[0.15]"
+            className="mx-auto flex max-w-[620px] items-center gap-2 rounded-2xl border border-white/[0.09] bg-[#111418] p-2 pl-4 focus-within:border-[#FF5A12]/30"
           >
             <input
               ref={inputRef}
-              type="text"
               value={inputMessage}
               onChange={(event) => setInputMessage(event.target.value)}
-              placeholder="Peça empresas, regiões, critérios ou oportunidades"
               disabled={isLoading}
-              className="min-w-0 flex-1 bg-transparent py-2.5 text-[12px] text-white outline-none placeholder:text-stone-700 disabled:opacity-50"
+              placeholder="Peça empresas, regiões, critérios ou oportunidades"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-white outline-none placeholder:text-stone-700 disabled:opacity-50"
             />
-            <button
-              type="submit"
-              disabled={isLoading || !inputMessage.trim()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12] text-white transition hover:bg-[#ff6a27] disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-stone-700"
-              aria-label="Enviar"
-            >
+            <button type="submit" disabled={isLoading || !inputMessage.trim()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12] text-white transition hover:bg-[#ff6a27] disabled:bg-white/[0.05] disabled:text-stone-700">
               <ArrowUp className="h-4 w-4" />
             </button>
           </form>
