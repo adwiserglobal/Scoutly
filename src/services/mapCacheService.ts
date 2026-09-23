@@ -8,8 +8,7 @@ export function lon2tile(lon: number, zoom: number = 13): number {
 export function lat2tile(lat: number, zoom: number = 13): number {
   const rad = (lat * Math.PI) / 180;
   return Math.floor(
-    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
-      Math.pow(2, zoom)
+    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * Math.pow(2, zoom)
   );
 }
 
@@ -18,17 +17,13 @@ export function getTilesForBounds(bounds: MapBounds, zoom: number = 13): string[
   const maxTileX = lon2tile(bounds.east, zoom);
   const minTileY = lat2tile(bounds.north, zoom);
   const maxTileY = lat2tile(bounds.south, zoom);
-
   const startX = Math.min(minTileX, maxTileX);
   const endX = Math.max(minTileX, maxTileX);
   const startY = Math.min(minTileY, maxTileY);
   const endY = Math.max(minTileY, maxTileY);
-
   const tiles: string[] = [];
   for (let x = startX; x <= endX; x++) {
-    for (let y = startY; y <= endY; y++) {
-      tiles.push(`${zoom}/${x}/${y}`);
-    }
+    for (let y = startY; y <= endY; y++) tiles.push(`${zoom}/${x}/${y}`);
   }
   return tiles;
 }
@@ -60,8 +55,7 @@ class MapCacheService {
 
   public isBoundsCovered(bounds: MapBounds, zoom: number = 13): boolean {
     const tiles = getTilesForBounds(bounds, zoom);
-    if (tiles.length === 0) return false;
-    return tiles.every((tile) => this.loadedTiles.has(tile));
+    return tiles.length > 0 && tiles.every((tile) => this.loadedTiles.has(tile));
   }
 
   public getPlacesInBounds(bounds: MapBounds): Business[] {
@@ -70,12 +64,7 @@ class MapCacheService {
       const lat = Number(business.coordinates?.lat ?? business.latitude);
       const lng = Number(business.coordinates?.lng ?? business.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-      if (
-        lat >= bounds.south &&
-        lat <= bounds.north &&
-        lng >= bounds.west &&
-        lng <= bounds.east
-      ) {
+      if (lat >= bounds.south && lat <= bounds.north && lng >= bounds.west && lng <= bounds.east) {
         result.push(business);
       }
     }
@@ -88,26 +77,17 @@ class MapCacheService {
 
   public addPlaces(places: Business[], tileKeys?: string[]): void {
     for (const place of places) {
-      if (!this.placesMap.has(place.id)) {
-        this.placesMap.set(place.id, place);
-      } else {
-        const existing = this.placesMap.get(place.id)!;
-        this.placesMap.set(place.id, {
-          ...place,
-          leadStatus: existing.leadStatus || place.leadStatus,
-          isFavorite: existing.isFavorite ?? place.isFavorite,
-          notes: existing.notes || place.notes,
-        });
-      }
+      const existing = this.placesMap.get(place.id);
+      this.placesMap.set(place.id, existing ? {
+        ...place,
+        leadStatus: existing.leadStatus || place.leadStatus,
+        isFavorite: existing.isFavorite ?? place.isFavorite,
+        notes: existing.notes || place.notes,
+      } : place);
     }
-
-    if (tileKeys) {
-      for (const tile of tileKeys) this.loadedTiles.add(tile);
-    }
-
+    if (tileKeys) for (const tile of tileKeys) this.loadedTiles.add(tile);
     if (this.placesMap.size > 30000) {
-      const keysToDelete = Array.from(this.placesMap.keys()).slice(0, 5000);
-      for (const key of keysToDelete) this.placesMap.delete(key);
+      for (const key of Array.from(this.placesMap.keys()).slice(0, 5000)) this.placesMap.delete(key);
     }
   }
 
@@ -120,7 +100,6 @@ class MapCacheService {
     if (this.pinInFlightController) this.pinInFlightController.abort();
     this.pinInFlightController = new AbortController();
     const signal = this.pinInFlightController.signal;
-
     const deltaLat = radiusMeters / 110540;
     const deltaLng = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
     const bounds: MapBounds = {
@@ -133,26 +112,12 @@ class MapCacheService {
 
     try {
       const { places, cached, durationMs } = await fetchPlacesFromOverture(
-        bounds.west,
-        bounds.south,
-        bounds.east,
-        bounds.north,
-        3000,
-        signal,
-        15
+        bounds.west, bounds.south, bounds.east, bounds.north, 3000, signal, 15
       );
-
       this.addPlaces(places, requiredTiles);
-
       if (import.meta.env.DEV) {
-        console.log(
-          `%c[Scoutly Pin Radar] ${cached ? 'Cache HIT' : 'Fetched'}%c | ${places.length} places in ${durationMs}ms for radius ${radiusMeters}m`,
-          cached ? 'color: #3B82F6; font-weight: bold;' : 'color: #FF4D00; font-weight: bold;',
-          'color: inherit;'
-        );
+        console.log(`[Scoutly Pin Radar] ${places.length} places in ${durationMs}ms`);
       }
-
-      // Never leak businesses cached from another city into the current list.
       onPlacesUpdated(this.getPlacesInBounds(bounds), cached);
       this.pinInFlightController = null;
     } catch (err: any) {
@@ -195,22 +160,20 @@ class MapCacheService {
 
     const t0 = performance.now();
     const requiredTiles = getTilesForBounds(bounds, 13);
+    const visibleCachedPlaces = this.getPlacesInBounds(bounds);
     const isCovered = requiredTiles.length > 0 && requiredTiles.every((tile) => this.loadedTiles.has(tile));
 
-    if (isCovered) {
-      const visiblePlaces = this.getPlacesInBounds(bounds);
-      if (visiblePlaces.length > 0) {
-        if (import.meta.env.DEV) {
-          console.log(
-            `%c[Scoutly Map Perf] Memory Cache HIT%c in ${(performance.now() - t0).toFixed(1)}ms | Visible: ${visiblePlaces.length}`,
-            'color: #10B981; font-weight: bold;',
-            'color: inherit;'
-          );
-        }
-        onPlacesUpdated(visiblePlaces, true);
-        this.scheduleSilentPrefetch(bounds, zoom);
-        return;
+    // Immediately scope the UI to the new viewport. When crossing cities this
+    // intentionally sends [] until the new fetch returns, preventing old São
+    // Paulo businesses from remaining visible under another city's map.
+    onPlacesUpdated(visibleCachedPlaces, true);
+
+    if (isCovered && visibleCachedPlaces.length > 0) {
+      if (import.meta.env.DEV) {
+        console.log(`[Scoutly Map Perf] Memory Cache HIT in ${(performance.now() - t0).toFixed(1)}ms | Visible: ${visibleCachedPlaces.length}`);
       }
+      this.scheduleSilentPrefetch(bounds, zoom);
+      return;
     }
 
     if (this.inFlightController) this.inFlightController.abort();
@@ -220,28 +183,14 @@ class MapCacheService {
     try {
       const queryLimit = zoom >= 14 ? 2500 : 1500;
       const { places, cached, durationMs } = await fetchPlacesFromOverture(
-        bounds.west,
-        bounds.south,
-        bounds.east,
-        bounds.north,
-        queryLimit,
-        signal,
-        zoom
+        bounds.west, bounds.south, bounds.east, bounds.north, queryLimit, signal, zoom
       );
-
       this.addPlaces(places, requiredTiles);
       const visiblePlaces = this.getPlacesInBounds(bounds);
-
       if (import.meta.env.DEV) {
-        console.log(
-          `%c[Scoutly Map Perf] ${cached ? 'Cache HIT' : 'Network Fetch'}%c | API returned: ${places.length} | Visible: ${visiblePlaces.length} | API: ${durationMs}ms | Total: ${(performance.now() - t0).toFixed(1)}ms`,
-          cached ? 'color: #3B82F6; font-weight: bold;' : 'color: #FF4D00; font-weight: bold;',
-          'color: inherit;'
-        );
+        console.log(`[Scoutly Map Perf] API: ${places.length} | Visible: ${visiblePlaces.length} | ${durationMs}ms`);
       }
-
-      // UI receives only the current viewport, never the global session cache.
-      onPlacesUpdated(visiblePlaces, false);
+      onPlacesUpdated(visiblePlaces, cached);
       this.inFlightController = null;
       this.scheduleSilentPrefetch(bounds, zoom);
     } catch (err: any) {
@@ -267,7 +216,6 @@ class MapCacheService {
         east: bounds.east + dx,
         north: bounds.north + dy,
       };
-
       const surroundingTiles = getTilesForBounds(expandedBounds, 13);
       const missingTiles = surroundingTiles.filter((tile) => !this.loadedTiles.has(tile));
       if (missingTiles.length === 0) return;
@@ -283,15 +231,9 @@ class MapCacheService {
           this.prefetchController.signal,
           zoom
         );
-
-        if (places.length > 0) {
-          this.addPlaces(places, surroundingTiles);
-          if (import.meta.env.DEV) {
-            console.log(`[Scoutly Prefetch] Prefetched ${places.length} surrounding places.`);
-          }
-        }
+        if (places.length > 0) this.addPlaces(places, surroundingTiles);
       } catch {
-        // Silent prefetch must never disrupt the visible viewport.
+        // Prefetch is intentionally best-effort.
       } finally {
         this.prefetchController = null;
       }
