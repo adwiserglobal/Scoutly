@@ -4,15 +4,17 @@ import OnboardingExperience, {
   SCOUTLY_ONBOARDING_VERSION,
   type OnboardingAnswers,
 } from './OnboardingExperience';
+import TrialActivationScreen from './TrialActivationScreen';
 import {
   completeOnboardingTutorial,
   fetchOnboardingStatus,
   saveOnboardingAnswers,
+  startOnboardingTrial,
 } from '../services/onboardingApi';
 
 const PRODUCT_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
 
-type Mode = 'hidden' | 'wizard' | 'tutorial';
+type Mode = 'hidden' | 'wizard' | 'trial' | 'tutorial';
 
 function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
@@ -52,9 +54,28 @@ export default function OnboardingGate() {
       .then((status) => {
         if (cancelled) return;
         setStatusCheckedFor(user.uid);
+
         if (Number(status.onboardingVersion || 0) < SCOUTLY_ONBOARDING_VERSION) {
           setMode('wizard');
-        } else if (!status.tutorialCompleted) {
+          return;
+        }
+
+        const plan = String(status.subscription?.plan || 'trial');
+        const subscriptionStatus = String(status.subscription?.status || 'pending');
+
+        if (plan === 'trial' && subscriptionStatus === 'pending') {
+          setMode('trial');
+          return;
+        }
+
+        // An expired trial is handled by the non-dismissible billing wall in the
+        // workspace. It must never be replaced by the optional product tutorial.
+        if (plan === 'expired' || ['expired', 'canceled', 'unpaid', 'incomplete_expired'].includes(subscriptionStatus)) {
+          setMode('hidden');
+          return;
+        }
+
+        if (!status.tutorialCompleted) {
           setMode('tutorial');
         } else {
           setMode('hidden');
@@ -62,7 +83,8 @@ export default function OnboardingGate() {
       })
       .catch((error) => {
         console.warn('[Scoutly Onboarding] Could not load status:', error);
-        // Never block access to the product if the onboarding service is temporarily unavailable.
+        // Entitlements are also enforced on the backend; avoid trapping users on
+        // a broken onboarding request while the service recovers.
         if (!cancelled) setMode('hidden');
       })
       .finally(() => {
@@ -103,17 +125,27 @@ export default function OnboardingGate() {
 
   const submitAnswers = async (answers: OnboardingAnswers) => {
     await saveOnboardingAnswers(answers);
-    setMode('tutorial');
+    setMode('trial');
+  };
+
+  const startTrial = async () => {
+    await startOnboardingTrial();
+    // Reload the workspace so billing state, map requests and every paid feature
+    // begin from the exact server timestamp that started the 7-day entitlement.
+    window.location.reload();
   };
 
   const finishTutorial = async () => {
     try {
       await completeOnboardingTutorial();
     } finally {
-      // The product should always become usable even if persistence has a temporary failure.
       setMode('hidden');
     }
   };
+
+  if (mode === 'trial') {
+    return <TrialActivationScreen userName={user.displayName} onStart={startTrial} />;
+  }
 
   return (
     <OnboardingExperience
