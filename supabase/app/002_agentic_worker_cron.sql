@@ -10,10 +10,8 @@ select cron.schedule(
   'scoutly-agent-worker',
   '* * * * *',
   $$
-    select net.http_post(
-      url := 'https://scoutly.pro/api/agent/worker',
-      headers := '{"Content-Type":"application/json"}'::jsonb,
-      body := '{"source":"supabase_cron"}'::jsonb,
+    select net.http_get(
+      url := 'https://www.scoutly.pro/api/agent/worker',
       timeout_milliseconds := 15000
     );
   $$
