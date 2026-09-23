@@ -47,14 +47,6 @@ interface AIAssistantDrawerProps {
   }) => void;
 }
 
-const AGENT_STEPS = [
-  'Interpretando segmento, região e critérios',
-  'Validando a localização solicitada',
-  'Consultando fontes de negócios',
-  'Eliminando resultados fora da região',
-  'Aplicando filtros e priorizando oportunidades',
-];
-
 function AIAssistantDrawer({
   isOpen,
   onClose,
@@ -67,30 +59,17 @@ function AIAssistantDrawer({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAgentStep, setActiveAgentStep] = useState(0);
-  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
-  const [bulkSavedMessages, setBulkSavedMessages] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [bulkSaved, setBulkSaved] = useState<Record<string, boolean>>({});
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
   const [quickSuggestions, setQuickSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isLoading) {
-      setActiveAgentStep(0);
-      return;
-    }
-
-    const timers = AGENT_STEPS.slice(1).map((_, index) =>
-      window.setTimeout(() => setActiveAgentStep(index + 1), 850 + index * 1000)
-    );
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [isLoading]);
-
-  useEffect(() => {
     if (!isOpen) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, activeAgentStep, isOpen]);
+  }, [messages, isLoading, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,7 +91,7 @@ function AIAssistantDrawer({
 
       const fallback = [
         `Encontre empresas com maior potencial em ${currentRegionName || 'esta região'}`,
-        `Mostre negócios com site não identificado em ${currentRegionName || 'esta região'}`,
+        `Mostre negócios sem site identificado em ${currentRegionName || 'esta região'}`,
         `Encontre prospects com telefone ou WhatsApp em ${currentRegionName || 'esta região'}`,
       ];
 
@@ -125,12 +104,12 @@ function AIAssistantDrawer({
     };
 
     void refreshSuggestions();
-    const onSignalsUpdated = () => void refreshSuggestions();
-    window.addEventListener(RECOMMENDATION_SIGNAL_EVENT, onSignalsUpdated);
+    const handleSignals = () => void refreshSuggestions();
+    window.addEventListener(RECOMMENDATION_SIGNAL_EVENT, handleSignals);
 
     return () => {
       cancelled = true;
-      window.removeEventListener(RECOMMENDATION_SIGNAL_EVENT, onSignalsUpdated);
+      window.removeEventListener(RECOMMENDATION_SIGNAL_EVENT, handleSignals);
     };
   }, [isOpen, currentRegionName, businesses]);
 
@@ -143,15 +122,15 @@ function AIAssistantDrawer({
   };
 
   const handleSendMessage = async (customText?: string) => {
-    const textToSend = (customText || inputMessage).trim();
-    if (!textToSend || isLoading) return;
+    const text = (customText || inputMessage).trim();
+    if (!text || isLoading) return;
 
     const nextHistory: ChatMessage[] = [
       ...messages,
       {
         id: `usr_${Date.now()}`,
         role: 'user',
-        content: textToSend,
+        content: text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ];
@@ -159,26 +138,23 @@ function AIAssistantDrawer({
     setMessages(nextHistory);
     setInputMessage('');
     setIsLoading(true);
-    setActiveAgentStep(0);
 
     try {
       const contextBusinesses = discoveredBusinesses.length > 0 ? discoveredBusinesses : businesses;
       const result = await sendAIChatMessage({
-        message: textToSend,
+        message: text,
         history: nextHistory.map((message) => ({ role: message.role, content: message.content })),
         businesses: contextBusinesses,
         currentRegionName,
       });
 
       if (result.newRegion) {
-        const newBusinesses = Array.isArray(result.newRegion.businesses)
+        const nextBusinesses = Array.isArray(result.newRegion.businesses)
           ? (result.newRegion.businesses as Business[])
           : [];
 
-        // A new geographic search replaces previous Agentic discoveries instead
-        // of accumulating businesses from older cities in the same chat session.
-        setDiscoveredBusinesses(newBusinesses);
-        onApplyNewRegion?.({ ...result.newRegion, businesses: newBusinesses });
+        setDiscoveredBusinesses(nextBusinesses);
+        onApplyNewRegion?.({ ...result.newRegion, businesses: nextBusinesses });
       }
 
       setMessages((previous) => [
@@ -199,7 +175,7 @@ function AIAssistantDrawer({
         {
           id: `err_${Date.now()}`,
           role: 'assistant',
-          content: `Não consegui concluir a execução agora. ${error?.message || 'Tente novamente em instantes.'}`,
+          content: `Não consegui concluir a busca agora. ${error?.message || 'Tente novamente em instantes.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -208,18 +184,18 @@ function AIAssistantDrawer({
     }
   };
 
-  const handleResetChat = () => {
+  const resetChat = () => {
     setMessages([]);
     setDiscoveredBusinesses([]);
-    setBulkSavedMessages({});
+    setBulkSaved({});
     setInputMessage('');
     window.setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const copyToClipboard = (text: string, id: string) => {
+  const copyText = (text: string, id: string) => {
     void navigator.clipboard.writeText(text);
-    setCopiedIndex(id);
-    window.setTimeout(() => setCopiedIndex(null), 1800);
+    setCopiedId(id);
+    window.setTimeout(() => setCopiedId(null), 1600);
   };
 
   if (!isOpen) return null;
@@ -230,17 +206,19 @@ function AIAssistantDrawer({
         className="relative flex h-full w-full max-w-[720px] flex-col overflow-hidden border-l border-white/[0.07] bg-[#07090c] shadow-[0_0_90px_rgba(0,0,0,0.6)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex h-[74px] shrink-0 items-center justify-between border-b border-white/[0.07] px-5 sm:px-7">
+        <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/[0.07] px-5 sm:px-7">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Scoutly" className="h-7 w-7 object-contain" />
+            <div className="h-7 w-7 overflow-hidden rounded-md">
+              <img src="/logo.png" alt="Scoutly" className="h-7 w-auto max-w-none object-contain object-left" />
+            </div>
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">Scoutly Agentic</h2>
-              <p className="mt-0.5 text-[10px] text-stone-600">Agente de prospecção comercial</p>
+              <p className="mt-0.5 text-[10px] text-stone-600">Busca inteligente de empresas</p>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
-            <button type="button" onClick={handleResetChat} title="Nova conversa" className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200">
+            <button type="button" onClick={resetChat} title="Nova conversa" className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200">
               <RotateCcw className="h-4 w-4" />
             </button>
             <button type="button" onClick={onClose} title="Fechar" className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200">
@@ -249,22 +227,22 @@ function AIAssistantDrawer({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-5 py-7 sm:px-8 sm:py-8 no-scrollbar">
+        <main className="flex-1 overflow-y-auto px-5 py-7 no-scrollbar sm:px-8 sm:py-8">
           {messages.length === 0 && !isLoading && (
             <div className="mx-auto flex min-h-full max-w-[620px] flex-col justify-center py-10">
               <div className="mb-8">
                 <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] text-[#FF6A26]">
                   <Sparkles className="h-4 w-4" />
                 </span>
-                <h3 className="max-w-lg text-[25px] font-semibold leading-[1.12] tracking-[-0.04em] text-white">O que você quer encontrar hoje?</h3>
+                <h3 className="max-w-lg text-[25px] font-semibold leading-[1.12] tracking-[-0.04em] text-white">O que você quer encontrar?</h3>
                 <p className="mt-3 max-w-[540px] text-[12px] leading-6 text-stone-500">
-                  Informe segmento, região e critérios. O Agentic valida a localização antes de consultar as fontes e não troca silenciosamente a cidade solicitada.
+                  Escreva como você falaria normalmente. O Agentic interpreta o pedido, executa a mesma busca da Scoutly e aplica os filtros solicitados.
                 </p>
               </div>
 
               {quickSuggestions.length > 0 && (
                 <div className="space-y-2">
-                  <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-700">Recomendado para você</p>
+                  <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-700">Sugestões</p>
                   {quickSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
@@ -306,13 +284,11 @@ function AIAssistantDrawer({
                   </div>
 
                   {message.searchSummary && (
-                    <div className="flex flex-wrap gap-2 border-y border-white/[0.06] py-3 text-[9px] font-medium text-stone-500">
+                    <div className="flex flex-wrap items-center gap-2 border-y border-white/[0.06] py-3 text-[9px] font-medium text-stone-500">
                       <span>{message.searchSummary.shownCount}/{message.searchSummary.requestedCount} exibidos</span>
                       <span className="text-stone-700">•</span>
-                      <span>{message.searchSummary.matchingCount} compatíveis</span>
-                      <span className="text-stone-700">•</span>
                       <span>{message.searchSummary.regionName}</span>
-                      {message.searchSummary.appliedFilters.slice(0, 2).map((filter) => (
+                      {message.searchSummary.appliedFilters.map((filter) => (
                         <span key={filter} className="rounded-full border border-[#FF5A12]/15 bg-[#FF5A12]/[0.05] px-2 py-0.5 text-[#FF7A3D]">{filter}</span>
                       ))}
                     </div>
@@ -321,27 +297,28 @@ function AIAssistantDrawer({
                   {matchedBusinesses.length > 0 && (
                     <div className="space-y-3 pt-1">
                       <div className="flex items-center justify-between gap-4">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">Oportunidades · {matchedBusinesses.length}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">Resultados · {matchedBusinesses.length}</p>
                         {message.suggestedAction?.type === 'add_to_pipeline' && (
                           <button
                             type="button"
-                            disabled={Boolean(bulkSavedMessages[message.id])}
+                            disabled={Boolean(bulkSaved[message.id])}
                             onClick={() => {
                               matchedBusinesses
                                 .filter((business) => !business.leadStatus || business.leadStatus === 'NOVO')
                                 .forEach((business) => onUpdateLeadStatus(business.id, 'CONTATADO'));
-                              setBulkSavedMessages((previous) => ({ ...previous, [message.id]: true }));
+                              setBulkSaved((previous) => ({ ...previous, [message.id]: true }));
                             }}
                             className="text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d] disabled:text-emerald-500"
                           >
-                            {bulkSavedMessages[message.id] ? 'Adicionados ao pipeline' : 'Adicionar todos ao pipeline'}
+                            {bulkSaved[message.id] ? 'Adicionados ao pipeline' : 'Adicionar todos ao pipeline'}
                           </button>
                         )}
                       </div>
 
                       {matchedBusinesses.map((business) => {
-                        const waLink = getWhatsAppLink(business.phone || business.phones?.[0]);
-                        const isSaved = Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
+                        const whatsappLink = getWhatsAppLink(business.phone || business.phones?.[0]);
+                        const saved = Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
+
                         return (
                           <article key={business.id} className="rounded-2xl border border-white/[0.08] bg-[#0d1014] p-4">
                             <div className="flex items-start justify-between gap-4">
@@ -355,8 +332,8 @@ function AIAssistantDrawer({
                             </div>
 
                             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
-                              {waLink && (
-                                <a href={waLink} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white">WhatsApp</a>
+                              {whatsappLink && (
+                                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white">WhatsApp</a>
                               )}
                               {business.website && (
                                 <a href={business.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white">
@@ -365,11 +342,11 @@ function AIAssistantDrawer({
                               )}
                               <button
                                 type="button"
-                                onClick={() => onUpdateLeadStatus(business.id, isSaved ? 'NOVO' : 'CONTATADO')}
+                                onClick={() => onUpdateLeadStatus(business.id, saved ? 'NOVO' : 'CONTATADO')}
                                 className="inline-flex items-center gap-1 rounded-xl border border-white/[0.08] px-3 py-2 text-[9px] font-medium text-stone-400 transition hover:text-white"
                               >
-                                {isSaved ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                                {isSaved ? 'No pipeline' : 'Pipeline'}
+                                {saved ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                {saved ? 'No pipeline' : 'Pipeline'}
                               </button>
                               <button type="button" onClick={() => onSelectBusiness(business)} className="ml-auto inline-flex items-center gap-1 text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d]">
                                 Ver detalhes <ChevronRight className="h-3 w-3" />
@@ -383,9 +360,9 @@ function AIAssistantDrawer({
 
                   <div className="flex items-center gap-3 text-[9px] text-stone-700">
                     <span>{message.timestamp}</span>
-                    <button type="button" onClick={() => copyToClipboard(message.content, message.id)} className="flex items-center gap-1 transition hover:text-stone-400">
-                      {copiedIndex === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedIndex === message.id ? 'Copiado' : 'Copiar'}</span>
+                    <button type="button" onClick={() => copyText(message.content, message.id)} className="flex items-center gap-1 transition hover:text-stone-400">
+                      {copiedId === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedId === message.id ? 'Copiado' : 'Copiar'}</span>
                     </button>
                   </div>
                 </div>
@@ -393,21 +370,15 @@ function AIAssistantDrawer({
             })}
 
             {isLoading && (
-              <div className="space-y-3 border-l border-white/[0.08] pl-4">
-                {AGENT_STEPS.map((step, index) => {
-                  const complete = index < activeAgentStep;
-                  const active = index === activeAgentStep;
-                  return (
-                    <div key={step} className={`flex items-center gap-3 text-[11px] ${active ? 'text-stone-200' : complete ? 'text-stone-500' : 'text-stone-700'}`}>
-                      <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${active ? 'border-[#FF5A12] bg-[#FF5A12]/10' : complete ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-white/[0.08]'}`}>
-                        {complete ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#FF5A12]" /> : null}
-                      </span>
-                      <span>{step}</span>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-3 py-2 text-[11px] text-stone-500">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF5A12] opacity-30" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#FF5A12]" />
+                </span>
+                <span>Buscando empresas e aplicando seus critérios…</span>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
         </main>
@@ -435,7 +406,7 @@ function AIAssistantDrawer({
               value={inputMessage}
               onChange={(event) => setInputMessage(event.target.value)}
               disabled={isLoading}
-              placeholder="Peça empresas, regiões, critérios ou oportunidades"
+              placeholder="Ex.: 6 despachantes em Santo André sem site"
               className="min-w-0 flex-1 bg-transparent text-[12px] text-white outline-none placeholder:text-stone-700 disabled:opacity-50"
             />
             <button type="submit" disabled={isLoading || !inputMessage.trim()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12] text-white transition hover:bg-[#ff6a27] disabled:bg-white/[0.05] disabled:text-stone-700">
