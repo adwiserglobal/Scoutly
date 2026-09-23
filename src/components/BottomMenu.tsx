@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
-import { Columns3, Home, Menu, Settings, Star, X } from 'lucide-react';
+import { Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
+import SupportDrawer from './SupportDrawer';
 
 interface BottomMenuProps {
   currentTab: NavigationTab;
@@ -17,6 +18,7 @@ function BottomMenu({
 }: BottomMenuProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopHovered, setDesktopHovered] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
 
   const navItems = [
@@ -66,6 +68,28 @@ function BottomMenu({
       </button>
     );
   };
+
+  const renderHelp = (expanded: boolean) => (
+    <button
+      type="button"
+      onClick={() => {
+        setSupportOpen(true);
+        setMobileOpen(false);
+      }}
+      title={!expanded ? 'Ajuda e suporte' : undefined}
+      className={`group relative flex h-12 w-full items-center rounded-xl text-stone-400 transition-all duration-200 hover:bg-white/[0.045] hover:text-white ${
+        expanded ? 'gap-3 px-3' : 'justify-center px-0'
+      }`}
+    >
+      <HelpCircle className="h-[18px] w-[18px] shrink-0 text-stone-500 transition group-hover:text-[#FF6A26]" />
+      {expanded && (
+        <>
+          <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">Ajuda</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.45)]" />
+        </>
+      )}
+    </button>
+  );
 
   const renderNavigation = (expanded: boolean) => (
     <nav className="flex flex-col gap-1.5">
@@ -146,7 +170,8 @@ function BottomMenu({
 
         <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
-        <div className="border-t border-white/[0.08] pt-3">
+        <div className="space-y-1 border-t border-white/[0.08] pt-3">
+          {renderHelp(desktopExpanded)}
           {renderSettings(desktopExpanded)}
         </div>
       </aside>
@@ -197,12 +222,15 @@ function BottomMenu({
 
             <div className="flex-1">{renderNavigation(true)}</div>
 
-            <div className="border-t border-white/[0.08] pt-3">
+            <div className="space-y-1 border-t border-white/[0.08] pt-3">
+              {renderHelp(true)}
               {renderSettings(true)}
             </div>
           </aside>
         </div>
       </div>
+
+      <SupportDrawer isOpen={supportOpen} onClose={() => setSupportOpen(false)} />
     </>
   );
 }
