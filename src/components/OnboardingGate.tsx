@@ -83,8 +83,8 @@ export default function OnboardingGate() {
       })
       .catch((error) => {
         console.warn('[Scoutly Onboarding] Could not load status:', error);
-        // Entitlements are also enforced on the backend; avoid trapping users on
-        // a broken onboarding request while the service recovers.
+        // Entitlements are also enforced by the persisted subscription state;
+        // avoid trapping users on a broken onboarding request while it recovers.
         if (!cancelled) setMode('hidden');
       })
       .finally(() => {
@@ -149,7 +149,7 @@ export default function OnboardingGate() {
 
   return (
     <OnboardingExperience
-      mode={mode}
+      mode={mode === 'wizard' ? 'wizard' : 'tutorial'}
       userName={user.displayName}
       onSubmit={submitAnswers}
       onFinishTutorial={finishTutorial}
