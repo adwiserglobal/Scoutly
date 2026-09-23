@@ -508,9 +508,39 @@ function CustomersView({
                 </div>
                 <div className="detail-card">
                   <span>IA no período</span>
-                  <strong>{detail.usage?.ai_messages ?? 0}</strong>
+                  <strong>{Array.isArray(detail.usage) ? (detail.usage[0]?.ai_messages ?? 0) : (detail.usage?.ai_messages ?? 0)}</strong>
                   <small>mensagens</small>
                 </div>
+              </div>
+
+              <div className="activity-block">
+                <h3>Onboarding</h3>
+                {detail.onboarding?.completedAt ? (
+                  <>
+                    <div className="activity-row">
+                      <span>Perfil</span>
+                      <strong>{detail.onboarding.role || 'Não informado'}</strong>
+                      <small>{timeAgo(detail.onboarding.completedAt)}</small>
+                    </div>
+                    <div className="activity-row">
+                      <span>Tamanho da equipe</span>
+                      <strong>{detail.onboarding.teamSize || 'Não informado'}</strong>
+                      <small>onboarding</small>
+                    </div>
+                    <div className="activity-row">
+                      <span>Objetivo no Scoutly</span>
+                      <strong>{detail.onboarding.goalOther || detail.onboarding.goal || 'Não informado'}</strong>
+                      <small>onboarding</small>
+                    </div>
+                    <div className="activity-row">
+                      <span>Tutorial</span>
+                      <strong>{detail.onboarding.tutorialCompleted ? 'Concluído' : 'Pendente'}</strong>
+                      <small>{detail.onboarding.tutorialCompletedAt ? timeAgo(detail.onboarding.tutorialCompletedAt) : '—'}</small>
+                    </div>
+                  </>
+                ) : (
+                  <div className="empty-mini">Este usuário ainda não concluiu o onboarding.</div>
+                )}
               </div>
 
               <div className="activity-block">
@@ -604,6 +634,35 @@ export default function App() {
     if (firebaseUser) void loadBootstrap();
     else setBootstrap(null);
   }, [firebaseUser]);
+
+  useEffect(() => {
+    if (!firebaseUser || tab !== 'tickets') return;
+    let cancelled = false;
+
+    const syncSupport = async () => {
+      try {
+        const latestTickets = await fetchTickets();
+        if (cancelled) return;
+        setTickets(latestTickets);
+
+        if (selectedTicket?.id) {
+          const detail = await fetchTicket(selectedTicket.id);
+          if (cancelled) return;
+          setSelectedTicket(detail.ticket);
+          setMessages(detail.messages);
+        }
+      } catch {
+        // Polling is best-effort. Manual refresh and actions remain available.
+      }
+    };
+
+    void syncSupport();
+    const interval = window.setInterval(syncSupport, 2200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [firebaseUser, tab, selectedTicket?.id]);
 
   const openTicket = async (ticket: Ticket) => {
     setTab('tickets');
