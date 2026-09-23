@@ -7,9 +7,47 @@ const VIDEO_URL =
 
 function OverviewVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasAutoPlayedRef = useRef(false);
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const startMuted = async () => {
+      if (hasAutoPlayedRef.current) return;
+      hasAutoPlayedRef.current = true;
+      video.muted = true;
+      setMuted(true);
+
+      try {
+        await video.play();
+      } catch {
+        setPlaying(false);
+      }
+    };
+
+    if (!('IntersectionObserver' in window)) {
+      void startMuted();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && entry.intersectionRatio >= 0.28) {
+          void startMuted();
+          observer.disconnect();
+        }
+      },
+      { threshold: [0.28, 0.45, 0.7] }
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
 
   const togglePlayback = async () => {
     const video = videoRef.current;
@@ -37,7 +75,7 @@ function OverviewVideo() {
   return (
     <div className="site-product-video-layer" onContextMenu={(event) => event.preventDefault()}>
       {failed ? (
-        <div className="site-video-status">Não foi possível carregar o vídeo.</div>
+        <div className="site-video-status">Unable to load the video.</div>
       ) : (
         <>
           <video
@@ -55,15 +93,15 @@ function OverviewVideo() {
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
-            aria-label="Visão geral da plataforma Scoutly"
+            aria-label="Scoutly platform overview"
           />
 
-          <div className="site-video-controls" aria-label="Controles do vídeo">
+          <div className="site-video-controls" aria-label="Video controls">
             <button
               type="button"
               className="site-video-control"
               onClick={togglePlayback}
-              aria-label={playing ? 'Pausar vídeo' : 'Reproduzir vídeo'}
+              aria-label={playing ? 'Pause video' : 'Play video'}
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </button>
@@ -71,7 +109,7 @@ function OverviewVideo() {
               type="button"
               className="site-video-control"
               onClick={toggleSound}
-              aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}
+              aria-label={muted ? 'Turn sound on' : 'Mute video'}
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </button>
