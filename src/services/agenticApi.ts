@@ -1,6 +1,7 @@
 import { auth } from '../lib/firebase';
 
-const AGENTIC_ENDPOINT = 'https://fpyfphabdjutwqlwjwib.supabase.co/functions/v1/scoutly-agentic';
+const RUNS_ENDPOINT = '/api/agent-runs';
+const WORKER_ENDPOINT = '/api/agent-worker';
 
 export type AgentRunStatus =
   | 'queued'
@@ -73,6 +74,7 @@ async function authenticatedAgentFetch(input: RequestInfo | URL, init: RequestIn
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'application/json');
 
   return fetch(input, { ...init, headers });
 }
@@ -94,42 +96,41 @@ export async function createAgentRun(input: {
   currentRegionName: string;
   targetCount: number;
 }): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch(AGENTIC_ENDPOINT, {
+  const response = await authenticatedAgentFetch(RUNS_ENDPOINT, {
     method: 'POST',
     body: JSON.stringify({ action: 'create', ...input }),
   });
-  return readJson(response);
+  const data = await readJson(response);
+  return data.run as AgentRun;
 }
 
 export async function listAgentRuns(): Promise<AgentRun[]> {
-  const response = await authenticatedAgentFetch(`${AGENTIC_ENDPOINT}?action=list`);
+  const response = await authenticatedAgentFetch(RUNS_ENDPOINT);
   const data = await readJson(response);
   return Array.isArray(data?.runs) ? data.runs : [];
 }
 
 export async function getAgentRun(id: string): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch(
-    `${AGENTIC_ENDPOINT}?action=detail&id=${encodeURIComponent(id)}`
-  );
-  return readJson(response);
+  const response = await authenticatedAgentFetch(`${RUNS_ENDPOINT}?id=${encodeURIComponent(id)}`);
+  const data = await readJson(response);
+  return data.run as AgentRun;
 }
 
 export async function cancelAgentRun(id: string): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch(AGENTIC_ENDPOINT, {
+  const response = await authenticatedAgentFetch(RUNS_ENDPOINT, {
     method: 'POST',
-    body: JSON.stringify({ action: 'cancel', id }),
+    body: JSON.stringify({ action: 'cancel', runId: id }),
   });
-  return readJson(response);
+  const data = await readJson(response);
+  return data.run as AgentRun;
 }
 
 export async function kickAgentWorker(): Promise<void> {
   try {
-    await fetch(`${AGENTIC_ENDPOINT}?action=worker`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    });
+    await authenticatedAgentFetch(WORKER_ENDPOINT, { method: 'POST' });
   } catch {
-    // The durable pg_cron worker continues even if this optimistic UI kick fails.
+    // The durable database queue remains intact. The periodic fallback worker can
+    // resume the run even if this optimistic UI kick is interrupted.
   }
 }
 
