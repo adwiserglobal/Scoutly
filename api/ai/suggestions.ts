@@ -121,7 +121,6 @@ async function handleInternalRequest(req: VercelRequest, res: VercelResponse, ac
 
 async function handleSupportRequest(req: VercelRequest, res: VercelResponse, action: string) {
   const identity = await requireFirebaseIdentity(req as any);
-  await ensureAppUser(identity);
   const result = await handleCustomerSupportAction(action, req.body || {}, identity);
   return res.status(result.status).json(result.body);
 }
