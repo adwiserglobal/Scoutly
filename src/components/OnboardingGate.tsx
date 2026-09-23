@@ -18,6 +18,16 @@ function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
 }
 
+function markTutorialTargets() {
+  document.querySelector<HTMLElement>('.scoutly-search-focus-ring')?.setAttribute('data-scoutly-tour', 'search');
+  document.querySelector<HTMLElement>('button[title="Filtros"]')?.setAttribute('data-scoutly-tour', 'filters');
+  document.querySelector<HTMLElement>('button[aria-label="Abrir Scoutly AI"]')?.setAttribute('data-scoutly-tour', 'ai');
+
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'));
+  buttons.find((button) => /ver empresas/i.test(button.textContent || ''))?.setAttribute('data-scoutly-tour', 'businesses');
+  buttons.find((button) => button.title === 'Pipeline')?.setAttribute('data-scoutly-tour', 'pipeline');
+}
+
 export default function OnboardingGate() {
   const { user, loading } = useAuth();
   const [pathname, setPathname] = useState(currentPath);
@@ -63,6 +73,13 @@ export default function OnboardingGate() {
       cancelled = true;
     };
   }, [loading, pathname, statusCheckedFor, user?.uid]);
+
+  useEffect(() => {
+    if (mode !== 'tutorial') return;
+    markTutorialTargets();
+    const timers = [100, 350, 800].map((delay) => window.setTimeout(markTutorialTargets, delay));
+    return () => timers.forEach(window.clearTimeout);
+  }, [mode, pathname]);
 
   useEffect(() => {
     if (!user) {
