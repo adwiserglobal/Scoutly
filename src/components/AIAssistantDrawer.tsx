@@ -1,22 +1,23 @@
-import { useState, useRef, useEffect, memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
-  Send,
-  X,
-  User,
-  Plus,
+  ArrowUp,
   Check,
-  ExternalLink,
   ChevronRight,
-  ChevronDown,
-  RotateCcw,
   Copy,
-  Info,
+  ExternalLink,
+  Plus,
+  RotateCcw,
   Sparkles,
-  RefreshCw,
+  X,
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { sendAIChatMessage, fetchContextualSuggestions, getWhatsAppLink, type AIChatResult } from '../services/api';
+import {
+  fetchContextualSuggestions,
+  getWhatsAppLink,
+  sendAIChatMessage,
+  type AIChatResult,
+} from '../services/api';
 import {
   getRecommendationPromptContext,
   RECOMMENDATION_SIGNAL_EVENT,
@@ -46,12 +47,12 @@ interface AIAssistantDrawerProps {
   }) => void;
 }
 
-const THINKING_PHRASES = [
-  'Entendendo seu pedido...',
-  'Buscando empresas reais...',
-  'Aplicando seus critérios...',
-  'Priorizando oportunidades...',
-  'Preparando os resultados...',
+const AGENT_STEPS = [
+  'Entendendo sua solicitação',
+  'Explorando empresas e presença digital',
+  'Cruzando localização, categoria e sinais comerciais',
+  'Priorizando as melhores oportunidades',
+  'Preparando a resposta',
 ];
 
 function AIAssistantDrawer({
@@ -63,19 +64,10 @@ function AIAssistantDrawer({
   onUpdateLeadStatus,
   onApplyNewRegion,
 }: AIAssistantDrawerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: `Olá! Sou a **Scoutly AI**. Posso buscar empresas reais, aplicar critérios como **sem site** ou **com telefone**, respeitar a quantidade que você pedir e organizar os resultados para prospecção.\n\nEx.: *"Encontre 20 despachantes em São Paulo sem site e priorize quem tem telefone."*`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [searchMode, setSearchMode] = useState<'default' | 'deep'>('default');
-  const [isSearchModeOpen, setIsSearchModeOpen] = useState(false);
-  const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
+  const [activeAgentStep, setActiveAgentStep] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [bulkSavedMessages, setBulkSavedMessages] = useState<Record<string, boolean>>({});
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
@@ -83,39 +75,32 @@ function AIAssistantDrawer({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Cycle thinking phrases when isLoading is true
   useEffect(() => {
     if (!isLoading) {
-      setThinkingPhraseIndex(0);
+      setActiveAgentStep(0);
       return;
     }
-    const interval = setInterval(() => {
-      setThinkingPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
-    }, 2200);
 
-    return () => clearInterval(interval);
+    setActiveAgentStep(0);
+    const timers = AGENT_STEPS.slice(1).map((_, index) =>
+      window.setTimeout(() => setActiveAgentStep(index + 1), 900 + index * 1150)
+    );
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [isLoading]);
 
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isOpen]);
-
-  // Focus input when opened
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 150);
-    }
-  }, [isOpen]);
-
-  // Suggestions are derived from the same persisted signals used by Recomendados.
   useEffect(() => {
     if (!isOpen) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading, activeAgentStep, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    window.setTimeout(() => inputRef.current?.focus(), 150);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     let cancelled = false;
 
     const refreshSuggestions = async () => {
@@ -128,9 +113,9 @@ function AIAssistantDrawer({
       }
 
       const fallback = [
-        `Quais empresas desta área têm os melhores sinais para prospecção?`,
-        `Encontre negócios sem site em ${currentRegionName || 'esta região'}`,
-        `Mostre prospects com telefone ou WhatsApp em ${currentRegionName || 'esta região'}`,
+        `Encontre empresas com maior potencial em ${currentRegionName || 'esta região'}`,
+        `Mostre negócios sem site em ${currentRegionName || 'esta região'}`,
+        `Encontre prospects com telefone ou WhatsApp em ${currentRegionName || 'esta região'}`,
       ];
 
       const unique = [...new Set([...suggestions, ...fallback])]
@@ -142,7 +127,6 @@ function AIAssistantDrawer({
     };
 
     void refreshSuggestions();
-
     const onSignalsUpdated = () => void refreshSuggestions();
     window.addEventListener(RECOMMENDATION_SIGNAL_EVENT, onSignalsUpdated);
 
@@ -156,16 +140,13 @@ function AIAssistantDrawer({
     const textToSend = (customText || inputMessage).trim();
     if (!textToSend || isLoading) return;
 
-    const userMsgId = 'usr_' + Date.now();
-    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
     const newHistory: ChatMessage[] = [
       ...messages,
       {
-        id: userMsgId,
+        id: `usr_${Date.now()}`,
         role: 'user',
         content: textToSend,
-        timestamp: timeNow,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ];
 
@@ -174,41 +155,32 @@ function AIAssistantDrawer({
     setIsLoading(true);
 
     try {
-      const historyPayload = newHistory
-        .filter((m) => m.id !== 'welcome')
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
-      const allKnownBusinesses = [...businesses, ...discoveredBusinesses];
+      const historyPayload = newHistory.map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
 
       const result = await sendAIChatMessage({
         message: textToSend,
         history: historyPayload,
-        businesses: allKnownBusinesses,
+        businesses: [...businesses, ...discoveredBusinesses],
         currentRegionName,
-        searchMode,
       });
 
-      // If AI found a new region or dynamically searched places
       if (result.newRegion) {
-        if (result.newRegion.businesses && result.newRegion.businesses.length > 0) {
-          setDiscoveredBusinesses((prev) => [
-            ...prev,
-            ...(result.newRegion!.businesses as Business[]),
+        if (result.newRegion.businesses?.length) {
+          setDiscoveredBusinesses((previous) => [
+            ...previous,
+            ...(result.newRegion?.businesses as Business[]),
           ]);
         }
-        if (onApplyNewRegion) {
-          onApplyNewRegion(result.newRegion);
-        }
+        onApplyNewRegion?.(result.newRegion);
       }
 
-      const assistantMsgId = 'ast_' + Date.now();
-      setMessages((prev) => [
-        ...prev,
+      setMessages((previous) => [
+        ...previous,
         {
-          id: assistantMsgId,
+          id: `ast_${Date.now()}`,
           role: 'assistant',
           content: result.text,
           matchedBusinessIds: result.matchedBusinessIds || [],
@@ -217,14 +189,13 @@ function AIAssistantDrawer({
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
-    } catch (err: any) {
-      const errorMsgId = 'err_' + Date.now();
-      setMessages((prev) => [
-        ...prev,
+    } catch (error: any) {
+      setMessages((previous) => [
+        ...previous,
         {
-          id: errorMsgId,
+          id: `err_${Date.now()}`,
           role: 'assistant',
-          content: `Desculpe, ocorreu uma oscilação na resposta da IA: ${err.message || 'Tente novamente em instantes.'}`,
+          content: `Não consegui concluir esta execução agora. ${error?.message || 'Tente novamente em instantes.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -233,456 +204,308 @@ function AIAssistantDrawer({
     }
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(id);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
   const handleResetChat = () => {
-    setMessages([
-      {
-        id: 'welcome_' + Date.now(),
-        role: 'assistant',
-        content: `Chat reiniciado! Em qual **cidade, bairro ou nicho** você deseja prospectar agora?`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
+    setMessages([]);
+    setDiscoveredBusinesses([]);
+    setBulkSavedMessages({});
+    setInputMessage('');
+    window.setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  // Find full business objects from IDs across active and discovered businesses
-  const getBusinessesFromIds = (ids?: string[]): Business[] => {
-    if (!ids || ids.length === 0) return [];
+  const copyToClipboard = (text: string, id: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedIndex(id);
+    window.setTimeout(() => setCopiedIndex(null), 1800);
+  };
+
+  const getBusinessesFromIds = (ids?: string[]) => {
+    if (!ids?.length) return [];
     const pool = [...businesses, ...discoveredBusinesses];
     return ids
-      .map((id) => pool.find((b) => b.id === id))
-      .filter((b): b is Business => Boolean(b));
+      .map((id) => pool.find((business) => business.id === id))
+      .filter((business): business is Business => Boolean(business));
   };
 
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/65 backdrop-blur-[5px]"
-      onClick={onClose}
-    >
-      <div
-        className="relative flex h-full w-full max-w-xl flex-col justify-between overflow-hidden border-l border-white/[0.09] bg-[#090c10] shadow-[0_0_80px_rgba(0,0,0,0.55)]"
-        onClick={(e) => e.stopPropagation()}
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-[4px]" onClick={onClose}>
+      <section
+        className="relative flex h-full w-full max-w-[720px] flex-col overflow-hidden border-l border-white/[0.07] bg-[#07090c] shadow-[0_0_90px_rgba(0,0,0,0.6)]"
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Drawer Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#0d1014] p-4 sm:px-6">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5 shadow-lg">
-              <img
-                src="/ai-icon.png"
-                alt="Scoutly AI"
-                className="w-full h-full object-cover rounded-full"
-              />
+        <header className="flex h-[74px] shrink-0 items-center justify-between border-b border-white/[0.07] px-5 sm:px-7">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08]">
+              <img src="/ai-icon.png" alt="Scoutly Agentic" className="h-7 w-7 rounded-lg object-cover" />
             </div>
             <div>
-              <h3 className="text-base font-bold tracking-tight text-white">Scoutly AI</h3>
-              <p className="text-xs font-medium text-stone-500">
-                Busca, filtra e prioriza oportunidades reais
-              </p>
+              <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">Scoutly Agentic</h2>
+              <p className="mt-0.5 text-[10px] text-stone-600">Agente de prospecção comercial</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={handleResetChat}
-              title="Reiniciar conversa"
-              className="cursor-pointer rounded-xl p-2 text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
+              title="Nova conversa"
+              className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={onClose}
               title="Fechar"
-              className="cursor-pointer rounded-xl p-2 text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
+              className="rounded-xl p-2.5 text-stone-600 transition hover:bg-white/[0.05] hover:text-stone-200"
             >
-              <X className="w-5 h-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Message Thread */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 no-scrollbar">
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user';
-            const matchedList = !isUser ? getBusinessesFromIds(msg.matchedBusinessIds) : [];
+        <main className="flex-1 overflow-y-auto px-5 py-7 sm:px-8 sm:py-8 no-scrollbar">
+          {messages.length === 0 && !isLoading && (
+            <div className="mx-auto flex min-h-full max-w-[620px] flex-col justify-center py-10">
+              <div className="mb-8">
+                <span className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] text-[#FF6A26]">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <h3 className="max-w-lg text-[25px] font-semibold leading-[1.12] tracking-[-0.04em] text-white">
+                  O que você quer encontrar hoje?
+                </h3>
+                <p className="mt-3 max-w-[520px] text-[12px] leading-6 text-stone-500">
+                  Peça um segmento, cidade, quantidade ou critério. O Scoutly Agentic explora os dados, aplica contexto e organiza as melhores oportunidades.
+                </p>
+              </div>
 
-            return (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
-              >
-                {!isUser && (
-                  <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5">
-                    <img
-                      src="/ai-icon.png"
-                      alt="Scoutly AI"
-                      className="w-full h-full object-cover rounded-full"
-                    />
+              {quickSuggestions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-700">Recomendado para você</p>
+                  {quickSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => void handleSendMessage(suggestion)}
+                      className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5 text-left text-[12px] text-stone-400 transition hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-stone-200"
+                    >
+                      <span>{suggestion}</span>
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-700 transition group-hover:text-[#FF6A26]" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mx-auto max-w-[620px] space-y-8">
+            {messages.map((message) => {
+              const isUser = message.role === 'user';
+              const matchedBusinesses = isUser ? [] : getBusinessesFromIds(message.matchedBusinessIds);
+
+              if (isUser) {
+                return (
+                  <div key={message.id} className="rounded-2xl border border-white/[0.09] bg-[#111418] px-5 py-4 text-[15px] font-medium leading-7 text-white shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
+                    {message.content}
                   </div>
-                )}
+                );
+              }
 
-                <div className={`max-w-[88%] space-y-3 ${isUser ? 'items-end' : 'items-start'}`}>
-                  <div
-                    className={`p-4 rounded-2xl text-sm ${
-                      isUser
-                        ? 'bg-[#FF5A12] text-white rounded-tr-xs shadow-lg'
-                        : 'bg-[#15191e] border border-white/[0.08] text-stone-200 rounded-tl-xs shadow-lg'
-                    }`}
-                  >
-                    <div className="prose prose-sm max-w-none prose-invert prose-p:text-stone-200 prose-strong:text-white prose-em:text-stone-300">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+              return (
+                <div key={message.id} className="space-y-4">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold text-[#FF6A26]">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Scoutly Agentic</span>
+                  </div>
+
+                  <div className="prose prose-sm max-w-none prose-invert prose-p:my-2 prose-p:text-[13px] prose-p:leading-7 prose-p:text-stone-300 prose-strong:text-white prose-li:text-stone-300">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+
+                  {message.searchSummary && (
+                    <div className="flex flex-wrap gap-2 border-y border-white/[0.06] py-3 text-[9px] font-medium text-stone-500">
+                      <span>{message.searchSummary.shownCount}/{message.searchSummary.requestedCount} exibidos</span>
+                      <span className="text-stone-700">•</span>
+                      <span>{message.searchSummary.matchingCount} compatíveis</span>
+                      <span className="text-stone-700">•</span>
+                      <span>{message.searchSummary.regionName}</span>
+                      {message.searchSummary.appliedFilters.slice(0, 2).map((filter) => (
+                        <span key={filter} className="rounded-full border border-[#FF5A12]/15 bg-[#FF5A12]/[0.05] px-2 py-0.5 text-[#FF7A3D]">
+                          {filter}
+                        </span>
+                      ))}
                     </div>
+                  )}
 
-                    {!isUser && msg.searchSummary && (
-                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/[0.07] pt-3">
-                        <span className="rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
-                          {msg.searchSummary.shownCount}/{msg.searchSummary.requestedCount} exibidos
-                        </span>
-                        <span className="rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
-                          {msg.searchSummary.matchingCount} compatíveis
-                        </span>
-                        <span className="max-w-full truncate rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
-                          {msg.searchSummary.regionName}
-                        </span>
-                        {msg.searchSummary.appliedFilters.slice(0, 2).map((filter) => (
-                          <span key={filter} className="rounded-lg border border-[#FF5A12]/15 bg-[#FF5A12]/[0.06] px-2 py-1 text-[9px] font-semibold text-[#FF8A52]">
-                            {filter}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {!isUser && (
-                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/[0.07] text-[11px] text-stone-600">
-                        <span>{msg.timestamp}</span>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(msg.content, msg.id)}
-                          className="flex cursor-pointer items-center gap-1 text-stone-500 transition hover:text-white"
-                        >
-                          {copiedIndex === msg.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="text-emerald-600 font-medium">Copiado!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copiar texto</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3 text-[9px] text-stone-700">
+                    <span>{message.timestamp}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(message.content, message.id)}
+                      className="flex items-center gap-1 transition hover:text-stone-400"
+                    >
+                      {copiedIndex === message.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedIndex === message.id ? 'Copiado' : 'Copiar'}</span>
+                    </button>
                   </div>
 
-                  {/* Render matched businesses as rich cards if present */}
-                  {matchedList.length > 0 && (
-                    <div className="space-y-2 pt-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
-                          <Sparkles className="h-3.5 w-3.5 text-[#FF6A26]" />
-                          <span>Oportunidades ({matchedList.length})</span>
-                        </div>
-                        {msg.suggestedAction?.type === 'add_to_pipeline' && (
+                  {matchedBusinesses.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between gap-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
+                          Oportunidades encontradas · {matchedBusinesses.length}
+                        </p>
+                        {message.suggestedAction?.type === 'add_to_pipeline' && (
                           <button
                             type="button"
-                            disabled={Boolean(bulkSavedMessages[msg.id])}
+                            disabled={Boolean(bulkSavedMessages[message.id])}
                             onClick={() => {
-                              matchedList
+                              matchedBusinesses
                                 .filter((business) => !business.leadStatus || business.leadStatus === 'NOVO')
                                 .forEach((business) => onUpdateLeadStatus(business.id, 'CONTATADO'));
-                              setBulkSavedMessages((prev) => ({ ...prev, [msg.id]: true }));
+                              setBulkSavedMessages((previous) => ({ ...previous, [message.id]: true }));
                             }}
-                            className="rounded-lg border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-2.5 py-1.5 text-[9px] font-semibold text-[#FF8A52] transition hover:bg-[#FF5A12]/[0.13] disabled:cursor-default disabled:border-emerald-500/20 disabled:bg-emerald-500/[0.07] disabled:text-emerald-400"
+                            className="text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d] disabled:text-emerald-500"
                           >
-                            {bulkSavedMessages[msg.id] ? 'Adicionados ao pipeline' : `Adicionar ${matchedList.length} ao pipeline`}
+                            {bulkSavedMessages[message.id] ? 'Adicionados ao pipeline' : 'Adicionar todos ao pipeline'}
                           </button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2.5">
-                        {matchedList.map((biz) => {
-                          const hasWebsite = Boolean(biz.website);
-                          const waLink = getWhatsAppLink(biz.phone || (biz.phones && biz.phones[0]));
-                          const isSaved = biz.leadStatus && biz.leadStatus !== 'NOVO';
+                      {matchedBusinesses.map((business) => {
+                        const hasWebsite = Boolean(business.website);
+                        const whatsappLink = getWhatsAppLink(business.phone || business.phones?.[0]);
+                        const isSaved = Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
 
-                          return (
-                            <div
-                              key={biz.id}
-                              className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5 transition hover:border-white/[0.14] hover:bg-[#15191e]"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <h4 className="text-xs font-bold leading-snug text-white">
-                                    {biz.name}
-                                  </h4>
-                                  <p className="text-[11px] text-stone-500">
-                                    {biz.category} • {biz.address}
-                                  </p>
-                                </div>
-                                {hasWebsite ? (
-                                  <span className="shrink-0 rounded-md bg-emerald-500/[0.08] px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                                    Com site
-                                  </span>
-                                ) : (
-                                  <span className="shrink-0 rounded-md border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-2 py-0.5 text-[10px] font-bold text-[#FF7A3D]">
-                                    Sem site
-                                  </span>
-                                )}
+                        return (
+                          <article key={business.id} className="rounded-2xl border border-white/[0.07] bg-[#0c0f13] p-4 transition hover:border-white/[0.12]">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <h4 className="truncate text-[12px] font-semibold text-white">{business.name}</h4>
+                                <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-stone-600">
+                                  {business.category} · {business.address}
+                                </p>
                               </div>
-
-                              {/* Action Buttons Row */}
-                              <div className="flex items-center flex-wrap gap-1.5 pt-2 border-t border-white/[0.07]">
-                                {/* Button: WhatsApp */}
-                                {waLink && (
-                                  <a
-                                    href={waLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-400 hover:bg-emerald-500/[0.13] rounded-xl text-xs font-bold transition shadow-2xs"
-                                  >
-                                    <img
-                                      src="/whatsapp_icone.png"
-                                      className="w-3.5 h-3.5 object-contain"
-                                      alt="WhatsApp"
-                                    />
-                                    <span>WhatsApp</span>
-                                  </a>
-                                )}
-
-                                {/* Button: Website */}
-                                {hasWebsite && (
-                                  <a
-                                    href={biz.website!}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-white/[0.08] bg-white/[0.03] text-stone-300 hover:bg-white/[0.06] hover:text-white rounded-xl text-xs font-bold transition shadow-2xs"
-                                  >
-                                    <span>Site</span>
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                )}
-
-                                {/* Button: Save to Leads list */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onUpdateLeadStatus(
-                                      biz.id,
-                                      isSaved ? 'NOVO' : 'CONTATADO'
-                                    )
-                                  }
-                                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
-                                    isSaved
-                                      ? 'border border-amber-500/20 bg-amber-500/[0.08] text-amber-400'
-                                      : 'border border-white/[0.08] bg-white/[0.04] text-stone-300 hover:bg-white/[0.07] hover:text-white'
-                                  }`}
-                                >
-                                  {isSaved ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-amber-800" />
-                                      <span>Na lista</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Plus className="w-3.5 h-3.5" />
-                                      <span>Adicionar ao pipeline</span>
-                                    </>
-                                  )}
-                                </button>
-
-                                {/* Button: View details on map / modal */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const safeBiz: Business = {
-                                      id: biz.id,
-                                      name: biz.name || 'Empresa',
-                                      category: biz.category || 'Comércio',
-                                      address: biz.address || '',
-                                      latitude: (biz as any).latitude ?? (biz as any).lat ?? (biz.coordinates?.lat || 0),
-                                      longitude: (biz as any).longitude ?? (biz as any).lng ?? (biz.coordinates?.lng || 0),
-                                      coordinates: biz.coordinates || {
-                                        lat: (biz as any).latitude ?? (biz as any).lat ?? 0,
-                                        lng: (biz as any).longitude ?? (biz as any).lng ?? 0,
-                                      },
-                                      operatingStatus: biz.operatingStatus || null,
-                                      website: biz.website || null,
-                                      websites: Array.isArray(biz.websites) ? biz.websites : biz.website ? [biz.website] : [],
-                                      phone: biz.phone || (biz.phones && biz.phones[0]) || null,
-                                      phones: Array.isArray(biz.phones) ? biz.phones : biz.phone ? [biz.phone] : [],
-                                      email: biz.email || (biz.emails && biz.emails[0]) || null,
-                                      emails: Array.isArray(biz.emails) ? biz.emails : biz.email ? [biz.email] : [],
-                                      socials: Array.isArray(biz.socials) ? biz.socials : [],
-                                      source: biz.source || 'Overture Maps',
-                                      confidence: typeof biz.confidence === 'number' ? biz.confidence : 0.85,
-                                      leadStatus: biz.leadStatus || 'NOVO',
-                                      notes: biz.notes || '',
-                                    };
-                                    onSelectBusiness(safeBiz);
-                                  }}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FF5A12] hover:bg-[#ff6a27] text-white rounded-xl text-xs font-bold transition shadow-2xs ml-auto cursor-pointer"
-                                >
-                                  <span>Ver detalhes</span>
-                                  <ChevronRight className="w-3 h-3" />
-                                </button>
-                              </div>
+                              <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${hasWebsite ? 'bg-emerald-500/[0.07] text-emerald-400' : 'bg-[#FF5A12]/[0.08] text-[#FF7A3D]'}`}>
+                                {hasWebsite ? 'Com site' : 'Sem site'}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+
+                            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+                              {whatsappLink && (
+                                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[9px] font-medium text-stone-400 transition hover:bg-white/[0.04] hover:text-white">
+                                  WhatsApp
+                                </a>
+                              )}
+                              {hasWebsite && (
+                                <a href={business.website!} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[9px] font-medium text-stone-400 transition hover:bg-white/[0.04] hover:text-white">
+                                  Site <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onUpdateLeadStatus(business.id, isSaved ? 'NOVO' : 'CONTATADO')}
+                                className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[9px] font-medium transition ${isSaved ? 'border-emerald-500/15 bg-emerald-500/[0.05] text-emerald-400' : 'border-white/[0.07] text-stone-400 hover:bg-white/[0.04] hover:text-white'}`}
+                              >
+                                {isSaved ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                {isSaved ? 'No pipeline' : 'Pipeline'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onSelectBusiness(business)}
+                                className="ml-auto flex items-center gap-1 text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d]"
+                              >
+                                Ver detalhes <ChevronRight className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+              );
+            })}
 
-                {isUser && (
-                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-[#15191e] text-stone-300">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="flex gap-3 items-start">
-              <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#FF5A12]/20 bg-[#15191e] p-0.5">
-                <img
-                  src="/ai-icon.png"
-                  alt="Scoutly AI"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5 max-w-[88%]">
-                {/* ChatGPT style Thinking Header with orange shimmer */}
-                <div className="flex items-center gap-1.5 px-1">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FF4D00] animate-pulse" />
-                  <span className="text-xs font-bold tracking-wide orange-shimmer-text">
-                    {THINKING_PHRASES[thinkingPhraseIndex]}
-                  </span>
+            {isLoading && (
+              <div className="space-y-4 py-1">
+                <div className="flex items-center gap-2 text-[10px] font-semibold text-[#FF6A26]">
+                  <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                  <span>Scoutly Agentic está trabalhando</span>
                 </div>
 
-                {/* Thinking Box */}
-                <div className="flex items-center gap-2 rounded-2xl rounded-tl-xs border border-white/[0.08] bg-[#15191e] p-3.5 text-xs font-medium text-stone-300">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-[#FF5A12]"></span>
-                  <span>Buscando dados e aplicando seus critérios sem inventar resultados...</span>
+                <div className="space-y-1">
+                  {AGENT_STEPS.map((step, index) => {
+                    const isDone = index < activeAgentStep;
+                    const isActive = index === activeAgentStep;
+                    return (
+                      <div key={step} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${isActive ? 'bg-white/[0.025]' : ''}`}>
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] ${isDone ? 'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-400' : isActive ? 'border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] text-[#FF6A26]' : 'border-white/[0.06] text-stone-800'}`}>
+                          {isDone ? <Check className="h-3 w-3" /> : isActive ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#FF5A12]" /> : index + 1}
+                        </span>
+                        <span className={`text-[11px] ${isDone ? 'text-stone-500' : isActive ? 'text-stone-200' : 'text-stone-700'}`}>
+                          {step}{isActive ? '…' : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Quick Suggestion Chips */}
-        <div className="shrink-0 border-t border-white/[0.08] bg-[#0d1014] px-4 pb-2 pt-3">
-          <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-stone-500">
-            <Info className="h-3 w-3 text-stone-600" />
-            Experimente pedir quantidade, região e critérios:
-          </p>
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            {quickSuggestions.map((sug, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleSendMessage(sug)}
-                disabled={isLoading}
-                className="shrink-0 cursor-pointer whitespace-nowrap rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-[10px] font-medium text-stone-400 transition hover:border-[#FF5A12]/25 hover:bg-[#FF5A12]/[0.07] hover:text-[#FF7A3D] disabled:opacity-50"
-              >
-                {sug}
-              </button>
-            ))}
+            <div ref={messagesEndRef} />
           </div>
-        </div>
+        </main>
 
-        {/* Input Bar */}
-        <div className="shrink-0 border-t border-white/[0.08] bg-[#0d1014] p-4">
+        {messages.length > 0 && quickSuggestions.length > 0 && (
+          <div className="shrink-0 overflow-x-auto border-t border-white/[0.05] bg-[#07090c] px-5 py-2.5 no-scrollbar sm:px-8">
+            <div className="flex gap-2">
+              {quickSuggestions.slice(0, 3).map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => void handleSendMessage(suggestion)}
+                  disabled={isLoading}
+                  className="shrink-0 rounded-full border border-white/[0.07] px-3 py-1.5 text-[9px] text-stone-600 transition hover:border-white/[0.12] hover:text-stone-300 disabled:opacity-40"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <footer className="shrink-0 border-t border-white/[0.07] bg-[#090c10] px-5 py-4 sm:px-8">
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendMessage();
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSendMessage();
             }}
-            className="flex items-center gap-2 relative"
+            className="mx-auto flex max-w-[620px] items-center gap-2 rounded-2xl border border-white/[0.09] bg-[#111418] p-1.5 pl-4 transition focus-within:border-white/[0.15]"
           >
             <input
               ref={inputRef}
               type="text"
               value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Ex: Encontre 20 clínicas sem site em Curitiba e priorize quem tem telefone..."
+              onChange={(event) => setInputMessage(event.target.value)}
+              placeholder="Peça empresas, regiões, critérios ou oportunidades"
               disabled={isLoading}
-              className="flex-1 rounded-2xl border border-white/[0.09] bg-[#090c10] px-4 py-3 text-sm text-white outline-none placeholder:text-stone-700 transition focus:border-[#FF5A12]/50 focus:ring-2 focus:ring-[#FF5A12]/10 disabled:opacity-50"
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-[12px] text-white outline-none placeholder:text-stone-700 disabled:opacity-50"
             />
-
-            {/* ChatGPT style mini dropdown for Search Mode */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsSearchModeOpen(!isSearchModeOpen)}
-                disabled={isLoading}
-                className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-2xl border border-white/[0.08] bg-[#15191e] px-3 py-3 text-xs font-semibold text-stone-300 transition hover:bg-white/[0.06] hover:text-white"
-                title="Selecionar modo de busca"
-              >
-                <span>{searchMode === 'deep' ? 'Deep Search' : 'Busca padrão'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-stone-500" />
-              </button>
-
-              {isSearchModeOpen && (
-                <div className="absolute bottom-full right-0 z-50 mb-2 w-40 rounded-xl border border-white/[0.09] bg-[#15191e] py-1.5 text-xs shadow-2xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchMode('default');
-                      setIsSearchModeOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between cursor-pointer font-medium ${
-                      searchMode === 'default' ? 'text-[#FF7A3D] font-bold bg-[#FF5A12]/[0.08]' : 'text-stone-400'
-                    }`}
-                  >
-                    <span>Busca padrão</span>
-                    {searchMode === 'default' && <Check className="h-3.5 w-3.5 text-[#FF6A26]" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchMode('deep');
-                      setIsSearchModeOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between cursor-pointer font-medium ${
-                      searchMode === 'deep' ? 'text-[#FF7A3D] font-bold bg-[#FF5A12]/[0.08]' : 'text-stone-400'
-                    }`}
-                  >
-                    <span>Deep Search</span>
-                    {searchMode === 'deep' && <Check className="h-3.5 w-3.5 text-[#FF6A26]" />}
-                  </button>
-                </div>
-              )}
-            </div>
-
             <button
               type="submit"
               disabled={isLoading || !inputMessage.trim()}
-              className="px-4 py-3 bg-[#FF5A12] hover:bg-[#ff6a27] text-white rounded-2xl font-bold transition shadow-xs flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12] text-white transition hover:bg-[#ff6a27] disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-stone-700"
+              aria-label="Enviar"
             >
-              <Send className="w-4 h-4" />
+              <ArrowUp className="h-4 w-4" />
             </button>
           </form>
-        </div>
-      </div>
+        </footer>
+      </section>
     </div>
   );
 }
 
 export default memo(AIAssistantDrawer);
-
