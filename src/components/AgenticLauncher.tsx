@@ -30,8 +30,6 @@ import {
   listAgentRuns,
 } from '../services/agenticApi';
 
-const ACTIVE_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
-
 const STAGE_LABELS: Record<string, string> = {
   queued: 'Na fila',
   planning: 'Planejando',
@@ -111,7 +109,6 @@ function timeAgo(value?: string | null) {
 
 export default function AgenticLauncher() {
   const { user } = useAuth();
-  const [pathname, setPathname] = useState(() => window.location.pathname.replace(/\/+$/, '') || '/');
   const [open, setOpen] = useState(false);
   const [objective, setObjective] = useState('');
   const [targetCount, setTargetCount] = useState(25);
@@ -123,13 +120,7 @@ export default function AgenticLauncher() {
   const [error, setError] = useState('');
   const pumpRef = useRef(false);
 
-  useEffect(() => {
-    const sync = () => setPathname(window.location.pathname.replace(/\/+$/, '') || '/');
-    window.addEventListener('popstate', sync);
-    return () => window.removeEventListener('popstate', sync);
-  }, []);
-
-  const visible = Boolean(user && ACTIVE_PATHS.has(pathname));
+  const visible = Boolean(user);
   const signals = useMemo(() => promptSignals(objective), [objective]);
 
   const refreshRuns = async (selectActive = false) => {
@@ -263,7 +254,7 @@ export default function AgenticLauncher() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group fixed bottom-[76px] right-4 z-[34] flex h-11 items-center gap-2 rounded-2xl border border-[#FF5A12]/30 bg-[#0e1115]/95 px-2.5 text-white shadow-[0_14px_42px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition hover:border-[#FF5A12]/65 hover:bg-[#15191e] active:scale-[0.98] sm:bottom-5 sm:right-[148px] sm:px-3.5"
+        className="group pointer-events-auto fixed bottom-[76px] right-4 z-[80] flex h-11 items-center gap-2 rounded-2xl border border-[#FF5A12]/40 bg-[#0e1115]/95 px-2.5 text-white shadow-[0_14px_42px_rgba(0,0,0,0.44)] backdrop-blur-2xl transition hover:border-[#FF5A12]/70 hover:bg-[#15191e] active:scale-[0.98] sm:bottom-5 sm:right-[148px] sm:px-3.5"
         aria-label="Abrir Scoutly Agent"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#FF5A12] text-white shadow-[0_7px_22px_rgba(255,90,18,0.24)]">
