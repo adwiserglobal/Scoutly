@@ -1,4 +1,5 @@
-import { searchBusinessesAdaptive, type BusinessSearchResult } from './adaptiveBusinessSearchService.js';
+import { searchBusinessesAdaptive } from './adaptiveBusinessSearchService.js';
+import type { BusinessSearchResult } from './businessSearchService.js';
 import { findSparseSearchFallback } from './sparseSearchFallback.js';
 
 export async function runScoutlyBusinessSearch(
