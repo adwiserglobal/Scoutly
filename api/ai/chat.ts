@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleScoutlyCopilotChat } from '../../server/copilotSearchService.js';
+import { handleScoutlyAgenticChat } from '../../server/agenticSearchService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -8,13 +8,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { message, history, businesses, currentRegionName, searchMode } = req.body || {};
+    const { message, history, businesses, currentRegionName } = req.body || {};
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Mensagem é obrigatória' });
     }
 
-    const response = await handleScoutlyCopilotChat({
+    const response = await handleScoutlyAgenticChat({
       message: message.trim(),
       history: Array.isArray(history) ? history : [],
       businesses: Array.isArray(businesses) ? businesses : [],
@@ -22,7 +22,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         typeof currentRegionName === 'string' && currentRegionName.trim()
           ? currentRegionName.trim()
           : 'São Paulo - SP',
-      searchMode: searchMode === 'deep' ? 'deep' : 'default',
     });
 
     res.setHeader('Cache-Control', 'no-store');
@@ -30,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: any) {
     console.error('[API /api/ai/chat Error]:', err);
     return res.status(500).json({
-      error: err?.message || 'Erro ao processar consulta de IA.',
+      error: err?.message || 'Erro ao processar consulta do Scoutly Agentic.',
     });
   }
 }
