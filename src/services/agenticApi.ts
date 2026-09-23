@@ -1,5 +1,7 @@
 import { auth } from '../lib/firebase';
 
+const AGENTIC_ENDPOINT = 'https://fpyfphabdjutwqlwjwib.supabase.co/functions/v1/scoutly-agentic';
+
 export type AgentRunStatus =
   | 'queued'
   | 'planning'
@@ -92,41 +94,42 @@ export async function createAgentRun(input: {
   currentRegionName: string;
   targetCount: number;
 }): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch('/api/agent/runs', {
+  const response = await authenticatedAgentFetch(AGENTIC_ENDPOINT, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ action: 'create', ...input }),
   });
   return readJson(response);
 }
 
 export async function listAgentRuns(): Promise<AgentRun[]> {
-  const response = await authenticatedAgentFetch('/api/agent/runs');
+  const response = await authenticatedAgentFetch(`${AGENTIC_ENDPOINT}?action=list`);
   const data = await readJson(response);
   return Array.isArray(data?.runs) ? data.runs : [];
 }
 
 export async function getAgentRun(id: string): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch(`/api/agent/runs?id=${encodeURIComponent(id)}`);
+  const response = await authenticatedAgentFetch(
+    `${AGENTIC_ENDPOINT}?action=detail&id=${encodeURIComponent(id)}`
+  );
   return readJson(response);
 }
 
 export async function cancelAgentRun(id: string): Promise<AgentRun> {
-  const response = await authenticatedAgentFetch('/api/agent/runs', {
-    method: 'PATCH',
-    body: JSON.stringify({ id, action: 'cancel' }),
+  const response = await authenticatedAgentFetch(AGENTIC_ENDPOINT, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'cancel', id }),
   });
   return readJson(response);
 }
 
 export async function kickAgentWorker(): Promise<void> {
   try {
-    await fetch('/api/agent/worker', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'ui' }),
+    await fetch(`${AGENTIC_ENDPOINT}?action=worker`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
     });
   } catch {
-    // Polling will retry. A single worker failure must never break the UI.
+    // The durable pg_cron worker continues even if this optimistic UI kick fails.
   }
 }
 
