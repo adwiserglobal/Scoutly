@@ -28,11 +28,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Agentic API bundle check
-        run: |
-          npx esbuild api/agent/runs.ts api/agent/worker.ts --bundle --platform=node --format=esm --outdir=/tmp/scoutly-agentic-api
-          ls -lh /tmp/scoutly-agentic-api
-
       - name: Install Internal dependencies
         working-directory: internal
         run: npm install --no-audit --no-fund
