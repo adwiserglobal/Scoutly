@@ -115,6 +115,83 @@ async function searchSupabaseByName(
     .filter((business) => withinBounds(business, region.bbox));
 }
 
+async function searchNominatimByProfile(
+  profile: SearchProfile,
+  region: SearchRegion,
+  limit: number
+): Promise<BusinessSummary[]> {
+  try {
+    const query = `${profile.label} ${region.name}`;
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('addressdetails', '1');
+    url.searchParams.set('extratags', '1');
+    url.searchParams.set('namedetails', '1');
+    url.searchParams.set('countrycodes', 'br');
+    url.searchParams.set('limit', String(Math.max(1, Math.min(limit, 40))));
+    url.searchParams.set('q', query);
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Scoutly-Prospecting/1.0 (https://www.scoutly.pro)',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (!response.ok) return [];
+    const items = await response.json();
+    if (!Array.isArray(items)) return [];
+
+    return items
+      .map((item: any): BusinessSummary | null => {
+        const lat = Number(item.lat);
+        const lng = Number(item.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        const extra = item.extratags || {};
+        const namedetails = item.namedetails || {};
+        const name = String(
+          namedetails.name ||
+          namedetails['name:pt'] ||
+          item.name ||
+          String(item.display_name || '').split(',')[0] ||
+          profile.label
+        ).trim();
+        const category = String(item.type || item.category || item.class || profile.label);
+        const phone = String(extra.phone || extra['contact:phone'] || '').trim() || null;
+        const email = String(extra.email || extra['contact:email'] || '').trim() || null;
+        const website = String(extra.website || extra['contact:website'] || '').trim() || null;
+
+        return {
+          id: `osm_${item.osm_type || 'poi'}_${item.osm_id || `${lat}_${lng}`}`,
+          name,
+          category,
+          address: String(item.display_name || region.name),
+          lat,
+          lng,
+          coordinates: { lat, lng },
+          website,
+          phone,
+          phones: phone ? [phone] : [],
+          emails: email ? [email] : [],
+          socials: [],
+          confidence: 0.78,
+          leadStatus: 'NOVO',
+          notes: '',
+          sources: ['openstreetmap'],
+          hasCoordinates: true,
+        };
+      })
+      .filter((business): business is BusinessSummary => Boolean(business))
+      .filter((business) => withinBounds(business, region.bbox))
+      .filter((business) => strongNameMatch(business, profile));
+  } catch (err: any) {
+    console.warn('[Sparse Search] Nominatim fallback failed:', err?.message || err);
+    return [];
+  }
+}
+
 export async function findSparseSearchFallback(params: {
   query: string;
   businessType: string;
@@ -145,9 +222,19 @@ export async function findSparseSearchFallback(params: {
     }
   }
 
-  // Google Places is the last sparse-result fallback. The standard search already
-  // tries Serper, but strict taxonomy scoring can reject niche Brazilian segments
-  // such as despachantes even when the business name is an exact match.
+  // No-key recovery for sparse niches and cities outside the Scoutly local index.
+  // This is intentionally called only after the indexed search is sparse.
+  if (found.length < 12) {
+    const osmMatches = await searchNominatimByProfile(profile, region, Math.min(limit, 40));
+    for (const business of osmMatches) {
+      if (seen.has(business.id)) continue;
+      seen.add(business.id);
+      found.push(business);
+      if (found.length >= limit) return found;
+    }
+  }
+
+  // Google Places/Serper remains the last sparse-result fallback when configured.
   if (found.length < 8) {
     try {
       const serper = await fetchBusinessesFromSerper(
