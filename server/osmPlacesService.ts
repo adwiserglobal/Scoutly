@@ -119,7 +119,7 @@ export async function queryOsmPlacesInBBox(
     nwr["name"]["leisure"](${bbox});
     nwr["name"]["healthcare"](${bbox});
     nwr["name"]["industrial"](${bbox});
-  );out center tags ${safeLimit};`;
+  );out center ${safeLimit};`;
 
   let lastError: Error | null = null;
 
