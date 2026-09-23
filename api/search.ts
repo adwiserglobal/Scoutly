@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { searchBusinesses } from '../server/businessSearchService.js';
+import { searchBusinessesAdaptive } from '../server/adaptiveBusinessSearchService.js';
 import { findSparseSearchFallback } from '../server/sparseSearchFallback.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -18,11 +18,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const result = await searchBusinesses(query, currentRegionName);
+    const result = await searchBusinessesAdaptive(query, currentRegionName);
 
-    // Niche Brazilian segments can be poorly represented in the source taxonomy.
-    // When the primary search is sparse, recover exact name matches from the
-    // Scoutly index (and, when configured, Google Places) instead of returning 0.
+    // Last-resort recovery for source taxonomies that are exceptionally sparse.
+    // Adaptive search already expands neighbourhood searches to city level first;
+    // this fallback is therefore reserved for genuinely underrepresented niches.
     if (result.businesses.length < 12) {
       try {
         const fallback = await findSparseSearchFallback({
@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
     return res.status(200).json(result);
   } catch (err: any) {
     console.error('[API /api/search Error]:', err);
