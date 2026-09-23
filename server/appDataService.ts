@@ -111,18 +111,18 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   );
 
   if (!subscriptions.length) {
-    const startedAt = new Date();
-    const endsAt = new Date(startedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-
+    // The 7-day clock must only start after the user explicitly accepts it
+    // at the end of onboarding. Until then the account exists, but product
+    // access remains locked by the subscription entitlement layer.
     await appDataRequest('subscriptions', {
       method: 'POST',
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
         user_uid: identity.uid,
         plan: 'trial',
-        status: 'trialing',
-        current_period_start: startedAt.toISOString(),
-        current_period_end: endsAt.toISOString(),
+        status: 'pending',
+        current_period_start: null,
+        current_period_end: null,
       }),
     });
   }
