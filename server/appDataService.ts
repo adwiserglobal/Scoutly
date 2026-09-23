@@ -112,11 +112,11 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
 
   if (!subscriptions.length) {
     // The 7-day clock must only start after the user explicitly accepts it
-    // at the end of onboarding. Until then the account exists, but product
-    // access remains locked by the subscription entitlement layer.
-    await appDataRequest('subscriptions', {
+    // at the end of onboarding. This insert is conflict-safe because the
+    // workspace and onboarding requests can initialize the same account at once.
+    await appDataRequest('subscriptions?on_conflict=user_uid', {
       method: 'POST',
-      headers: { Prefer: 'return=minimal' },
+      headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
       body: JSON.stringify({
         user_uid: identity.uid,
         plan: 'trial',
