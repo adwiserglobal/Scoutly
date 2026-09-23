@@ -2,51 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 
-const VIDEO_CHUNKS = [
-  '/media/scoutly-overview/chunk-00.bin',
-  '/media/scoutly-overview/chunk-01.bin',
-  '/media/scoutly-overview/chunk-02.bin',
-];
+const VIDEO_URL =
+  'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/1ba4952b23e445a52cb8ae04bc79209405e435925229841b4c20fb8165bccf03.mp4';
 
 function OverviewVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [src, setSrc] = useState('');
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl = '';
-
-    const loadVideo = async () => {
-      try {
-        const responses = await Promise.all(VIDEO_CHUNKS.map((path) => fetch(path)));
-        if (responses.some((response) => !response.ok)) {
-          throw new Error('Unable to load Scoutly overview video');
-        }
-
-        const buffers = await Promise.all(responses.map((response) => response.arrayBuffer()));
-        if (cancelled) return;
-
-        objectUrl = URL.createObjectURL(new Blob(buffers, { type: 'video/mp4' }));
-        setSrc(objectUrl);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    };
-
-    void loadVideo();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, []);
-
   const togglePlayback = async () => {
     const video = videoRef.current;
-    if (!video || !src) return;
+    if (!video || failed) return;
 
     if (video.paused) {
       try {
@@ -61,7 +28,7 @@ function OverviewVideo() {
 
   const toggleSound = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || failed) return;
     const nextMuted = !video.muted;
     video.muted = nextMuted;
     setMuted(nextMuted);
@@ -75,27 +42,28 @@ function OverviewVideo() {
         <>
           <video
             ref={videoRef}
-            src={src || undefined}
+            src={VIDEO_URL}
+            poster="/scoutly-product-screen.webp"
             className="site-product-video"
             playsInline
             preload="metadata"
             muted={muted}
             disablePictureInPicture
             controlsList="nodownload noplaybackrate nofullscreen"
+            onClick={togglePlayback}
+            onLoadedMetadata={() => setFailed(false)}
+            onError={() => setFailed(true)}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
             aria-label="Visão geral da plataforma Scoutly"
           />
 
-          {!src && <div className="site-video-status">Carregando vídeo</div>}
-
           <div className="site-video-controls" aria-label="Controles do vídeo">
             <button
               type="button"
               className="site-video-control"
               onClick={togglePlayback}
-              disabled={!src}
               aria-label={playing ? 'Pausar vídeo' : 'Reproduzir vídeo'}
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -104,7 +72,6 @@ function OverviewVideo() {
               type="button"
               className="site-video-control"
               onClick={toggleSound}
-              disabled={!src}
               aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
