@@ -16,7 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { sendAIChatMessage, fetchContextualSuggestions, getWhatsAppLink } from '../services/api';
+import { sendAIChatMessage, fetchContextualSuggestions, getWhatsAppLink, type AIChatResult } from '../services/api';
 import {
   getRecommendationPromptContext,
   RECOMMENDATION_SIGNAL_EVENT,
@@ -27,6 +27,8 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   matchedBusinessIds?: string[];
+  searchSummary?: AIChatResult['searchSummary'];
+  suggestedAction?: AIChatResult['suggestedAction'];
   timestamp: string;
 }
 
@@ -45,11 +47,11 @@ interface AIAssistantDrawerProps {
 }
 
 const THINKING_PHRASES = [
-  'Pensando...',
-  'Explorando o mapa...',
-  'Filtrando dados...',
-  'Otimizando os resultados...',
-  'Buscando informações...',
+  'Entendendo seu pedido...',
+  'Buscando empresas reais...',
+  'Aplicando seus critérios...',
+  'Priorizando oportunidades...',
+  'Preparando os resultados...',
 ];
 
 function AIAssistantDrawer({
@@ -65,7 +67,7 @@ function AIAssistantDrawer({
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Olá! Sou a **Scoutly IA**, seu copiloto de inteligência comercial e prospecção de alta conversão.\n\nEm qual **cidade, bairro ou nicho** você deseja prospectar hoje? Basta me dizer onde e o que procura (ex: *'Ache restaurantes sem site em Florianópolis'* ou *'Busque clínicas em Curitiba'*) e eu vou buscar os dados em tempo real para você!`,
+      content: `Olá! Sou a **Scoutly AI**. Posso buscar empresas reais, aplicar critérios como **sem site** ou **com telefone**, respeitar a quantidade que você pedir e organizar os resultados para prospecção.\n\nEx.: *"Encontre 20 despachantes em São Paulo sem site e priorize quem tem telefone."*`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -75,6 +77,7 @@ function AIAssistantDrawer({
   const [isSearchModeOpen, setIsSearchModeOpen] = useState(false);
   const [thinkingPhraseIndex, setThinkingPhraseIndex] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [bulkSavedMessages, setBulkSavedMessages] = useState<Record<string, boolean>>({});
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
   const [quickSuggestions, setQuickSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -209,6 +212,8 @@ function AIAssistantDrawer({
           role: 'assistant',
           content: result.text,
           matchedBusinessIds: result.matchedBusinessIds || [],
+          searchSummary: result.searchSummary,
+          suggestedAction: result.suggestedAction,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -278,7 +283,7 @@ function AIAssistantDrawer({
             <div>
               <h3 className="text-base font-bold tracking-tight text-white">Scoutly AI</h3>
               <p className="text-xs font-medium text-stone-500">
-                Copiloto de prospecção e inteligência comercial
+                Busca, filtra e prioriza oportunidades reais
               </p>
             </div>
           </div>
@@ -336,6 +341,25 @@ function AIAssistantDrawer({
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
 
+                    {!isUser && msg.searchSummary && (
+                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/[0.07] pt-3">
+                        <span className="rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
+                          {msg.searchSummary.shownCount}/{msg.searchSummary.requestedCount} exibidos
+                        </span>
+                        <span className="rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
+                          {msg.searchSummary.matchingCount} compatíveis
+                        </span>
+                        <span className="max-w-full truncate rounded-lg border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] font-semibold text-stone-400">
+                          {msg.searchSummary.regionName}
+                        </span>
+                        {msg.searchSummary.appliedFilters.slice(0, 2).map((filter) => (
+                          <span key={filter} className="rounded-lg border border-[#FF5A12]/15 bg-[#FF5A12]/[0.06] px-2 py-1 text-[9px] font-semibold text-[#FF8A52]">
+                            {filter}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {!isUser && (
                       <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/[0.07] text-[11px] text-stone-600">
                         <span>{msg.timestamp}</span>
@@ -363,9 +387,26 @@ function AIAssistantDrawer({
                   {/* Render matched businesses as rich cards if present */}
                   {matchedList.length > 0 && (
                     <div className="space-y-2 pt-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
-                        <Sparkles className="h-3.5 w-3.5 text-[#FF6A26]" />
-                        <span>Empresas Encontradas ({matchedList.length}):</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
+                          <Sparkles className="h-3.5 w-3.5 text-[#FF6A26]" />
+                          <span>Oportunidades ({matchedList.length})</span>
+                        </div>
+                        {msg.suggestedAction?.type === 'add_to_pipeline' && (
+                          <button
+                            type="button"
+                            disabled={Boolean(bulkSavedMessages[msg.id])}
+                            onClick={() => {
+                              matchedList
+                                .filter((business) => !business.leadStatus || business.leadStatus === 'NOVO')
+                                .forEach((business) => onUpdateLeadStatus(business.id, 'CONTATADO'));
+                              setBulkSavedMessages((prev) => ({ ...prev, [msg.id]: true }));
+                            }}
+                            className="rounded-lg border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-2.5 py-1.5 text-[9px] font-semibold text-[#FF8A52] transition hover:bg-[#FF5A12]/[0.13] disabled:cursor-default disabled:border-emerald-500/20 disabled:bg-emerald-500/[0.07] disabled:text-emerald-400"
+                          >
+                            {bulkSavedMessages[msg.id] ? 'Adicionados ao pipeline' : `Adicionar ${matchedList.length} ao pipeline`}
+                          </button>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 gap-2.5">
@@ -454,7 +495,7 @@ function AIAssistantDrawer({
                                   ) : (
                                     <>
                                       <Plus className="w-3.5 h-3.5" />
-                                      <span>Adicionar à lista</span>
+                                      <span>Adicionar ao pipeline</span>
                                     </>
                                   )}
                                 </button>
@@ -535,7 +576,7 @@ function AIAssistantDrawer({
                 {/* Thinking Box */}
                 <div className="flex items-center gap-2 rounded-2xl rounded-tl-xs border border-white/[0.08] bg-[#15191e] p-3.5 text-xs font-medium text-stone-300">
                   <span className="h-2 w-2 animate-pulse rounded-full bg-[#FF5A12]"></span>
-                  <span>Scoutly AI está buscando e analisando os dados em tempo real...</span>
+                  <span>Buscando dados e aplicando seus critérios sem inventar resultados...</span>
                 </div>
               </div>
             </div>
@@ -548,7 +589,7 @@ function AIAssistantDrawer({
         <div className="shrink-0 border-t border-white/[0.08] bg-[#0d1014] px-4 pb-2 pt-3">
           <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-stone-500">
             <Info className="h-3 w-3 text-stone-600" />
-            Sugestões rápidas de prospecção:
+            Experimente pedir quantidade, região e critérios:
           </p>
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
             {quickSuggestions.map((sug, i) => (
@@ -579,7 +620,7 @@ function AIAssistantDrawer({
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Ex: Ache clínicas em Curitiba, restaurantes sem site no Rio..."
+              placeholder="Ex: Encontre 20 clínicas sem site em Curitiba e priorize quem tem telefone..."
               disabled={isLoading}
               className="flex-1 rounded-2xl border border-white/[0.09] bg-[#090c10] px-4 py-3 text-sm text-white outline-none placeholder:text-stone-700 transition focus:border-[#FF5A12]/50 focus:ring-2 focus:ring-[#FF5A12]/10 disabled:opacity-50"
             />
