@@ -16,7 +16,6 @@ import BusinessDetailsModal from './components/BusinessDetailsModal';
 import BusinessSidePanel from './components/BusinessSidePanel';
 import LoadingScreen from './components/LoadingScreen';
 import AIAssistantDrawer from './components/AIAssistantDrawer';
-import AgenticLauncher from './components/AgenticLauncher';
 import FavoritesView from './components/FavoritesView';
 import PipelineView from './components/PipelineView';
 import SettingsView from './components/SettingsView';
@@ -1854,10 +1853,6 @@ export default function App() {
           }
         }}
       />
-
-
-      <AgenticLauncher />
-
     </div>
   );
 }
