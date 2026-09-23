@@ -51,6 +51,20 @@ const CITY_UF: Record<string, string> = {
   'fortaleza': 'CE',
   'goiania': 'GO',
   'campinas': 'SP',
+  'santos': 'SP',
+  'sorocaba': 'SP',
+  'ribeirao preto': 'SP',
+  'sao jose dos campos': 'SP',
+  'vitoria': 'ES',
+  'manaus': 'AM',
+  'belem': 'PA',
+  'maceio': 'AL',
+  'natal': 'RN',
+  'joao pessoa': 'PB',
+  'teresina': 'PI',
+  'sao luis': 'MA',
+  'campo grande': 'MS',
+  'cuiaba': 'MT',
 };
 
 const UF_CODES = new Set([
@@ -174,6 +188,14 @@ function normalizeAliases(raw: string, context: RegionContext): { raw: string; q
     return { raw, query: `${name}, ${uf}, Brasil`, cidade: name, uf };
   }
 
+  // Known Brazilian cities must be treated as cities even when the map is
+  // currently centered in another state. Previously "Curitiba" while in São
+  // Paulo became "Curitiba, São Paulo, SP", which sent the search to the wrong place.
+  const knownCityUf = CITY_UF[n];
+  if (knownCityUf) {
+    return { raw, query: `${raw}, ${knownCityUf}, Brasil`, cidade: raw, uf: knownCityUf };
+  }
+
   if (raw.includes(',')) {
     return { raw, query: `${raw}, Brasil` };
   }
@@ -239,10 +261,15 @@ function scoreNominatimResult(result: NominatimResult, rawLocation: string, cont
   let score = 0;
   if (display.startsWith(target)) score += 40;
   else if (display.includes(target)) score += 25;
-  if (city && city === normalize(context.cidade)) score += 12;
-  if (stateCode && stateCode === context.uf) score += 10;
+
+  // An exact municipality-name match is stronger than the user's previous map
+  // context. This lets explicit searches cross state boundaries correctly.
+  if (city && city === target) score += 35;
+  else if (city && city === normalize(context.cidade)) score += 6;
+
+  if (stateCode && stateCode === context.uf) score += 4;
   if (['suburb', 'neighbourhood', 'quarter', 'city_district'].includes(result.addresstype || '')) score += 8;
-  if (['city', 'town', 'municipality'].includes(result.addresstype || '')) score += 6;
+  if (['city', 'town', 'municipality'].includes(result.addresstype || '')) score += 10;
   return score;
 }
 
@@ -315,10 +342,12 @@ export async function resolveSearchGeography(query: string, currentRegionName = 
     return result;
   }
 
-  const queries = [alias.query];
-  // For a plain location term, also try it at state level. This lets names such
-  // as "Santo André", "Osasco" and "Campinas" resolve as municipalities even
-  // while the current map is centered on São Paulo city.
+  const queries = explicitLocation
+    ? [`${rawLocation}, Brasil`, alias.query]
+    : [alias.query];
+
+  // Also try the current UF as a secondary hint for neighbourhoods/cities with
+  // duplicated names, but never make it the only candidate for an explicit city.
   if (explicitLocation && !/[,-]\s*[A-Za-z]{2}\b/.test(rawLocation)) {
     queries.push(`${rawLocation}, ${context.uf}, Brasil`);
   }
