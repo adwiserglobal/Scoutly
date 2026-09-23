@@ -7,14 +7,26 @@ import OnboardingGate from './components/OnboardingGate';
 import './index.css';
 import './marketing-overrides.css';
 
-const promoCode = new URLSearchParams(window.location.search)
+const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
+const promoFromUrl = new URLSearchParams(window.location.search)
   .get('promo')
   ?.trim()
   .toLowerCase();
 
-if (promoCode === 'scoutlypro10') {
+if (promoFromUrl === SHAREABLE_PROMOTION_CODE) {
+  localStorage.setItem('scoutly_promo_code', SHAREABLE_PROMOTION_CODE);
+}
+
+const storedPromoCode = localStorage.getItem('scoutly_promo_code')?.trim().toLowerCase();
+if (storedPromoCode === SHAREABLE_PROMOTION_CODE) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `scoutly_promo_code=${encodeURIComponent(promoCode)}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
+  const hostname = window.location.hostname.toLowerCase();
+  const sharedDomain =
+    hostname === 'scoutly.pro' || hostname.endsWith('.scoutly.pro')
+      ? '; Domain=.scoutly.pro'
+      : '';
+
+  document.cookie = `scoutly_promo_code=${encodeURIComponent(SHAREABLE_PROMOTION_CODE)}; Path=/; Max-Age=2592000; SameSite=Lax${sharedDomain}${secure}`;
 }
 
 createRoot(document.getElementById('root')!).render(
