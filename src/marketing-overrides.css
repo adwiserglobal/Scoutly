@@ -15,13 +15,13 @@ div[class*="tracking-[0.16em]"][class*="text-[#FF7A3D]"] {
   display: none !important;
 }
 
-/* Use the real Scoutly map as a dark visual layer behind the homepage hero. */
+/* User-provided Scoutly map as a dark visual layer behind the homepage hero. */
 main > section:first-child {
   background-color: #07090c;
   background-image:
-    linear-gradient(to bottom, rgba(7, 9, 12, 0.24) 0%, rgba(7, 9, 12, 0.42) 46%, rgba(7, 9, 12, 0.91) 72%, #07090c 88%),
-    linear-gradient(to right, rgba(7, 9, 12, 0.88) 0%, rgba(7, 9, 12, 0.72) 46%, rgba(7, 9, 12, 0.56) 100%),
-    url('/scoutly-product-screen.webp');
+    linear-gradient(to bottom, rgba(7, 9, 12, 0.30) 0%, rgba(7, 9, 12, 0.47) 47%, rgba(7, 9, 12, 0.92) 76%, #07090c 91%),
+    linear-gradient(to right, rgba(7, 9, 12, 0.90) 0%, rgba(7, 9, 12, 0.73) 48%, rgba(7, 9, 12, 0.55) 100%),
+    url('https://cdn.openart.ai/openart-uploads/production/attachment-transfers/0bae00d791d8dd754c8ce20bfc494771e8e126b290e1f7d564f23a265ffe5395.png');
   background-repeat: no-repeat;
   background-position: center top;
   background-size: 100% 900px, 100% 900px, auto 900px;
@@ -52,6 +52,7 @@ main > section:first-child {
   height: 100%;
   object-fit: cover;
   background: #05070a;
+  cursor: pointer;
 }
 
 .site-video-status {
