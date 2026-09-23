@@ -16,11 +16,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // This endpoint cannot create jobs or choose a target job. It only advances
-    // the oldest legitimate queued run through an atomic DB claim. Repeated or
-    // concurrent calls are therefore safe and cannot duplicate work.
-    const workerId = `vercel-${randomUUID()}`;
-    const result = await processAgentQueueOnce(workerId);
-    return res.status(200).json(result);
+    // legitimate queued runs through atomic DB claims. We process a few bounded
+    // stages per invocation so background cron remains useful without long jobs.
+    const startedAt = Date.now();
+    const results: any[] = [];
+
+    for (let index = 0; index < 3; index += 1) {
+      if (Date.now() - startedAt > 42_000) break;
+      const workerId = `vercel-${randomUUID()}`;
+      const result = await processAgentQueueOnce(workerId);
+      results.push(result);
+      if (!result.processed) break;
+    }
+
+    return res.status(200).json({
+      processed: results.some((item) => item?.processed),
+      iterations: results.length,
+      results,
+    });
   } catch (error: any) {
     console.error('[API /api/agent/worker]', error);
     return res.status(500).json({
