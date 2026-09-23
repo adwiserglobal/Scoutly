@@ -9,15 +9,15 @@ export const config = {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store');
 
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
+  if (!['GET', 'POST'].includes(String(req.method || ''))) {
+    res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
   try {
     // This endpoint cannot create jobs or choose a target job. It only advances
-    // legitimate queued runs through atomic DB claims. We process a few bounded
-    // stages per invocation so background cron remains useful without long jobs.
+    // legitimate queued runs through atomic DB claims. GET is accepted so the
+    // database cron can trigger the queue through CDN/domain redirects safely.
     const startedAt = Date.now();
     const results: any[] = [];
 
