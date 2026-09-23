@@ -15,6 +15,18 @@ div[class*="tracking-[0.16em]"][class*="text-[#FF7A3D]"] {
   display: none !important;
 }
 
+/* Use the real Scoutly map as a dark visual layer behind the homepage hero. */
+main > section:first-child {
+  background-color: #07090c;
+  background-image:
+    linear-gradient(to bottom, rgba(7, 9, 12, 0.24) 0%, rgba(7, 9, 12, 0.42) 46%, rgba(7, 9, 12, 0.91) 72%, #07090c 88%),
+    linear-gradient(to right, rgba(7, 9, 12, 0.88) 0%, rgba(7, 9, 12, 0.72) 46%, rgba(7, 9, 12, 0.56) 100%),
+    url('/scoutly-product-screen.webp');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% 900px, 100% 900px, auto 900px;
+}
+
 .site-product-image {
   display: block;
   width: 100%;
@@ -22,10 +34,125 @@ div[class*="tracking-[0.16em]"][class*="text-[#FF7A3D]"] {
   min-height: 220px;
   object-fit: cover;
   background: #090c10;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.site-product-video-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  background: #05070a;
+}
+
+.site-product-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #05070a;
+}
+
+.site-video-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #07090c;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.site-video-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.site-video-controls::before {
+  content: '';
+  position: absolute;
+  inset: -42px -16px -16px;
+  z-index: -1;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.58), transparent);
+  pointer-events: none;
+}
+
+.site-video-control {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(8, 10, 13, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.site-video-control:hover {
+  background: rgba(22, 25, 30, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.site-video-control:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.site-video-control:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+}
+
+.site-video-control:focus-visible {
+  outline: 2px solid rgba(255, 90, 18, 0.9);
+  outline-offset: 2px;
 }
 
 @media (max-width: 640px) {
+  main > section:first-child {
+    background-size: 100% 720px, 100% 720px, auto 720px;
+    background-position: center top;
+  }
+
   .site-product-image {
     min-height: 150px;
+  }
+
+  .site-video-controls {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+  }
+
+  .site-video-control {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-video-control {
+    transition: none;
   }
 }
