@@ -230,7 +230,11 @@ function BottomMenu({
         </div>
       </div>
 
-      <SupportDrawer isOpen={supportOpen} onClose={() => setSupportOpen(false)} />
+      <SupportDrawer
+        isOpen={supportOpen}
+        onOpen={() => setSupportOpen(true)}
+        onClose={() => setSupportOpen(false)}
+      />
     </>
   );
 }
