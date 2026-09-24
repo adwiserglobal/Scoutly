@@ -115,6 +115,114 @@ class ScoutlyMapModeControl implements maplibregl.IControl {
 
 if (!proto.__scoutly3dPatched) {
   const originalAddSource = proto.addSource;
+  const originalAddLayer = proto.addLayer;
+
+  // MapLibre renders the markers inside WebGL, so CSS backdrop-filter cannot be
+  // applied to them. This patch reproduces the glass effect with translucent
+  // orange, a soft bloom and a restrained glass edge while preserving the
+  // existing clustering, sizes, filters and interactions.
+  proto.addLayer = function (layer: any, beforeId?: string) {
+    if (layer?.id === 'clusters' && layer?.type === 'circle') {
+      const radius = layer.paint?.['circle-radius'] || 18;
+
+      if (!this.getLayer('clusters-glass-glow')) {
+        originalAddLayer.call(this, {
+          ...layer,
+          id: 'clusters-glass-glow',
+          paint: {
+            'circle-color': 'rgba(255, 82, 18, 0.26)',
+            'circle-radius': ['+', radius, 6],
+            'circle-opacity': 0.72,
+            'circle-blur': 0.82,
+            'circle-stroke-width': 0,
+          },
+        }, beforeId);
+      }
+
+      return originalAddLayer.call(this, {
+        ...layer,
+        paint: {
+          ...layer.paint,
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            'rgba(255, 104, 45, 0.48)',
+            10,
+            'rgba(255, 94, 31, 0.50)',
+            50,
+            'rgba(255, 82, 18, 0.52)',
+            100,
+            'rgba(246, 74, 12, 0.54)',
+            500,
+            'rgba(224, 61, 5, 0.56)',
+          ],
+          'circle-opacity': 0.92,
+          'circle-blur': 0.025,
+          'circle-stroke-width': 1.35,
+          'circle-stroke-color': 'rgba(255, 255, 255, 0.50)',
+          'circle-stroke-opacity': 0.9,
+        },
+      }, beforeId);
+    }
+
+    if (layer?.id === 'cluster-count' && layer?.type === 'symbol') {
+      return originalAddLayer.call(this, {
+        ...layer,
+        paint: {
+          ...layer.paint,
+          'text-color': '#FFFFFF',
+          'text-halo-color': 'rgba(82, 27, 7, 0.28)',
+          'text-halo-width': 1.2,
+          'text-halo-blur': 0.8,
+        },
+      }, beforeId);
+    }
+
+    if (layer?.id === 'unclustered-point' && layer?.type === 'circle') {
+      const radius = layer.paint?.['circle-radius'] || ['get', 'markerRadius'];
+
+      if (!this.getLayer('unclustered-point-glass-glow')) {
+        originalAddLayer.call(this, {
+          ...layer,
+          id: 'unclustered-point-glass-glow',
+          paint: {
+            'circle-color': ['get', 'markerColor'],
+            'circle-radius': ['+', radius, 3],
+            'circle-opacity': [
+              'case',
+              ['==', ['get', 'showWhatsappIcon'], true],
+              0,
+              0.28,
+            ],
+            'circle-blur': 0.78,
+            'circle-stroke-width': 0,
+          },
+        }, beforeId);
+      }
+
+      return originalAddLayer.call(this, {
+        ...layer,
+        paint: {
+          ...layer.paint,
+          'circle-opacity': [
+            'case',
+            ['==', ['get', 'showWhatsappIcon'], true],
+            1,
+            0.62,
+          ],
+          'circle-blur': 0.025,
+          'circle-stroke-opacity': [
+            'case',
+            ['==', ['get', 'showWhatsappIcon'], true],
+            1,
+            0.68,
+          ],
+        },
+      }, beforeId);
+    }
+
+    return originalAddLayer.call(this, layer, beforeId);
+  };
 
   proto.addSource = function (id: string, source: any) {
     const result = originalAddSource.call(this, id, source);
