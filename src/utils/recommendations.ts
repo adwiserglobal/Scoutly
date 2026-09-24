@@ -15,7 +15,6 @@ export function setRecommendationUserScope(userUid?: string | null) {
   activeUserScope = userUid ? encodeURIComponent(userUid) : 'anonymous';
 
   if (typeof window !== 'undefined') {
-    // Never reuse the old global key: it could contain signals from another account.
     window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     window.dispatchEvent(
       new CustomEvent(RECOMMENDATION_SIGNAL_EVENT, {
@@ -57,13 +56,49 @@ function normalize(value?: string | null) {
     .trim();
 }
 
+function cleanLocationLabel(value?: string | null) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
+}
+
+function queryWithoutExplicitLocation(query: string) {
+  const clean = String(query || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+
+  const match = clean.match(/^(.*?)(?:\s+\b(?:em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\b\s+.+)$/i);
+  const head = String(match?.[1] || '').trim();
+  return head || clean;
+}
+
+function canonicalizeSearchSignal(signal: Partial<SearchSignal>): SearchSignal {
+  const rawQuery = String(signal.query || '').replace(/\s+/g, ' ').trim();
+  const location = cleanLocationLabel(signal.location);
+  const query = queryWithoutExplicitLocation(rawQuery);
+
+  return {
+    query: query || rawQuery,
+    location,
+    at: Number(signal.at || Date.now()),
+  };
+}
+
+function formatSearchSignal(signal: SearchSignal) {
+  const canonical = canonicalizeSearchSignal(signal);
+  if (!canonical.location) return canonical.query;
+  return `${canonical.query} em ${canonical.location}`.trim();
+}
+
 function readSignals(): RecommendationSignals {
   if (typeof window === 'undefined') return EMPTY_SIGNALS;
 
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey()) || '{}');
     return {
-      searches: Array.isArray(parsed.searches) ? parsed.searches.slice(-30) : [],
+      searches: Array.isArray(parsed.searches)
+        ? parsed.searches.slice(-30).map((search: SearchSignal) => canonicalizeSearchSignal(search))
+        : [],
       favorites: parsed.favorites && typeof parsed.favorites === 'object' ? parsed.favorites : {},
       pipeline: parsed.pipeline && typeof parsed.pipeline === 'object' ? parsed.pipeline : {},
       whatsappClicks:
@@ -91,21 +126,17 @@ function writeSignals(next: RecommendationSignals) {
 }
 
 export function recordRecommendationSearch(query: string, location: string) {
-  const cleanQuery = query.trim();
-  if (!cleanQuery) return;
+  const canonical = canonicalizeSearchSignal({ query, location, at: Date.now() });
+  if (!canonical.query) return;
 
   const current = readSignals();
-  // Keep repeated searches: frequency is a real intent signal, not just recency.
-  const searches = [
-    ...current.searches,
-    { query: cleanQuery, location: location || '', at: Date.now() },
-  ].slice(-30);
+  const searches = [...current.searches, canonical].slice(-30);
 
   writeSignals({ ...current, searches });
   void saveRecommendationEvent({
     eventType: 'search',
-    query: cleanQuery,
-    location: location || '',
+    query: canonical.query,
+    location: canonical.location,
   });
 }
 
@@ -185,11 +216,11 @@ export function hydrateRecommendationSignals(events: any[]) {
     const category = String(event?.category || '');
 
     if (type === 'search' && event?.query) {
-      next.searches.push({
+      next.searches.push(canonicalizeSearchSignal({
         query: String(event.query),
         location: String(event.location || ''),
         at: new Date(event.created_at || Date.now()).getTime(),
-      });
+      }));
       next.searches = next.searches.slice(-30);
     } else if (type === 'favorite_add' && businessId) {
       next.favorites[businessId] = category;
@@ -290,19 +321,16 @@ export function getRecommendationPromptContext(
 
   const recentSignals = [...signals.searches]
     .sort((a, b) => b.at - a.at)
-    .slice(0, 5);
+    .slice(0, 5)
+    .map(canonicalizeSearchSignal);
 
-  const recentSearches = recentSignals.map((search) =>
-    [search.query, search.location].filter(Boolean).join(' em ')
-  );
+  const recentSearches = recentSignals.map(formatSearchSignal);
 
   const suggestions: string[] = [];
   const lastSearch = recentSignals[0];
 
   if (lastSearch?.query) {
-    suggestions.push(
-      `Continue minha busca por ${lastSearch.query}${lastSearch.location ? ` em ${lastSearch.location}` : ''}`
-    );
+    suggestions.push(`Continue minha busca por ${formatSearchSignal(lastSearch)}`);
   }
 
   if (topCategories[0]) {
@@ -347,7 +375,8 @@ export function getRecommendedBusinesses(businesses: Business[], limit = 12): Bu
 
   const recentSearches = [...signals.searches]
     .sort((a, b) => b.at - a.at)
-    .slice(0, 15);
+    .slice(0, 15)
+    .map(canonicalizeSearchSignal);
 
   const dayKey = getLocalDayKey();
 
