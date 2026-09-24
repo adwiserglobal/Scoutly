@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { message, history, businesses, currentRegionName } = req.body || {};
+    const { message, history, businesses, currentRegionName, conversationContext } = req.body || {};
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Mensagem é obrigatória' });
@@ -22,6 +22,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         typeof currentRegionName === 'string' && currentRegionName.trim()
           ? currentRegionName.trim()
           : 'São Paulo - SP',
+      conversationContext:
+        conversationContext && typeof conversationContext === 'object'
+          ? conversationContext
+          : null,
     });
 
     res.setHeader('Cache-Control', 'no-store');
