@@ -1,16 +1,13 @@
-import { searchBusinessesAdaptive } from './adaptiveBusinessSearchService.js';
-import { fetchBusinessesFromSerper } from './serperService.js';
-import { queryOsmPlacesInBBox } from './osmPlacesService.js';
+import { runScoutlyBusinessSearch } from './searchFacade.js';
 import { interpretSearchIntent } from './searchInterpreter.js';
-import { resolveSearchGeography, type ResolvedSearchGeography } from './geographyService.js';
 import {
+  SEARCH_PROFILES,
   normalizeSearchText,
   resolveSearchProfile,
   scoreAgainstProfile,
   type SearchProfile,
 } from './searchProfiles.js';
-import type { AIChatRequest, BusinessSummary } from './aiService.js';
-import type { OverturePlace } from './overtureService.js';
+import type { AIChatRequest, AIChatResponse, BusinessSummary } from './aiService.js';
 
 const NUMBER_WORDS: Record<string, number> = {
   um: 1, uma: 1, dois: 2, duas: 2, tres: 3, três: 3, quatro: 4, cinco: 5,
@@ -33,23 +30,18 @@ type SearchConstraints = {
   requestedPipelineAdd: boolean;
 };
 
-type TraceEntry = {
-  stage: string;
-  status: 'completed' | 'warning';
-  detail?: string;
-};
-
 function normalize(value: string): string {
   return normalizeSearchText(value || '').replace(/\s+/g, ' ').trim();
 }
 
 function extractRequestedCount(message: string): number | null {
   const text = normalize(message);
-  const digitMatch = text.match(/\b(\d{1,3})\b/);
-  if (digitMatch) {
-    const parsed = Number(digitMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return Math.min(parsed, 50);
+  const digit = text.match(/\b(\d{1,3})\b/);
+  if (digit) {
+    const value = Number(digit[1]);
+    if (Number.isFinite(value) && value > 0) return Math.min(value, 50);
   }
+
   for (const [word, value] of Object.entries(NUMBER_WORDS)) {
     if (new RegExp(`(^|\\s)${word}(\\s|$)`, 'i').test(text)) return value;
   }
@@ -76,48 +68,100 @@ function parseConstraints(message: string): SearchConstraints {
   return { noWebsite, hasWebsite, requirePhone, prioritizePhone, noSocial, hasSocial, requestedPipelineAdd };
 }
 
+function levenshtein(a: string, b: string): number {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    for (let j = 0; j < current.length; j += 1) previous[j] = current[j];
+  }
+  return previous[b.length];
+}
+
+function resolveProfileWithTypos(message: string): SearchProfile | null {
+  const exact = resolveSearchProfile(message);
+  if (exact) return exact;
+
+  const text = normalize(message);
+  const words = text.split(' ').filter((word) => word.length >= 4);
+  let best: { profile: SearchProfile; distance: number; length: number } | null = null;
+
+  for (const profile of SEARCH_PROFILES) {
+    for (const rawAlias of profile.aliases) {
+      const alias = normalize(rawAlias);
+      if (!alias || alias.includes(' ')) continue;
+
+      for (const word of words) {
+        if (Math.abs(word.length - alias.length) > 2) continue;
+        const distance = levenshtein(word, alias);
+        const allowed = alias.length >= 9 ? 2 : 1;
+        if (distance > allowed) continue;
+        if (!best || distance < best.distance || (distance === best.distance && alias.length > best.length)) {
+          best = { profile, distance, length: alias.length };
+        }
+      }
+    }
+  }
+
+  return best?.profile || null;
+}
+
+function extractGenericBusinessPhrase(message: string, explicitLocation: string | null): string {
+  let value = normalize(message)
+    .replace(/^(?:por favor\s+)?(?:me\s+)?(?:liste|lista|encontre|encontrar|ache|buscar|busque|mostre|quero|procure)\s+/i, '')
+    .replace(/^\d{1,3}\s+/, '')
+    .replace(/\b(?:um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\b\s*/i, '')
+    .trim();
+
+  if (explicitLocation) {
+    const marker = normalize(explicitLocation);
+    const index = value.indexOf(` em ${marker}`);
+    if (index > 0) value = value.slice(0, index);
+  }
+
+  value = value
+    .replace(/\s+(?:sem|com)\s+(?:site|website|telefone|whatsapp|contato|instagram|rede social|redes sociais).*$/i, '')
+    .trim();
+
+  return value || 'negócios locais';
+}
+
+function buildSearchPlan(message: string, currentRegionName: string) {
+  const profile = resolveProfileWithTypos(message);
+  const explicitLocation = extractExplicitLocation(message);
+  const interpreted = interpretSearchIntent(message, currentRegionName);
+  const genericPhrase = extractGenericBusinessPhrase(message, explicitLocation);
+  const businessType = profile?.label || (
+    interpreted.businessType && interpreted.businessType !== 'estabelecimento'
+      ? interpreted.businessType
+      : genericPhrase
+  );
+  const canonicalSegment = profile?.aliases?.[0] || businessType;
+  const query = explicitLocation
+    ? `${canonicalSegment} em ${explicitLocation}`
+    : canonicalSegment;
+
+  return { profile, explicitLocation, businessType, query };
+}
+
+function locationMatches(requested: string, resolvedRegion: string): boolean {
+  const requestedTokens = normalize(requested).split(' ').filter((token) => token.length >= 3);
+  const region = normalize(resolvedRegion);
+  return requestedTokens.length > 0 && requestedTokens.every((token) => region.includes(token));
+}
+
 function hasPhone(business: BusinessSummary): boolean {
   return Boolean(business.phone || business.phones?.some(Boolean));
 }
 
 function hasSocial(business: BusinessSummary): boolean {
   return Boolean(business.socials?.some(Boolean));
-}
-
-function withinBounds(business: BusinessSummary, bbox: ResolvedSearchGeography['bbox']): boolean {
-  const lat = Number(business.lat ?? business.coordinates?.lat);
-  const lng = Number(business.lng ?? business.coordinates?.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  const tolerance = 0.0025;
-  return lat >= bbox.south - tolerance && lat <= bbox.north + tolerance && lng >= bbox.west - tolerance && lng <= bbox.east + tolerance;
-}
-
-function explicitLocationMatches(explicitLocation: string, geography: ResolvedSearchGeography): boolean {
-  const target = normalize(explicitLocation)
-    .replace(/\bbrasil\b/g, '')
-    .replace(/\b(?:ac|al|ap|am|ba|ce|df|es|go|ma|mt|ms|mg|pa|pb|pr|pe|pi|rj|rn|rs|ro|rr|sc|sp|se|to)\b$/g, '')
-    .trim();
-  if (!target) return false;
-
-  const candidates = [geography.bairro, geography.cidade, geography.rawName, geography.query]
-    .map(normalize)
-    .filter(Boolean);
-  if (candidates.some((candidate) => candidate === target || candidate.startsWith(`${target} `) || candidate.includes(target))) {
-    return true;
-  }
-
-  const tokens = target.split(' ').filter((token) => token.length >= 3);
-  return tokens.length > 0 && candidates.some((candidate) => tokens.every((token) => candidate.includes(token)));
-}
-
-function segmentScore(business: BusinessSummary, profile: SearchProfile | null): number {
-  if (!profile) return 1;
-  return scoreAgainstProfile({
-    name: business.name,
-    category: business.category,
-    basicCategory: business.basicCategory,
-    taxonomyPrimary: business.taxonomyPrimary,
-  }, profile);
 }
 
 function applyConstraints(results: BusinessSummary[], constraints: SearchConstraints): BusinessSummary[] {
@@ -131,275 +175,141 @@ function applyConstraints(results: BusinessSummary[], constraints: SearchConstra
   });
 }
 
-function businessIdentity(business: BusinessSummary): string {
-  const phone = String(business.phone || business.phones?.[0] || '').replace(/\D/g, '');
-  if (phone.length >= 8) return `phone:${phone}`;
-  const name = normalize(business.name || '');
-  const lat = Number(business.lat ?? business.coordinates?.lat);
-  const lng = Number(business.lng ?? business.coordinates?.lng);
-  const place = Number.isFinite(lat) && Number.isFinite(lng)
-    ? `${lat.toFixed(3)}:${lng.toFixed(3)}`
-    : normalize(business.address || '');
-  return `name:${name}|place:${place}`;
-}
-
-function mergeBusinesses(...groups: BusinessSummary[][]): BusinessSummary[] {
-  const merged = new Map<string, BusinessSummary>();
-  for (const business of groups.flat()) {
-    if (!business?.id || !business?.name) continue;
-    const key = businessIdentity(business);
-    const existing = merged.get(key);
-    if (!existing) {
-      merged.set(key, business);
-      continue;
-    }
-    merged.set(key, {
-      ...existing,
-      ...business,
-      id: existing.id,
-      website: existing.website || business.website || null,
-      phone: existing.phone || business.phone || null,
-      phones: Array.from(new Set([...(existing.phones || []), ...(business.phones || [])].filter(Boolean))),
-      emails: Array.from(new Set([...(existing.emails || []), ...(business.emails || [])].filter(Boolean))),
-      socials: Array.from(new Set([...(existing.socials || []), ...(business.socials || [])].filter(Boolean))),
-      sources: Array.from(new Set([...(existing.sources || []), ...(business.sources || [])])),
-      confidence: Math.max(Number(existing.confidence || 0), Number(business.confidence || 0)),
-    });
-  }
-  return Array.from(merged.values()).slice(0, 400);
-}
-
-function osmPlaceToSummary(place: OverturePlace): BusinessSummary {
-  return {
-    id: place.id,
-    name: place.name,
-    category: place.category,
-    basicCategory: place.basicCategory,
-    taxonomyPrimary: place.taxonomyPrimary,
-    taxonomyHierarchy: place.taxonomyHierarchy,
-    taxonomyAlternates: place.taxonomyAlternates,
-    address: place.address,
-    lat: place.latitude,
-    lng: place.longitude,
-    coordinates: { lat: place.latitude, lng: place.longitude },
-    website: place.website || null,
-    phone: place.phone || place.phones?.[0] || null,
-    phones: place.phones || [],
-    emails: place.emails || [],
-    socials: place.socials || [],
-    confidence: Math.min(0.84, Number(place.confidence || 0.78)),
-    leadStatus: 'NOVO',
-    notes: '',
-    sources: ['openstreetmap'],
-    hasCoordinates: true,
-  };
-}
-
-function rankResults(results: BusinessSummary[], constraints: SearchConstraints, profile: SearchProfile | null): BusinessSummary[] {
-  const score = (business: BusinessSummary) => {
-    let total = segmentScore(business, profile) * 2;
-    total += Math.min(new Set(business.sources || []).size, 3) * 12;
-    total += Math.round(Math.max(0, Math.min(1, Number(business.confidence || 0))) * 20);
-    if (hasPhone(business)) total += constraints.prioritizePhone ? 80 : 18;
-    if (business.website) total += constraints.hasWebsite ? 25 : 2;
-    if (!business.website && constraints.noWebsite) total += 18;
-    if (business.cnpj) total += 8;
-    return total;
-  };
-  return [...results].sort((a, b) => score(b) - score(a));
-}
-
-function appliedFilters(constraints: SearchConstraints): string[] {
+function getAppliedFilters(constraints: SearchConstraints): string[] {
   const filters: string[] = [];
-  if (constraints.noWebsite) filters.push('site não identificado');
+  if (constraints.noWebsite) filters.push('sem site identificado');
   if (constraints.hasWebsite) filters.push('com site');
   if (constraints.requirePhone) filters.push('com telefone/WhatsApp');
-  if (constraints.noSocial) filters.push('redes sociais não identificadas');
+  if (constraints.noSocial) filters.push('sem redes sociais identificadas');
   if (constraints.hasSocial) filters.push('com redes sociais');
   if (constraints.prioritizePhone) filters.push('prioridade para contato disponível');
   return filters;
 }
 
-function isContextualFollowUp(message: string, hasProfile: boolean, explicitLocation: string | null): boolean {
+function isFilterOnlyFollowUp(message: string, hasProfile: boolean, explicitLocation: string | null): boolean {
   if (hasProfile || explicitLocation) return false;
-  return /^(quais|qual|desses|dessas|agora|e os|e as|mostre os|mostre as|filtre|so os|so as|somente|dentre eles|dentre elas)\b/.test(normalize(message));
+  const text = normalize(message);
+  return /^(agora|desses|dessas|dentre|so|somente|filtre|quais|mostre os|mostre as)\b/.test(text);
 }
 
 function responseText(args: {
   businessType: string;
   regionName: string;
   requestedCount: number;
-  availableCount: number;
+  searchCount: number;
+  segmentCount: number;
   matchingCount: number;
   shownCount: number;
-  constraints: SearchConstraints;
-  locationError?: string;
 }): string {
-  if (args.locationError) {
-    return `Não consegui **validar ${args.locationError} com segurança** nesta execução. Para não misturar regiões, interrompi a busca em vez de usar a cidade que já estava aberta no mapa. Tente novamente ou informe cidade e UF.`;
+  if (args.searchCount === 0) {
+    return `A busca da Scoutly não retornou resultados para **${args.businessType} em ${args.regionName}** agora.`;
   }
-  if (args.availableCount === 0) {
-    return `Não consegui **confirmar resultados de ${args.businessType} em ${args.regionName}** nas fontes consultadas agora. Isso não significa que essas empresas não existam; significa que a Scoutly não conseguiu validá-las sem arriscar dados incorretos.`;
+  if (args.segmentCount === 0) {
+    return `A busca retornou ${args.searchCount} registros, mas **nenhum deles foi validado como ${args.businessType}**. Por segurança, descartei os resultados de outros segmentos em vez de exibi-los.`;
   }
   if (args.matchingCount === 0) {
-    return `Confirmei **${args.availableCount} empresas de ${args.businessType} em ${args.regionName}**, mas nenhuma passou por todos os critérios pedidos. Posso relaxar um critério sem trocar de região.`;
+    return `Encontrei **${args.segmentCount} ${args.businessType.toLowerCase()}** em **${args.regionName}**, mas nenhum atende aos filtros adicionais pedidos.`;
   }
-  const count = args.shownCount < args.requestedCount
-    ? `Encontrei **${args.shownCount} de ${args.requestedCount}** resultados que consegui validar`
-    : `Encontrei **${args.shownCount} resultados validados**`;
-  const evidence = args.constraints.noWebsite
-    ? ' “Site não identificado” significa que nenhuma URL foi encontrada nas fontes consultadas, não uma garantia absoluta de inexistência.'
-    : '';
-  return `${count} para **${args.businessType} em ${args.regionName}**. Os cards abaixo passaram pela validação de segmento e região.${evidence}`;
+  if (args.shownCount < args.requestedCount) {
+    return `Encontrei **${args.shownCount} de ${args.requestedCount}** resultados que atendem ao pedido em **${args.regionName}**.`;
+  }
+  return `Encontrei **${args.shownCount} resultados** que atendem ao pedido em **${args.regionName}**.`;
 }
 
 export async function handleScoutlyAgenticChat({
   message,
   businesses = [],
   currentRegionName = 'São Paulo - SP',
-}: AIChatRequest): Promise<any> {
+}: AIChatRequest): Promise<AIChatResponse> {
   const requestedCount = extractRequestedCount(message) ?? 10;
   const constraints = parseConstraints(message);
-  const filters = appliedFilters(constraints);
-  const explicitLocation = extractExplicitLocation(message);
-  const profile = resolveSearchProfile(message);
-  const interpreted = interpretSearchIntent(message, currentRegionName);
-  const businessType = profile?.label || String(interpreted.businessType || '').trim() || 'Negócios locais';
-  const trace: TraceEntry[] = [{ stage: 'intent', status: 'completed', detail: `${businessType}${explicitLocation ? ` em ${explicitLocation}` : ''}` }];
-  const useCurrentContext = businesses.length > 0 && isContextualFollowUp(message, Boolean(profile), explicitLocation);
+  const filters = getAppliedFilters(constraints);
+  const plan = buildSearchPlan(message, currentRegionName);
+  const useCurrentContext = businesses.length > 0 && isFilterOnlyFollowUp(message, Boolean(plan.profile), plan.explicitLocation);
 
-  const geographyQuery = explicitLocation ? `${businessType} em ${explicitLocation}` : (useCurrentContext ? currentRegionName : businessType);
-  const geography = await resolveSearchGeography(geographyQuery, currentRegionName);
-
-  if (explicitLocation && !explicitLocationMatches(explicitLocation, geography)) {
-    trace.push({ stage: 'location', status: 'warning', detail: `Não foi possível confirmar “${explicitLocation}” sem fallback.` });
-    return {
-      text: responseText({ businessType, regionName: explicitLocation, requestedCount, availableCount: 0, matchingCount: 0, shownCount: 0, constraints, locationError: explicitLocation }),
-      matchedBusinessIds: [],
-      modelUsed: 'agentic-deterministic-v2',
-      searchSummary: {
-        requestedCount, availableCount: 0, matchingCount: 0, shownCount: 0,
-        businessType, regionName: explicitLocation, appliedFilters: filters, usedCurrentContext: false,
-        sourceCount: 0, sourcesUsed: [], locationVerified: false, searchStatus: 'location_error',
-      },
-      executionTrace: trace,
-    };
-  }
-
-  trace.push({ stage: 'location', status: 'completed', detail: `Região validada: ${geography.rawName}` });
-  let candidates: BusinessSummary[] = [];
-  const sourcesUsed = new Set<string>();
+  let regionName = currentRegionName;
+  let regionCenter = { lat: -23.5505, lng: -46.6333 };
+  let searched: BusinessSummary[] = [];
 
   if (useCurrentContext) {
-    candidates = mergeBusinesses(businesses)
-      .filter((business) => withinBounds(business, geography.bbox))
-      .filter((business) => segmentScore(business, profile) > 0);
-    sourcesUsed.add('contexto atual');
+    searched = [...businesses];
   } else {
-    const searchQuery = explicitLocation ? `${businessType} em ${explicitLocation}` : businessType;
-    try {
-      const primary = await searchBusinessesAdaptive(searchQuery, geography.rawName);
-      const valid = primary.businesses
-        .filter((business) => withinBounds(business, geography.bbox))
-        .filter((business) => segmentScore(business, profile) > 0);
-      candidates = mergeBusinesses(candidates, valid);
-      valid.forEach((business) => (business.sources || []).forEach((source) => sourcesUsed.add(source)));
-      trace.push({ stage: 'primary_search', status: 'completed', detail: `${valid.length} resultados validados` });
-    } catch (error: any) {
-      trace.push({ stage: 'primary_search', status: 'warning', detail: error?.message || 'Busca principal indisponível' });
-    }
+    const result = await runScoutlyBusinessSearch(plan.query, currentRegionName);
+    regionName = result.region?.name || currentRegionName;
+    regionCenter = result.region?.center || regionCenter;
+    searched = Array.isArray(result.businesses) ? result.businesses : [];
 
-    if (applyConstraints(candidates, constraints).length < requestedCount) {
-      try {
-        const osm = await queryOsmPlacesInBBox(geography.bbox.west, geography.bbox.south, geography.bbox.east, geography.bbox.north, 1800);
-        const valid = osm.places
-          .map(osmPlaceToSummary)
-          .filter((business) => withinBounds(business, geography.bbox))
-          .filter((business) => segmentScore(business, profile) > 0);
-        candidates = mergeBusinesses(candidates, valid);
-        if (valid.length) sourcesUsed.add('openstreetmap');
-        trace.push({ stage: 'osm_fallback', status: 'completed', detail: `${valid.length} resultados adicionais` });
-      } catch (error: any) {
-        trace.push({ stage: 'osm_fallback', status: 'warning', detail: error?.message || 'OSM indisponível' });
-      }
-    }
-
-    if (applyConstraints(candidates, constraints).length < requestedCount && profile) {
-      const aliases = profile.aliases
-        .filter((alias) => normalize(alias) !== normalize(businessType))
-        .slice(0, 2);
-      for (const alias of aliases) {
-        if (applyConstraints(candidates, constraints).length >= requestedCount) break;
-        try {
-          const retry = await searchBusinessesAdaptive(`${alias} em ${geography.rawName}`, geography.rawName);
-          const valid = retry.businesses
-            .filter((business) => withinBounds(business, geography.bbox))
-            .filter((business) => segmentScore(business, profile) > 0);
-          candidates = mergeBusinesses(candidates, valid);
-          valid.forEach((business) => (business.sources || []).forEach((source) => sourcesUsed.add(source)));
-        } catch (error: any) {
-          console.warn('[Scoutly Agentic] Alias retry unavailable:', alias, error?.message || error);
-        }
-      }
-      trace.push({ stage: 'alias_recall', status: 'completed', detail: 'Variações do segmento verificadas' });
-    }
-
-    if (applyConstraints(candidates, constraints).length < requestedCount) {
-      try {
-        const external = await fetchBusinessesFromSerper(`${businessType} em ${geography.rawName}`, geography.center.lat, geography.center.lng);
-        const valid = external
-          .filter((business) => business.hasCoordinates !== false)
-          .filter((business) => withinBounds(business, geography.bbox))
-          .filter((business) => segmentScore(business, profile) > 0);
-        candidates = mergeBusinesses(candidates, valid);
-        if (valid.length) sourcesUsed.add('serper');
-        trace.push({ stage: 'external_recall', status: 'completed', detail: `${valid.length} resultados adicionais` });
-      } catch (error: any) {
-        trace.push({ stage: 'external_recall', status: 'warning', detail: error?.message || 'Fonte externa indisponível' });
-      }
+    if (plan.explicitLocation && !locationMatches(plan.explicitLocation, regionName)) {
+      return {
+        text: `Não consegui resolver **${plan.explicitLocation}** com segurança. Não vou substituir pela cidade atual nem mostrar empresas de outra região.`,
+        matchedBusinessIds: [],
+        modelUsed: 'searchbar-orchestrator-v1',
+        searchSummary: {
+          requestedCount,
+          availableCount: searched.length,
+          matchingCount: 0,
+          shownCount: 0,
+          businessType: plan.businessType,
+          regionName,
+          appliedFilters: filters,
+          usedCurrentContext: false,
+        },
+      };
     }
   }
 
-  const verified = candidates
-    .filter((business) => withinBounds(business, geography.bbox))
-    .filter((business) => segmentScore(business, profile) > 0);
-  const constrained = applyConstraints(verified, constraints);
-  const ranked = rankResults(constrained, constraints, profile);
-  const shown = ranked.slice(0, Math.min(requestedCount, ranked.length));
+  // The search bar may aggregate broad fallback sources. Agentic adds one strict
+  // guard only: when the requested segment is known, records from other segments
+  // never reach the user (e.g. pharmacies cannot appear for "despachante").
+  const segmentSafe = plan.profile
+    ? searched.filter((business) => scoreAgainstProfile({
+        name: business.name,
+        category: business.category,
+        basicCategory: business.basicCategory,
+        taxonomyPrimary: business.taxonomyPrimary,
+      }, plan.profile!) > 0)
+    : searched;
+
+  let matching = applyConstraints(segmentSafe, constraints);
+  if (constraints.prioritizePhone) {
+    matching = [...matching].sort((a, b) => Number(hasPhone(b)) - Number(hasPhone(a)));
+  }
+
+  const shown = matching.slice(0, Math.min(requestedCount, matching.length));
   const matchedBusinessIds = shown.map((business) => business.id);
 
-  trace.push({ stage: 'validation', status: 'completed', detail: `${verified.length} no segmento/região; ${ranked.length} após filtros` });
-  trace.push({ stage: 'ranking', status: 'completed', detail: `${shown.length} oportunidades priorizadas` });
-
-  const sourceList = Array.from(sourcesUsed);
-  const searchStatus = shown.length === 0 ? 'empty' : shown.length < requestedCount ? 'partial' : 'complete';
-
   return {
-    text: responseText({ businessType, regionName: geography.rawName, requestedCount, availableCount: verified.length, matchingCount: ranked.length, shownCount: shown.length, constraints }),
+    text: responseText({
+      businessType: plan.businessType,
+      regionName,
+      requestedCount,
+      searchCount: searched.length,
+      segmentCount: segmentSafe.length,
+      matchingCount: matching.length,
+      shownCount: shown.length,
+    }),
     matchedBusinessIds,
-    modelUsed: 'agentic-deterministic-v2',
+    modelUsed: 'searchbar-orchestrator-v1',
     searchSummary: {
       requestedCount,
-      availableCount: verified.length,
-      matchingCount: ranked.length,
+      availableCount: segmentSafe.length,
+      matchingCount: matching.length,
       shownCount: shown.length,
-      businessType,
-      regionName: geography.rawName,
+      businessType: plan.businessType,
+      regionName,
       appliedFilters: filters,
       usedCurrentContext: useCurrentContext,
-      sourceCount: sourceList.length,
-      sourcesUsed: sourceList,
-      locationVerified: true,
-      searchStatus,
     },
-    suggestedAction: constraints.requestedPipelineAdd && matchedBusinessIds.length > 0
-      ? { type: 'add_to_pipeline', businessIds: matchedBusinessIds }
-      : undefined,
-    newRegion: useCurrentContext ? undefined : {
-      name: geography.rawName,
-      center: geography.center,
-      businesses: verified,
-    },
-    executionTrace: trace,
+    suggestedAction:
+      constraints.requestedPipelineAdd && matchedBusinessIds.length > 0
+        ? { type: 'add_to_pipeline', businessIds: matchedBusinessIds }
+        : undefined,
+    newRegion: useCurrentContext
+      ? undefined
+      : {
+          name: regionName,
+          center: regionCenter,
+          businesses: segmentSafe,
+        },
   };
 }
