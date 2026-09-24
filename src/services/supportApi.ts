@@ -8,6 +8,23 @@ export type SupportTicketStatus =
   | 'RESOLVED'
   | 'CLOSED';
 
+export type SupportAttachmentDraft = {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+};
+
+export type SupportAttachment = {
+  id: number;
+  ticket_id: number;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  data_url: string;
+  created_at: string;
+};
+
 export type SupportTicket = {
   id: number;
   user_uid: string;
@@ -16,6 +33,7 @@ export type SupportTicket = {
   subject: string;
   category: string;
   priority: string;
+  tags?: string[];
   status: SupportTicketStatus;
   created_at: string;
   updated_at: string;
@@ -36,6 +54,7 @@ export type SupportMessage = {
 export type SupportTicketDetail = {
   ticket: SupportTicket;
   messages: SupportMessage[];
+  attachments?: SupportAttachment[];
 };
 
 async function supportAction<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
@@ -78,6 +97,8 @@ export async function createSupportTicket(payload: {
   subject: string;
   category: string;
   message: string;
+  supportType?: string;
+  attachments?: SupportAttachmentDraft[];
 }): Promise<SupportTicketDetail> {
   return supportAction<SupportTicketDetail>('support-create', payload);
 }
