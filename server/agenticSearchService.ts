@@ -7,7 +7,7 @@ import {
   scoreAgainstProfile,
   type SearchProfile,
 } from './searchProfiles.js';
-import type { AIChatRequest, AIChatResponse, BusinessSummary } from './aiService.js';
+import type { AIChatRequest, AIChatResponse, BusinessSummary, ChatMessage } from './aiService.js';
 
 const NUMBER_WORDS: Record<string, number> = {
   um: 1, uma: 1, dois: 2, duas: 2, tres: 3, três: 3, quatro: 4, cinco: 5,
@@ -30,6 +30,33 @@ type SearchConstraints = {
   requestedPipelineAdd: boolean;
 };
 
+export type AgenticConversationContext = {
+  businessType?: string;
+  canonicalSegment?: string;
+  location?: string | null;
+  regionName?: string;
+  requestedCount?: number;
+  appliedFilters?: string[];
+};
+
+type AgenticChatRequest = AIChatRequest & {
+  conversationContext?: AgenticConversationContext | null;
+};
+
+type AgenticChatResponse = AIChatResponse & {
+  conversationContext?: AgenticConversationContext;
+};
+
+type SearchPlan = {
+  profile: SearchProfile | null;
+  directProfile: SearchProfile | null;
+  explicitLocation: string | null;
+  businessType: string;
+  canonicalSegment: string;
+  query: string;
+  isContextualFollowUp: boolean;
+};
+
 function normalize(value: string): string {
   return normalizeSearchText(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -42,8 +69,10 @@ function canonicalizeLocation(value?: string | null): string | null {
 
   if (!clean) return null;
 
-  // Heal legacy recommendation text such as
-  // "Presidente Prudente em Presidente Prudente" before it reaches geocoding.
+  const normalized = normalize(clean);
+  if (normalized === 'sp') return 'São Paulo - SP';
+  if (normalized === 'rj') return 'Rio de Janeiro - RJ';
+
   const emParts = clean.split(/\s+em\s+/i).map((part) => part.trim()).filter(Boolean);
   if (emParts.length > 1) {
     const first = normalize(emParts[0]);
@@ -141,9 +170,56 @@ function resolveProfileWithTypos(message: string): SearchProfile | null {
   return best?.profile || null;
 }
 
+function previousUserMessages(history: ChatMessage[] = [], currentMessage: string): string[] {
+  const current = normalize(currentMessage);
+  let skippedCurrent = false;
+  const previous: string[] = [];
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const item = history[index];
+    if (item?.role !== 'user' || !item.content?.trim()) continue;
+    const content = item.content.trim();
+    if (!skippedCurrent && normalize(content) === current) {
+      skippedCurrent = true;
+      continue;
+    }
+    previous.push(content);
+  }
+
+  return previous;
+}
+
+function profileFromContext(context?: AgenticConversationContext | null): SearchProfile | null {
+  if (!context) return null;
+  return resolveSearchProfile(context.canonicalSegment || context.businessType || '') || null;
+}
+
+function profileFromHistory(history: ChatMessage[] = [], currentMessage: string): SearchProfile | null {
+  for (const previous of previousUserMessages(history, currentMessage)) {
+    const profile = resolveProfileWithTypos(previous);
+    if (profile) return profile;
+  }
+  return null;
+}
+
+function locationFromHistory(history: ChatMessage[] = [], currentMessage: string): string | null {
+  for (const previous of previousUserMessages(history, currentMessage)) {
+    const location = extractExplicitLocation(previous);
+    if (location) return location;
+  }
+  return null;
+}
+
+function looksLikeFollowUp(message: string): boolean {
+  const text = normalize(message);
+  return /^(agora|e\b|mais\b|desses|dessas|dentre|so\b|somente|filtre|quais|mostre os|mostre as|entao|tambem|também|troque|mude)\b/.test(text)
+    || text.split(' ').length <= 6;
+}
+
 function extractGenericBusinessPhrase(message: string, explicitLocation: string | null): string {
   let value = normalize(message)
     .replace(/^(?:por favor\s+)?(?:continue\s+(?:minha\s+)?busca\s+por\s+|(?:me\s+)?(?:liste|lista|encontre|encontrar|ache|buscar|busque|mostre|quero|procure)\s+)/i, '')
+    .replace(/^(?:agora|entao|tambem|também)\s+/i, '')
     .replace(/^\d{1,3}\s+/, '')
     .replace(/\b(?:um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\b\s*/i, '')
     .trim();
@@ -161,28 +237,58 @@ function extractGenericBusinessPhrase(message: string, explicitLocation: string 
   return value || 'negócios locais';
 }
 
-function buildSearchPlan(message: string, currentRegionName: string) {
-  const profile = resolveProfileWithTypos(message);
+function buildSearchPlan(
+  message: string,
+  currentRegionName: string,
+  history: ChatMessage[] = [],
+  conversationContext?: AgenticConversationContext | null,
+): SearchPlan {
+  const directProfile = resolveProfileWithTypos(message);
+  const contextualProfile = profileFromContext(conversationContext);
+  const historicalProfile = profileFromHistory(history, message);
   const explicitLocation = extractExplicitLocation(message);
+  const contextualFollowUp = !directProfile && looksLikeFollowUp(message) && Boolean(contextualProfile || historicalProfile || conversationContext?.businessType);
+  const profile = directProfile || (contextualFollowUp ? contextualProfile || historicalProfile : null);
   const interpreted = interpretSearchIntent(message, currentRegionName);
   const genericPhrase = extractGenericBusinessPhrase(message, explicitLocation);
-  const businessType = profile?.label || (
-    interpreted.businessType && interpreted.businessType !== 'estabelecimento'
-      ? interpreted.businessType
-      : genericPhrase
-  );
-  const canonicalSegment = profile?.aliases?.[0] || businessType;
-  const query = explicitLocation
-    ? `${canonicalSegment} em ${explicitLocation}`
-    : canonicalSegment;
 
-  return { profile, explicitLocation, businessType, query };
+  let businessType = directProfile?.label || '';
+  if (!businessType && contextualFollowUp) {
+    businessType = profile?.label || conversationContext?.businessType || '';
+  }
+  if (!businessType && interpreted.businessType && interpreted.businessType !== 'estabelecimento') {
+    businessType = interpreted.businessType;
+  }
+  if (!businessType) businessType = genericPhrase;
+
+  const canonicalSegment =
+    directProfile?.aliases?.[0]
+    || (contextualFollowUp ? profile?.aliases?.[0] || conversationContext?.canonicalSegment : undefined)
+    || profile?.aliases?.[0]
+    || businessType;
+
+  const inheritedLocation = canonicalizeLocation(conversationContext?.location)
+    || locationFromHistory(history, message)
+    || canonicalizeLocation(conversationContext?.regionName);
+
+  const effectiveLocation = explicitLocation || (contextualFollowUp ? inheritedLocation : null);
+  const query = effectiveLocation ? `${canonicalSegment} em ${effectiveLocation}` : canonicalSegment;
+
+  return {
+    profile,
+    directProfile,
+    explicitLocation,
+    businessType,
+    canonicalSegment,
+    query,
+    isContextualFollowUp: contextualFollowUp,
+  };
 }
 
 function locationMatches(requested: string, resolvedRegion: string): boolean {
   const canonicalRequested = canonicalizeLocation(requested);
   if (!canonicalRequested) return false;
-  const requestedTokens = normalize(canonicalRequested).split(' ').filter((token) => token.length >= 2);
+  const requestedTokens = normalize(canonicalRequested).split(' ').filter((token) => token.length >= 2 && token !== 'brasil');
   const region = normalize(resolvedRegion);
   return requestedTokens.length > 0 && requestedTokens.every((token) => region.includes(token));
 }
@@ -217,10 +323,10 @@ function getAppliedFilters(constraints: SearchConstraints): string[] {
   return filters;
 }
 
-function isFilterOnlyFollowUp(message: string, hasProfile: boolean, explicitLocation: string | null): boolean {
-  if (hasProfile || explicitLocation) return false;
+function isFilterOnlyFollowUp(message: string, hasDirectProfile: boolean, explicitLocation: string | null): boolean {
+  if (hasDirectProfile || explicitLocation) return false;
   const text = normalize(message);
-  return /^(agora|desses|dessas|dentre|so|somente|filtre|quais|mostre os|mostre as)\b/.test(text);
+  return /^(agora|desses|dessas|dentre|so|somente|filtre|quais|mostre os|mostre as|mais)\b/.test(text);
 }
 
 function responseText(args: {
@@ -236,7 +342,7 @@ function responseText(args: {
     return `A busca da Scoutly não retornou resultados para **${args.businessType} em ${args.regionName}** agora.`;
   }
   if (args.segmentCount === 0) {
-    return `A busca retornou ${args.searchCount} registros, mas **nenhum deles foi validado como ${args.businessType}**. Por segurança, descartei os resultados de outros segmentos em vez de exibi-los.`;
+    return `A busca retornou ${args.searchCount} registros, mas **nenhum deles foi validado como ${args.businessType}**. Descartei resultados de outros segmentos para não misturar empresas irrelevantes.`;
   }
   if (args.matchingCount === 0) {
     return `Encontrei **${args.segmentCount} ${args.businessType.toLowerCase()}** em **${args.regionName}**, mas nenhum atende aos filtros adicionais pedidos.`;
@@ -249,16 +355,22 @@ function responseText(args: {
 
 export async function handleScoutlyAgenticChat({
   message,
+  history = [],
   businesses = [],
   currentRegionName = 'São Paulo - SP',
-}: AIChatRequest): Promise<AIChatResponse> {
-  const requestedCount = extractRequestedCount(message) ?? 10;
+  conversationContext = null,
+}: AgenticChatRequest): Promise<AgenticChatResponse> {
+  const requestedCount = extractRequestedCount(message) ?? conversationContext?.requestedCount ?? 10;
   const constraints = parseConstraints(message);
   const filters = getAppliedFilters(constraints);
-  const plan = buildSearchPlan(message, currentRegionName);
-  const useCurrentContext = businesses.length > 0 && isFilterOnlyFollowUp(message, Boolean(plan.profile), plan.explicitLocation);
+  const plan = buildSearchPlan(message, currentRegionName, history, conversationContext);
+  const useCurrentContext = businesses.length > 0 && isFilterOnlyFollowUp(
+    message,
+    Boolean(plan.directProfile),
+    plan.explicitLocation,
+  );
 
-  let regionName = currentRegionName;
+  let regionName = conversationContext?.regionName || currentRegionName;
   let regionCenter = { lat: -23.5505, lng: -46.6333 };
   let searched: BusinessSummary[] = [];
 
@@ -272,9 +384,9 @@ export async function handleScoutlyAgenticChat({
 
     if (plan.explicitLocation && !locationMatches(plan.explicitLocation, regionName)) {
       return {
-        text: `Não consegui localizar **${plan.explicitLocation}** nesta busca. Tente informar também o estado, por exemplo “${plan.explicitLocation}, SP”.`,
+        text: `Não consegui localizar **${plan.explicitLocation}** nesta busca. Tente informar também o estado.`,
         matchedBusinessIds: [],
-        modelUsed: 'searchbar-orchestrator-v2',
+        modelUsed: 'searchbar-orchestrator-v3',
         searchSummary: {
           requestedCount,
           availableCount: 0,
@@ -284,6 +396,14 @@ export async function handleScoutlyAgenticChat({
           regionName: plan.explicitLocation,
           appliedFilters: filters,
           usedCurrentContext: false,
+        },
+        conversationContext: conversationContext || {
+          businessType: plan.businessType,
+          canonicalSegment: plan.canonicalSegment,
+          location: plan.explicitLocation,
+          regionName: currentRegionName,
+          requestedCount,
+          appliedFilters: filters,
         },
       };
     }
@@ -305,6 +425,10 @@ export async function handleScoutlyAgenticChat({
 
   const shown = matching.slice(0, Math.min(requestedCount, matching.length));
   const matchedBusinessIds = shown.map((business) => business.id);
+  const nextLocation = plan.explicitLocation
+    || canonicalizeLocation(regionName)
+    || conversationContext?.location
+    || null;
 
   return {
     text: responseText({
@@ -317,7 +441,7 @@ export async function handleScoutlyAgenticChat({
       shownCount: shown.length,
     }),
     matchedBusinessIds,
-    modelUsed: 'searchbar-orchestrator-v2',
+    modelUsed: 'searchbar-orchestrator-v3',
     searchSummary: {
       requestedCount,
       availableCount: segmentSafe.length,
@@ -327,6 +451,14 @@ export async function handleScoutlyAgenticChat({
       regionName,
       appliedFilters: filters,
       usedCurrentContext: useCurrentContext,
+    },
+    conversationContext: {
+      businessType: plan.businessType,
+      canonicalSegment: plan.canonicalSegment,
+      location: nextLocation,
+      regionName,
+      requestedCount,
+      appliedFilters: filters,
     },
     suggestedAction:
       constraints.requestedPipelineAdd && matchedBusinessIds.length > 0
