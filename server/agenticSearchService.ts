@@ -34,6 +34,35 @@ function normalize(value: string): string {
   return normalizeSearchText(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function canonicalizeLocation(value?: string | null): string | null {
+  let clean = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[,.;\s]+|[,.;\s]+$/g, '')
+    .trim();
+
+  if (!clean) return null;
+
+  // Heal legacy recommendation text such as
+  // "Presidente Prudente em Presidente Prudente" before it reaches geocoding.
+  const emParts = clean.split(/\s+em\s+/i).map((part) => part.trim()).filter(Boolean);
+  if (emParts.length > 1) {
+    const first = normalize(emParts[0]);
+    if (first && emParts.slice(1).every((part) => normalize(part) === first)) {
+      clean = emParts[0];
+    }
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && words.length % 2 === 0) {
+    const half = words.length / 2;
+    if (normalize(words.slice(0, half).join(' ')) === normalize(words.slice(half).join(' '))) {
+      clean = words.slice(0, half).join(' ');
+    }
+  }
+
+  return clean.trim() || null;
+}
+
 function extractRequestedCount(message: string): number | null {
   const text = normalize(message);
   const digit = text.match(/\b(\d{1,3})\b/);
@@ -52,7 +81,7 @@ function extractExplicitLocation(message: string): string | null {
   const match = message.match(
     /\b(?:em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\s+(.+?)(?=\s+(?:sem|com|prioriz|prefer|que\s+ten|e\s+que\s+ten|para\s+(?:vender|prospec)|e\s+(?:adicione|salve|coloque|jogue|mostre|liste|priorize))\b|[,.;!?]|$)/i,
   );
-  return match?.[1]?.trim().replace(/[.!?;]+$/, '').trim() || null;
+  return canonicalizeLocation(match?.[1]);
 }
 
 function parseConstraints(message: string): SearchConstraints {
@@ -114,7 +143,7 @@ function resolveProfileWithTypos(message: string): SearchProfile | null {
 
 function extractGenericBusinessPhrase(message: string, explicitLocation: string | null): string {
   let value = normalize(message)
-    .replace(/^(?:por favor\s+)?(?:me\s+)?(?:liste|lista|encontre|encontrar|ache|buscar|busque|mostre|quero|procure)\s+/i, '')
+    .replace(/^(?:por favor\s+)?(?:continue\s+(?:minha\s+)?busca\s+por\s+|(?:me\s+)?(?:liste|lista|encontre|encontrar|ache|buscar|busque|mostre|quero|procure)\s+)/i, '')
     .replace(/^\d{1,3}\s+/, '')
     .replace(/\b(?:um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\b\s*/i, '')
     .trim();
@@ -151,7 +180,9 @@ function buildSearchPlan(message: string, currentRegionName: string) {
 }
 
 function locationMatches(requested: string, resolvedRegion: string): boolean {
-  const requestedTokens = normalize(requested).split(' ').filter((token) => token.length >= 3);
+  const canonicalRequested = canonicalizeLocation(requested);
+  if (!canonicalRequested) return false;
+  const requestedTokens = normalize(canonicalRequested).split(' ').filter((token) => token.length >= 2);
   const region = normalize(resolvedRegion);
   return requestedTokens.length > 0 && requestedTokens.every((token) => region.includes(token));
 }
@@ -241,16 +272,16 @@ export async function handleScoutlyAgenticChat({
 
     if (plan.explicitLocation && !locationMatches(plan.explicitLocation, regionName)) {
       return {
-        text: `Não consegui resolver **${plan.explicitLocation}** com segurança. Não vou substituir pela cidade atual nem mostrar empresas de outra região.`,
+        text: `Não consegui localizar **${plan.explicitLocation}** nesta busca. Tente informar também o estado, por exemplo “${plan.explicitLocation}, SP”.`,
         matchedBusinessIds: [],
-        modelUsed: 'searchbar-orchestrator-v1',
+        modelUsed: 'searchbar-orchestrator-v2',
         searchSummary: {
           requestedCount,
-          availableCount: searched.length,
+          availableCount: 0,
           matchingCount: 0,
           shownCount: 0,
           businessType: plan.businessType,
-          regionName,
+          regionName: plan.explicitLocation,
           appliedFilters: filters,
           usedCurrentContext: false,
         },
@@ -258,9 +289,6 @@ export async function handleScoutlyAgenticChat({
     }
   }
 
-  // The search bar may aggregate broad fallback sources. Agentic adds one strict
-  // guard only: when the requested segment is known, records from other segments
-  // never reach the user (e.g. pharmacies cannot appear for "despachante").
   const segmentSafe = plan.profile
     ? searched.filter((business) => scoreAgainstProfile({
         name: business.name,
@@ -289,7 +317,7 @@ export async function handleScoutlyAgenticChat({
       shownCount: shown.length,
     }),
     matchedBusinessIds,
-    modelUsed: 'searchbar-orchestrator-v1',
+    modelUsed: 'searchbar-orchestrator-v2',
     searchSummary: {
       requestedCount,
       availableCount: segmentSafe.length,
