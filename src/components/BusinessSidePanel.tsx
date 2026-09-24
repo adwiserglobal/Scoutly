@@ -21,11 +21,12 @@ import {
   generateMessage,
   getGoogleBusinessLink,
   getWhatsAppLink,
+  saveUserLead,
 } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
-import { recordRecommendationWhatsApp } from '../utils/recommendations';
+import { recordRecommendationPipeline, recordRecommendationWhatsApp } from '../utils/recommendations';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -117,11 +118,6 @@ function PresenceCard({
   );
 }
 
-function firstName(value: string) {
-  const clean = String(value || '').trim();
-  return clean || 'Negócio';
-}
-
 function getInitials(value: string) {
   const words = String(value || '').trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return 'SC';
@@ -143,6 +139,7 @@ export default function BusinessSidePanel({
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isMessageCopied, setIsMessageCopied] = useState(false);
+  const [pipelineAdded, setPipelineAdded] = useState(false);
 
   const hasWebsite = Boolean(business.website);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
@@ -156,7 +153,8 @@ export default function BusinessSidePanel({
     setMessageVariation(0);
     setMessageError(null);
     setIsMessageCopied(false);
-  }, [business.id]);
+    setPipelineAdded(Boolean(business.leadStatus && !['NOVO', 'ARQUIVADO'].includes(business.leadStatus)));
+  }, [business.id, business.leadStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,7 +244,7 @@ export default function BusinessSidePanel({
   const whatsappUrl = whatsappCandidate ? getWhatsAppLink(whatsappCandidate) : null;
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const isFavorite = Boolean(business.isFavorite);
-  const isInPipeline = Boolean(business.leadStatus && !['NOVO', 'ARQUIVADO'].includes(business.leadStatus));
+  const isInPipeline = pipelineAdded || Boolean(business.leadStatus && !['NOVO', 'ARQUIVADO'].includes(business.leadStatus));
   const cityLabel = [business.municipio, business.uf].filter(Boolean).join(' - ');
 
   const opportunities = useMemo(() => {
@@ -275,6 +273,27 @@ export default function BusinessSidePanel({
   ]);
 
   const isAnythingLoading = isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading;
+
+  const handleAddToPipeline = async () => {
+    if (isInPipeline) return;
+
+    if (onAddToPipeline) {
+      onAddToPipeline(business);
+      setPipelineAdded(true);
+      return;
+    }
+
+    const saved = await saveUserLead(business.id, 'CONTATADO', business.notes || '', undefined, {
+      ...business,
+      leadStatus: 'CONTATADO',
+    });
+
+    if (saved) {
+      business.leadStatus = 'CONTATADO';
+      recordRecommendationPipeline(business, true);
+      setPipelineAdded(true);
+    }
+  };
 
   const handleGenerateApproach = async (isVariation = false) => {
     setIsGeneratingMessage(true);
@@ -331,7 +350,7 @@ export default function BusinessSidePanel({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-[20px] font-semibold leading-tight tracking-[-0.025em] text-white">
-                    {firstName(business.name)}
+                    {business.name}
                   </h2>
                   <p className="mt-1 text-[11px] text-stone-400">
                     {translateCategory(business.category)}{cityLabel ? ` · ${cityLabel}` : ''}
@@ -374,7 +393,7 @@ export default function BusinessSidePanel({
             <button
               type="button"
               disabled={isInPipeline}
-              onClick={() => !isInPipeline && onAddToPipeline?.(business)}
+              onClick={() => void handleAddToPipeline()}
               className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[10px] font-medium transition ${
                 isInPipeline
                   ? 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-400'
