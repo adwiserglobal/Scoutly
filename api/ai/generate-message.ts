@@ -89,6 +89,20 @@ Posso fazer uma análise gratuita da presença digital da ${name}, apontar algum
 Faz sentido conversarmos por alguns minutos? 😊`;
 }
 
+function buildFallbackEmail(business: any): string {
+  const name = business?.name || 'sua empresa';
+  const category = business?.category || 'negócios locais';
+  const opportunities = Array.isArray(business?.opportunities)
+    ? business.opportunities.map(String).slice(0, 3)
+    : [];
+
+  const evidence = opportunities.length
+    ? `Em uma análise rápida da presença digital, encontrei alguns pontos que podem valer uma conversa: ${opportunities.join(', ')}.`
+    : `Pesquisando empresas de ${category}, encontrei a ${name} e vi algumas oportunidades que podem ser exploradas na presença digital e na geração de contatos.`;
+
+  return `Olá, tudo bem?\n\nEncontrei a ${name} enquanto pesquisava empresas da região. ${evidence}\n\nTrabalho com soluções de marketing, tecnologia e automação para negócios locais e acredito que pode fazer sentido trocar uma ideia sobre formas de melhorar presença digital, captação e atendimento sem partir de uma solução engessada.\n\nSe fizer sentido, posso preparar uma análise curta e gratuita com os principais pontos que observei e algumas possibilidades práticas para a ${name}.\n\nPodemos conversar por alguns minutos esta semana?\n\nAbraço,\nEduardo`;
+}
+
 function buildPrompt(business: any, variationIndex = 0, previousMessage = ''): string {
   const { score, diagnostics, missingTracking } = getEvidence(business);
   const styles = [
@@ -114,50 +128,19 @@ Outras oportunidades observadas: ${opportunities.length ? opportunities.join('; 
 Estilo desta variação: ${style}
 
 A mensagem deve seguir esta pegada e estrutura:
-
 1. Comece com "Olá! Tudo bem? 😊".
 2. Diga que encontrou/conheceu a empresa pesquisando negócios locais ou o segmento.
-3. Mostre que houve uma análise real, mas seja cuidadoso com evidências. Se um sinal estiver apenas "não confirmado", nunca diga que está ausente. Se não houver dado suficiente, fale em "oportunidades que vale analisar".
+3. Mostre que houve uma análise real, mas seja cuidadoso com evidências. Se um sinal estiver apenas "não confirmado", nunca diga que está ausente.
 4. Explique que trabalhamos com marketing, tecnologia e automação para resolver problemas reais do negócio.
-5. Inclua, cada um em seu próprio parágrafo, estes serviços, com linguagem clara e comercial:
-
-🌐 Websites profissionais — criação, otimização, velocidade, SEO e estrutura pensada para gerar contatos.
-
-📍 Google & Google Maps — otimização do perfil, posicionamento local e estratégias para aumentar a visibilidade.
-
-⭐ Avaliações Google com NFC + QR Code — placas, cartões e adesivos personalizados para facilitar avaliações após o atendimento.
-
-📱 Mídias sociais — criação de conteúdo, gestão de redes sociais, planejamento e presença digital.
-
-🎯 Gestão de tráfego pago — Google Ads, Meta Ads, LinkedIn Ads e outras plataformas, com acompanhamento e mensuração.
-
-📊 Analytics, rastreamento e relatórios — GA4, Google Tag Manager, eventos, conversões e acompanhamento da jornada do cliente.
-
-🤖 Automação de processos — formulários, captação de informações, notificações, organização de leads e etapas de atendimento, reduzindo trabalho manual.
-
-📲 Aplicativos Essenciais ou Premium — sistemas próprios para atendimento, gestão e acompanhamento de processos, incluindo ferramentas internas ou produtos digitais.
-
-🔐 Auditoria digital e LGPD — análise de formulários, coleta de dados, cookies, consentimento e rastreamento. Diga explicitamente que a necessidade de adequação é avaliada caso a caso.
-
-6. Depois explique que não trabalhamos com solução engessada e que primeiro entendemos a dor.
-7. Inclua perguntas curtas, uma por linha, nesta linha:
-Está faltando cliente?
-O site não gera contatos?
-O Google não traz visitas suficientes?
-Os leads demoram para ser atendidos?
-O processo depende de muita coisa manual?
-As informações ficam espalhadas?
-Existe dificuldade para acompanhar os clientes?
-O marketing não está sendo mensurado?
-Existe uma ideia que gostariam de transformar em uma ferramenta?
-
-8. Diga que, a partir da dor, desenvolvemos a solução adequada, podendo combinar marketing, tecnologia, automação, site, aplicativo e tráfego pago.
-9. Finalize oferecendo uma análise gratuita da presença digital da empresa e perguntando se faz sentido conversar por alguns minutos, podendo encerrar com 😊.
+5. Apresente de forma clara os serviços relevantes: websites, Google e Maps, avaliações, mídias sociais, tráfego pago, analytics e tracking, automação, aplicativos e auditoria digital/LGPD.
+6. Explique que não trabalhamos com solução engessada e que primeiro entendemos a dor.
+7. Inclua perguntas curtas sobre geração de clientes, site, Google, atendimento, processos manuais e mensuração.
+8. Diga que a solução pode combinar marketing, tecnologia, automação, site, aplicativo e tráfego pago.
+9. Finalize oferecendo uma análise gratuita da presença digital da empresa e perguntando se faz sentido conversar por alguns minutos.
 
 Regras importantes:
 - personalize com o nome exato da empresa
 - mantenha tom humano, consultivo e profissional
-- o texto pode ser longo porque funciona como apresentação comercial completa
 - preserve boa leitura no WhatsApp com parágrafos curtos
 - não invente faturamento, prejuízo, quantidade de clientes, resultados, rankings ou problemas não comprovados
 - não prometa resultado garantido
@@ -166,10 +149,37 @@ Regras importantes:
 - não use markdown com asteriscos
 - responda somente com a mensagem pronta para envio
 
-${previousMessage ? `A mensagem anterior foi esta:
-"${previousMessage}"
+${previousMessage ? `A mensagem anterior foi esta:\n"${previousMessage}"\n\nCrie uma variação claramente diferente na abertura, na forma de apresentar as oportunidades e no CTA.` : ''}`;
+}
 
-Crie uma variação claramente diferente na abertura, na forma de apresentar as oportunidades e no CTA, mantendo a mesma estrutura completa de serviços.` : ''}`;
+function buildEmailPrompt(business: any): string {
+  const { score, diagnostics, missingTracking } = getEvidence(business);
+  const opportunities = Array.isArray(business?.opportunities)
+    ? business.opportunities.map(String).slice(0, 5)
+    : [];
+
+  return `Escreva o corpo de um e-mail de prospecção B2B em português brasileiro, pronto para envio, curto, profissional e personalizado para um negócio local.
+
+Empresa: ${business?.name || 'Empresa'}
+Segmento: ${business?.category || 'Não informado'}
+Site: ${business?.website || 'Não identificado'}
+PageSpeed mobile: ${score > 0 ? `${score}/100` : 'não disponível'}
+Diagnósticos técnicos encontrados: ${diagnostics.length ? diagnostics.join('; ') : 'nenhum específico'}
+Sinais de tracking não confirmados: ${missingTracking.length ? missingTracking.join('; ') : 'nenhum'}
+Oportunidades observadas: ${opportunities.length ? opportunities.join('; ') : 'nenhuma específica'}
+
+Regras:
+- escreva entre 120 e 220 palavras
+- personalize com o nome exato da empresa
+- mantenha tom humano, consultivo e profissional
+- não use emojis
+- não use markdown
+- não diga que algo está ausente quando estiver apenas não confirmado
+- não invente faturamento, prejuízo, ranking, quantidade de clientes ou problemas não comprovados
+- explique em uma frase que trabalhamos com marketing, tecnologia e automação
+- ofereça uma análise curta e gratuita como próximo passo
+- termine com um CTA simples para uma conversa breve
+- responda somente com o corpo do e-mail, sem assunto e sem comentários adicionais`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -182,12 +192,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const variationIndex = Math.max(0, Number(req.body?.variationIndex || 0));
   const previousMessage =
     typeof req.body?.previousMessage === 'string' ? req.body.previousMessage.slice(0, 7000) : '';
+  const channel = req.body?.channel === 'email' ? 'email' : 'whatsapp';
 
   if (!business) {
     return res.status(400).json({ error: 'Business data is required' });
   }
 
-  const prompt = buildPrompt(business, variationIndex, previousMessage);
+  const prompt = channel === 'email'
+    ? buildEmailPrompt(business)
+    : buildPrompt(business, variationIndex, previousMessage);
   let message = '';
   let source: 'gemini' | 'openrouter' | 'template' = 'template';
   let model = '';
@@ -217,8 +230,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: JSON.stringify({
             model: candidate,
             messages: [{ role: 'user', content: prompt }],
-            temperature: variationIndex > 0 ? 0.9 : 0.76,
-            max_tokens: 1600,
+            temperature: channel === 'email' ? 0.65 : variationIndex > 0 ? 0.9 : 0.76,
+            max_tokens: channel === 'email' ? 700 : 1600,
           }),
           signal: AbortSignal.timeout(10000),
         });
@@ -246,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-        config: { temperature: variationIndex > 0 ? 0.9 : 0.76 },
+        config: { temperature: channel === 'email' ? 0.65 : variationIndex > 0 ? 0.9 : 0.76 },
       });
 
       const text = response.text?.trim() || '';
@@ -261,7 +274,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!message) {
-    message = buildFallbackMessage(business, variationIndex);
+    message = channel === 'email'
+      ? buildFallbackEmail(business)
+      : buildFallbackMessage(business, variationIndex);
     source = 'template';
     model = 'scoutly-local-fallback';
   }
@@ -271,5 +286,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     source,
     model,
     variationIndex,
+    channel,
+    subject: channel === 'email' ? `Uma ideia para ${business?.name || 'sua empresa'}` : undefined,
   });
 }
