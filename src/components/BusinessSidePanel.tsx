@@ -156,6 +156,22 @@ function SocialLogo({ network }: { network: string }) {
   return <Globe2 className="h-4 w-4 text-stone-300" />;
 }
 
+function normalizeWebsiteDomain(website?: string | null) {
+  const raw = String(website || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return url.hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return raw
+      .replace(/^https?:\/\//i, '')
+      .split('/')[0]
+      .replace(/^www\./i, '')
+      .trim()
+      .toLowerCase() || null;
+  }
+}
+
 export default function BusinessSidePanel({ business, onClose, onToggleFavorite }: BusinessSidePanelProps) {
   const [enrichment, setEnrichment] = useState<any>(null);
   const [trackingAudit, setTrackingAudit] = useState<any>(null);
@@ -253,6 +269,11 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
   const whatsappUrl = getWhatsAppLink(whatsappNumber);
   const emailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
   const googleBusinessUrl = getGoogleBusinessLink(business);
+  const websiteDomain = useMemo(() => normalizeWebsiteDomain(business.website), [business.website]);
+  const googleAdsTransparencyUrl = websiteDomain
+    ? `https://adstransparency.google.com/?domain=${encodeURIComponent(websiteDomain)}&region=anywhere`
+    : null;
+  const metaAdsLibraryUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&q=${encodeURIComponent(business.name)}&media_type=all`;
   const trackingDetected = Boolean(trackingAudit?.hasTracking);
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
@@ -423,6 +444,48 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
               </div>
             </section>
           )}
+
+          <section className="mt-6">
+            <SectionTitle icon={<Activity className="h-4 w-4" />}>Anúncios públicos</SectionTitle>
+            <p className="mb-3 text-[9px] leading-relaxed text-stone-400">
+              Verifique nas bibliotecas oficiais se encontramos anúncios associados a este negócio.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={metaAdsLibraryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#1877F2]/40 hover:bg-[#1877F2]/[0.06]"
+                title={`Pesquisar ${business.name} na Biblioteca de Anúncios da Meta`}
+              >
+                <img src="/meta-ads-logo.png" alt="Meta" className="h-6 w-6 shrink-0 object-contain" />
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Meta Ads</span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#1877F2]" />
+              </a>
+
+              {googleAdsTransparencyUrl ? (
+                <a
+                  href={googleAdsTransparencyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#4285F4]/40 hover:bg-[#4285F4]/[0.06]"
+                  title={`Pesquisar ${websiteDomain} no Google Ads Transparency Center`}
+                >
+                  <img src="/google-ads-logo.png" alt="Google Ads" className="h-6 w-6 shrink-0 rounded-md bg-white object-contain" />
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Google Ads</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#4285F4]" />
+                </a>
+              ) : (
+                <div
+                  className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-[#111418] px-3 py-2.5 opacity-55"
+                  title="A busca direta do Google fica disponível quando o negócio possui um site identificado"
+                >
+                  <img src="/google-ads-logo.png" alt="Google Ads" className="h-6 w-6 shrink-0 rounded-md bg-white object-contain grayscale-[0.2]" />
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-400">Google Ads</span>
+                </div>
+              )}
+            </div>
+          </section>
 
           <section className="mt-6">
             <SectionTitle icon={<Activity className="h-4 w-4" />}>Visão rápida</SectionTitle>
