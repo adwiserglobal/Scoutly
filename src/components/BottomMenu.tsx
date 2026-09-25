@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import { Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
-import SupportDrawer from './SupportDrawer';
+import SupportCenterPage from './SupportCenterPage';
 
 interface BottomMenuProps {
   currentTab: NavigationTab;
@@ -230,7 +230,7 @@ function BottomMenu({
         </div>
       </div>
 
-      <SupportDrawer
+      <SupportCenterPage
         isOpen={supportOpen}
         onOpen={() => setSupportOpen(true)}
         onClose={() => setSupportOpen(false)}
