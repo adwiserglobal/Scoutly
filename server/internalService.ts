@@ -76,16 +76,20 @@ export async function verifyInternalGateCode(req: { headers?: any }, rawCode: st
     throwHttp('Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429);
   }
 
-  const configRows = await appDataRequest<Array<{ value: string }>>(
-    'internal_security_config?key=eq.gate_code_sha256&select=value&limit=1'
+  const configRows = await appDataRequest<Array<{ key: string; value: string }>>(
+    'internal_security_config?key=like.gate_code_sha256*&select=key,value&limit=20'
   );
-  const expected = String(configRows[0]?.value || '').trim().toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(expected)) throwHttp('Acesso interno temporariamente indisponível.', 503);
+  const expectedHashes = configRows
+    .map((row) => String(row?.value || '').trim().toLowerCase())
+    .filter((value) => /^[a-f0-9]{64}$/.test(value));
+  if (!expectedHashes.length) throwHttp('Acesso interno temporariamente indisponível.', 503);
 
   const actual = sha256(code);
-  const expectedBuffer = Buffer.from(expected, 'hex');
   const actualBuffer = Buffer.from(actual, 'hex');
-  const valid = expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+  const valid = expectedHashes.some((expected) => {
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+  });
 
   await appDataRequest('internal_access_attempts', {
     method: 'POST',
