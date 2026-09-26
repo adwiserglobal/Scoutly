@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
+import { Globe2, Lock, Mail, MapPin, MessageCircle, Phone, Star, X } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import BusinessDetailsModalBase from './BusinessDetailsModalBase';
-import { unlockBusinessContact } from '../services/api';
+import { CreditAccessStatus, getWhatsAppLink, unlockBusinessContact } from '../services/api';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -28,8 +28,12 @@ function openPlans() {
   window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
 }
 
-function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavorite, message }: BusinessDetailsModalProps & { business: Business; message: string }) {
-  const raw = business as any;
+function ModalFrame({
+  business,
+  onClose,
+  onToggleFavorite,
+  children,
+}: BusinessDetailsModalProps & { business: Business; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-[7px] pointer-events-auto">
       <div className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0d1013] text-white shadow-[0_30px_100px_rgba(0,0,0,0.58)]">
@@ -41,62 +45,123 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
           </div>
           <div className="flex gap-2">
             {onToggleFavorite && (
-              <button type="button" onClick={() => onToggleFavorite(business)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-stone-400 hover:text-white" title="Favoritar">
+              <button type="button" onClick={() => onToggleFavorite(business)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-stone-400 hover:text-white" title={business.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}>
                 <Star className={`h-4 w-4 ${business.isFavorite ? 'fill-[#FF5A12] text-[#FF5A12]' : ''}`} />
               </button>
             )}
             <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-stone-400 hover:text-white" aria-label="Fechar"><X className="h-4 w-4" /></button>
           </div>
         </div>
-
-        <div className="p-6">
-          <div className="rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.06] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Lock className="h-4 w-4 text-[#FF6A26]" /> Dados protegidos</div>
-            <p className="mt-2 text-xs leading-relaxed text-stone-400">{message}</p>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 sm:col-span-2">
-              <MapPin className="mt-0.5 h-4 w-4 text-stone-500" />
-              <div><p className="text-[10px] uppercase tracking-wide text-stone-600">Endereço</p><p className="mt-1 text-xs text-stone-300">{business.address || 'Não informado'}</p></div>
-            </div>
-
-            {raw.hasProtectedEmail && (
-              <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
-                <Mail className="h-4 w-4 text-stone-500" />
-                <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">E-mail</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">contato@empresa.com</p></div>
-                <Lock className="h-3.5 w-3.5 text-[#FF6A26]" />
-              </button>
-            )}
-
-            {raw.hasProtectedPhone && (
-              <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
-                <Phone className="h-4 w-4 text-stone-500" />
-                <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone / WhatsApp</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">(11) 99999-9999</p></div>
-                <Lock className="h-3.5 w-3.5 text-[#FF6A26]" />
-              </button>
-            )}
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-5">
-            <div className="flex gap-2">
-              {onUpdateStatus && (
-                <button type="button" onClick={() => onUpdateStatus(business.id, 'CONTATADO', business.notes)} className="rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 py-2.5 text-[11px] font-semibold text-stone-300 hover:text-white">
-                  Adicionar ao pipeline
-                </button>
-              )}
-            </div>
-            <button type="button" onClick={openPlans} className="rounded-xl bg-[#FF5A12] px-5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#ff6a27]">Ver planos</button>
-          </div>
-        </div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
+  );
+}
+
+function LockedEmail({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <button type="button" onClick={openPlans} className="group flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left transition hover:border-[#FF5A12]/30 hover:bg-[#FF5A12]/[0.04]">
+      <Mail className="h-4 w-4 text-stone-500" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2"><p className="text-[10px] uppercase tracking-wide text-stone-600">E-mail</p><span className="rounded-md border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#FF6A26]">Pro</span></div>
+        <p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">contato@empresa.com</p>
+      </div>
+      <Lock className="h-4 w-4 text-[#FF6A26]" />
+    </button>
+  );
+}
+
+function FreeBusinessModal(props: BusinessDetailsModalProps & { business: Business }) {
+  const { business, onUpdateStatus } = props;
+  const raw = business as any;
+  const phone = business.phone || business.phones?.[0] || null;
+  const whatsappUrl = getWhatsAppLink(phone);
+
+  return (
+    <ModalFrame {...props} business={business}>
+      <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-3.5">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Plano Free</p><p className="mt-1 text-xs text-stone-300">1 crédito usado. E-mail permanece disponível somente nos planos pagos.</p></div>
+        <button type="button" onClick={openPlans} className="shrink-0 text-[10px] font-semibold text-[#FF6A26] hover:text-[#ff8653]">Upgrade</button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 sm:col-span-2">
+          <MapPin className="mt-0.5 h-4 w-4 text-stone-500" />
+          <div><p className="text-[10px] uppercase tracking-wide text-stone-600">Endereço</p><p className="mt-1 text-xs text-stone-300">{business.address || 'Não informado'}</p></div>
+        </div>
+
+        {phone ? (
+          <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+            <Phone className="h-4 w-4 text-stone-500" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone</p><p className="mt-1 truncate text-xs text-stone-200">{phone}</p></div>
+            <a href={`tel:${phone}`} className="text-[10px] font-semibold text-[#FF6A26]">Ligar</a>
+          </div>
+        ) : null}
+
+        <LockedEmail visible={Boolean(raw.emailPaidLocked || raw.hasProtectedEmail)} />
+
+        {business.website ? (
+          <a href={business.website} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-stone-300 hover:text-white">
+            <Globe2 className="h-4 w-4 text-stone-500" /><div><p className="text-[10px] uppercase tracking-wide text-stone-600">Site</p><p className="mt-1 max-w-[230px] truncate text-xs">{business.website}</p></div>
+          </a>
+        ) : null}
+
+        {whatsappUrl ? (
+          <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3.5 text-emerald-300">
+            <MessageCircle className="h-4 w-4" /><div><p className="text-[10px] uppercase tracking-wide text-emerald-500/70">WhatsApp</p><p className="mt-1 text-xs">Abrir conversa</p></div>
+          </a>
+        ) : null}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-5">
+        <div className="flex gap-2">
+          {onUpdateStatus && (
+            <button type="button" onClick={() => onUpdateStatus(business.id, 'CONTATADO', business.notes)} className="rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 py-2.5 text-[11px] font-semibold text-stone-300 hover:text-white">Adicionar ao pipeline</button>
+          )}
+        </div>
+        <button type="button" onClick={openPlans} className="rounded-xl bg-[#FF5A12] px-5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#ff6a27]">Ver planos</button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function LockedBusinessModal({ business, message, ...props }: BusinessDetailsModalProps & { business: Business; message: string }) {
+  const raw = business as any;
+  return (
+    <ModalFrame {...props} business={business}>
+      <div className="rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.06] p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold"><Lock className="h-4 w-4 text-[#FF6A26]" /> Créditos indisponíveis</div>
+        <p className="mt-2 text-xs leading-relaxed text-stone-400">{message}</p>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 sm:col-span-2">
+          <MapPin className="mt-0.5 h-4 w-4 text-stone-500" />
+          <div><p className="text-[10px] uppercase tracking-wide text-stone-600">Endereço</p><p className="mt-1 text-xs text-stone-300">{business.address || 'Não informado'}</p></div>
+        </div>
+        <LockedEmail visible={Boolean(raw.hasProtectedEmail)} />
+        {raw.hasProtectedPhone && (
+          <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
+            <Phone className="h-4 w-4 text-stone-500" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone / WhatsApp</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">(11) 99999-9999</p></div>
+            <Lock className="h-3.5 w-3.5 text-[#FF6A26]" />
+          </button>
+        )}
+      </div>
+
+      <div className="mt-6 flex items-center justify-between border-t border-white/[0.07] pt-5">
+        {props.onUpdateStatus ? <button type="button" onClick={() => props.onUpdateStatus?.(business.id, 'CONTATADO', business.notes)} className="rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 py-2.5 text-[11px] font-semibold text-stone-300">Adicionar ao pipeline</button> : <span />}
+        <button type="button" onClick={openPlans} className="rounded-xl bg-[#FF5A12] px-5 py-2.5 text-[11px] font-semibold text-white">Ver planos</button>
+      </div>
+    </ModalFrame>
   );
 }
 
 export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   const { business } = props;
   const [resolvedBusiness, setResolvedBusiness] = useState<Business | null>(business);
+  const [access, setAccess] = useState<CreditAccessStatus | null>(null);
   const [status, setStatus] = useState<'unlocking' | 'ready' | 'locked'>(business ? 'unlocking' : 'ready');
   const [message, setMessage] = useState('Liberando os dados deste negócio…');
   const attemptRef = useRef('');
@@ -104,18 +169,21 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   useEffect(() => {
     if (!business) {
       setResolvedBusiness(null);
+      setAccess(null);
       setStatus('ready');
       return;
     }
 
     const raw = business as any;
     setResolvedBusiness(business);
+    setAccess(null);
+
     if (!raw.contactLocked) {
       setStatus('ready');
       return;
     }
     if (!raw.sealedContactToken) {
-      setMessage('Os dados completos deste negócio são um recurso pago. Escolha um plano para continuar.');
+      setMessage('Os dados completos deste negócio estão protegidos. Escolha um plano para continuar.');
       setStatus('locked');
       return;
     }
@@ -128,6 +196,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
     unlockOnce(raw)
       .then((result) => {
         setResolvedBusiness({ ...business, ...result.business, contactLocked: false } as Business);
+        setAccess(result.access);
         setStatus('ready');
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
@@ -138,6 +207,9 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   }, [business]);
 
   if (!business) return null;
+  if (status === 'ready' && access?.plan === 'free' && resolvedBusiness) {
+    return <FreeBusinessModal {...props} business={resolvedBusiness} />;
+  }
   if (status === 'ready') return <BusinessDetailsModalBase {...props} business={resolvedBusiness} />;
   if (status === 'locked') return <LockedBusinessModal {...props} business={business} message={message} />;
 
