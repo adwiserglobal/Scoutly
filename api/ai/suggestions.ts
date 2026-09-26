@@ -4,6 +4,7 @@ import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataServ
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
 import { getSubscriptionAccess, startTrialForUser } from '../../server/subscriptionAccessService.js';
+import { requireRecommendationsAccess } from '../../server/entitlementService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -70,15 +71,9 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
     return res.status(200).json({ success: true, onboardingVersion: ONBOARDING_VERSION });
   }
 
+  // Backward compatibility for clients that still call start-trial. The server
+  // implementation now activates the permanent Free plan instead of a trial.
   if (action === 'start-trial') {
-    const rows = await appDataRequest<any[]>(
-      `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_completed_at&limit=1`
-    );
-    const settings = rows[0] || null;
-    if (Number(settings?.onboarding_version || 0) < ONBOARDING_VERSION || !settings?.onboarding_completed_at) {
-      return res.status(409).json({ error: 'Conclua o onboarding antes de iniciar seu período de teste.' });
-    }
-
     const subscription = await startTrialForUser(identity.uid);
     return res.status(200).json({ success: true, subscription });
   }
@@ -103,13 +98,11 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
 
 async function enrichInternalUserDetail(body: any, uid: string) {
   if (!body || !uid) return body;
-
   const rows = await appDataRequest<any[]>(
     `user_settings?user_uid=eq.${dbValue(uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
   );
   const settings = rows[0] || null;
   if (!settings) return { ...body, onboarding: null };
-
   return {
     ...body,
     onboarding: {
@@ -130,15 +123,12 @@ async function handleInternalRequest(req: VercelRequest, res: VercelResponse, ac
     const result = await verifyInternalGateCode(req as any, String(req.body?.code || ''));
     return res.status(200).json(result);
   }
-
   const identity = await requireFirebaseIdentity(req as any);
   const staff = await requireInternalAccess(req as any, identity);
   const result = await handleInternalAction(action, req.body || {}, identity, staff);
-
   if (action === 'internal-user-detail') {
     result.body = await enrichInternalUserDetail(result.body, String(req.body?.uid || ''));
   }
-
   return res.status(result.status).json(result.body);
 }
 
@@ -157,13 +147,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.body?.action || '').trim();
 
   try {
-    if (action.startsWith('internal-')) {
-      return await handleInternalRequest(req, res, action);
-    }
-
-    if (action.startsWith('support-')) {
-      return await handleSupportRequest(req, res, action);
-    }
+    if (action.startsWith('internal-')) return await handleInternalRequest(req, res, action);
+    if (action.startsWith('support-')) return await handleSupportRequest(req, res, action);
 
     if (
       action.startsWith('onboarding-') ||
@@ -173,6 +158,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ) {
       return await handleOnboardingAction(req, res, action);
     }
+
+    const identity = await requireFirebaseIdentity(req as any);
+    await ensureAppUser(identity);
+    await requireRecommendationsAccess(identity.uid);
 
     const { recentSearches, currentRegionName } = req.body || {};
     const suggestions = await generateContextualSuggestions(
@@ -185,34 +174,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const statusCode = Number(err?.statusCode || 500);
 
     if (action.startsWith('internal-')) {
-      return res.status(statusCode).json({
-        error: err?.message || 'Não foi possível acessar o Scoutly Internal.',
-        code: err?.code || undefined,
-      });
+      return res.status(statusCode).json({ error: err?.message || 'Não foi possível acessar o Scoutly Internal.', code: err?.code || undefined });
     }
-
     if (action.startsWith('support-')) {
-      return res.status(statusCode).json({
-        error: err?.message || 'Não foi possível acessar o suporte.',
-        code: err?.code || undefined,
-      });
+      return res.status(statusCode).json({ error: err?.message || 'Não foi possível acessar o suporte.', code: err?.code || undefined });
     }
-
     if (action) {
-      return res.status(statusCode).json({
-        error: err?.message || (statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Não foi possível concluir a operação.'),
-        code: err?.code || undefined,
-      });
+      return res.status(statusCode).json({ error: err?.message || 'Não foi possível concluir a operação.', code: err?.code || undefined });
     }
-
-    return res.status(500).json({
-      suggestions: [
-        'Ache restaurantes sem site em São Paulo',
-        'Busque clínicas e consultórios em São Paulo',
-        'Oficinas mecânicas com WhatsApp em São Paulo',
-        'Agências de marketing e B2B em São Paulo',
-      ],
-      error: err?.message || 'Falha ao gerar sugestões',
-    });
+    return res.status(statusCode).json({ error: err?.message || 'Não foi possível gerar sugestões.', code: err?.code || undefined, suggestions: [] });
   }
 }

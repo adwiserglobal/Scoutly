@@ -4,8 +4,12 @@ import App from './App.tsx';
 import { AuthProvider } from './context/AuthContext';
 import MarketingMediaEnhancer from './components/MarketingMediaEnhancer';
 import OnboardingGate from './components/OnboardingGate';
+import CreditBalancePill from './components/CreditBalancePill';
+import { installAuthenticatedFetchPatch } from './lib/authenticatedFetchPatch';
 import './index.css';
 import './marketing-overrides.css';
+
+installAuthenticatedFetchPatch();
 
 const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
 const promoFromUrl = new URLSearchParams(window.location.search)
@@ -35,6 +39,7 @@ createRoot(document.getElementById('root')!).render(
       <App />
       <MarketingMediaEnhancer />
       <OnboardingGate />
+      <CreditBalancePill />
     </AuthProvider>
   </StrictMode>,
 );

@@ -2,6 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue, ensureAppUser, incrementUsage } from '../server/appDataService.js';
 import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
 import { confirmStripeCheckoutSession, createStripeBillingPortal, refreshStripeSubscriptionForUser } from '../server/stripeBillingService.js';
+import { consumeBusinessCredit, getCreditStatus } from '../server/entitlementService.js';
+import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
+import { unsealBusinessContacts } from '../server/businessSealService.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -43,6 +46,8 @@ async function createActiveRoute(userUid: string, workspaceId: string) {
 }
 
 async function bootstrap(userUid: string, workspaceId: string) {
+  // Resolve legacy trial/expired records before hydrating the raw subscription.
+  const subscriptionAccess = await getSubscriptionAccess(userUid);
   const route = await getActiveRoute(userUid);
 
   const [
@@ -55,6 +60,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
     usageRows,
     profileRows,
     routeStops,
+    access,
   ] = await Promise.all([
     appDataRequest<any[]>(
       `user_leads?user_uid=eq.${dbValue(userUid)}&select=business_id,status,notes,business_snapshot,updated_at`
@@ -66,7 +72,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
       `user_settings?user_uid=eq.${dbValue(userUid)}&select=auto_enrich,results_batch_size,updated_at&limit=1`
     ),
     appDataRequest<any[]>(
-      `recommendation_events?user_uid=eq.${dbValue(userUid)}&select=id,event_type,business_id,category,query,location,metadata,created_at&order=created_at.desc&limit=250`
+      `recommendation_events?user_uid=eq.${dbValue(userUid)}&event_type=in.(search,favorite_add,favorite_remove,pipeline_add,pipeline_remove,whatsapp_click)&select=id,event_type,business_id,category,query,location,metadata,created_at&order=created_at.desc&limit=250`
     ),
     appDataRequest<any[]>(
       `recent_businesses?user_uid=eq.${dbValue(userUid)}&select=business_id,business_snapshot,viewed_at&order=viewed_at.desc&limit=30`
@@ -85,6 +91,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
           `visit_route_stops?route_id=eq.${dbValue(route.id)}&select=business_id,position,visit_status,business_snapshot,added_at&order=position.asc`
         )
       : Promise.resolve([]),
+    getCreditStatus(userUid),
   ]);
 
   const leads: Record<string, any> = {};
@@ -104,6 +111,8 @@ async function bootstrap(userUid: string, workspaceId: string) {
     .map((row) => row.business_snapshot)
     .filter((business) => business && typeof business.id === 'string');
 
+  const persistedSubscription = subscriptionRows[0] || {};
+
   return {
     user: profileRows[0] || null,
     workspaceId,
@@ -113,8 +122,15 @@ async function bootstrap(userUid: string, workspaceId: string) {
     settings: settingsRows[0] || { auto_enrich: true, results_batch_size: 30 },
     recommendationEvents: eventRows,
     recentBusinesses: recentRows,
-    subscription: subscriptionRows[0] || null,
+    subscription: {
+      ...persistedSubscription,
+      plan: subscriptionAccess.plan,
+      status: subscriptionAccess.status,
+      current_period_start: subscriptionAccess.current_period_start,
+      current_period_end: subscriptionAccess.current_period_end,
+    },
     usage: usageRows[0] || null,
+    access,
     route: {
       exists: Boolean(route),
       stops: routeStops.map((row) => ({
@@ -125,7 +141,6 @@ async function bootstrap(userUid: string, workspaceId: string) {
     },
   };
 }
-
 
 type PaidPlan = 'go' | 'pro' | 'agency';
 const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
@@ -145,49 +160,33 @@ function getRequestedPromotionCode(req: VercelRequest) {
   for (const part of cookieHeader.split(';')) {
     const [rawKey, ...rawValueParts] = part.trim().split('=');
     if (rawKey !== 'scoutly_promo_code') continue;
-
-    const cookieCode = decodeURIComponent(rawValueParts.join('=') || '')
-      .trim()
-      .toLowerCase();
+    const cookieCode = decodeURIComponent(rawValueParts.join('=') || '').trim().toLowerCase();
     if (cookieCode === SHAREABLE_PROMOTION_CODE) return cookieCode;
   }
 
   const referer = String(req.headers.referer || '').trim();
   if (referer) {
     try {
-      const refererCode = String(new URL(referer).searchParams.get('promo') || '')
-        .trim()
-        .toLowerCase();
+      const refererCode = String(new URL(referer).searchParams.get('promo') || '').trim().toLowerCase();
       if (refererCode === SHAREABLE_PROMOTION_CODE) return refererCode;
     } catch {
-      // Ignore malformed referrer URLs and continue without an automatic promotion.
+      // Ignore malformed referrer URLs.
     }
   }
-
   return null;
 }
 
 async function resolveStripePromotionCode(stripeSecret: string, code: string) {
-  const params = new URLSearchParams({
-    active: 'true',
-    code,
-    limit: '1',
-  });
-
+  const params = new URLSearchParams({ active: 'true', code, limit: '1' });
   const response = await fetch(`https://api.stripe.com/v1/promotion_codes?${params.toString()}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${stripeSecret}`,
-    },
+    headers: { Authorization: `Bearer ${stripeSecret}` },
     signal: AbortSignal.timeout(12000),
   });
-
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = data?.error?.message || `Stripe HTTP ${response.status}`;
-    throw Object.assign(new Error(message), { statusCode: 502 });
+    throw Object.assign(new Error(data?.error?.message || `Stripe HTTP ${response.status}`), { statusCode: 502 });
   }
-
   const promotionCodeId = String(data?.data?.[0]?.id || '').trim();
   return promotionCodeId.startsWith('promo_') ? promotionCodeId : null;
 }
@@ -198,20 +197,14 @@ async function createStripeCheckout(
   plan: PaidPlan
 ) {
   const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '');
-  if (!stripeSecret) {
-    throw Object.assign(new Error('STRIPE_SECRET_KEY não configurada'), { statusCode: 503 });
-  }
+  if (!stripeSecret) throw Object.assign(new Error('STRIPE_SECRET_KEY não configurada'), { statusCode: 503 });
 
   const requestedPromotionCode = getRequestedPromotionCode(req);
   const promotionCodeId = requestedPromotionCode
     ? await resolveStripePromotionCode(stripeSecret, requestedPromotionCode)
     : null;
-
   if (requestedPromotionCode && !promotionCodeId) {
-    throw Object.assign(
-      new Error('O cupom scoutlypro10 não está ativo ou não foi encontrado na Stripe.'),
-      { statusCode: 409 }
-    );
+    throw Object.assign(new Error('O cupom scoutlypro10 não está ativo ou não foi encontrado na Stripe.'), { statusCode: 409 });
   }
 
   const priceByPlan: Record<PaidPlan, string> = {
@@ -219,28 +212,21 @@ async function createStripeCheckout(
     pro: String(process.env.STRIPE_PRICE_PRO || ''),
     agency: String(process.env.STRIPE_PRICE_AGENCY || ''),
   };
-
   const priceId = priceByPlan[plan];
   if (!priceId || !priceId.startsWith('price_')) {
-    throw Object.assign(new Error(`Preço Stripe do plano ${plan} não configurado`), {
-      statusCode: 503,
-    });
+    throw Object.assign(new Error(`Preço Stripe do plano ${plan} não configurado`), { statusCode: 503 });
   }
 
   const existingRows = await appDataRequest<any[]>(
     `subscriptions?user_uid=eq.${dbValue(identity.uid)}&select=provider_customer_id,provider_subscription_id,plan,status&limit=1`
   );
   const existing = existingRows[0] || null;
-
   if (
     existing?.provider_subscription_id &&
     ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'].includes(String(existing.status || '')) &&
     ['go', 'pro', 'agency'].includes(String(existing.plan || ''))
   ) {
-    throw Object.assign(
-      new Error('Sua conta já possui uma assinatura Stripe existente. Gerencie-a pelo portal de cobrança.'),
-      { statusCode: 409 }
-    );
+    throw Object.assign(new Error('Sua conta já possui uma assinatura Stripe existente. Gerencie-a pelo portal de cobrança.'), { statusCode: 409 });
   }
 
   const origin = getRequestOrigin(req);
@@ -256,17 +242,11 @@ async function createStripeCheckout(
   params.set('subscription_data[metadata][firebase_uid]', identity.uid);
   params.set('subscription_data[metadata][plan]', plan);
 
-  if (promotionCodeId) {
-    params.set('discounts[0][promotion_code]', promotionCodeId);
-  } else {
-    params.set('allow_promotion_codes', 'true');
-  }
+  if (promotionCodeId) params.set('discounts[0][promotion_code]', promotionCodeId);
+  else params.set('allow_promotion_codes', 'true');
 
-  if (existing?.provider_customer_id) {
-    params.set('customer', String(existing.provider_customer_id));
-  } else if (identity.email) {
-    params.set('customer_email', identity.email);
-  }
+  if (existing?.provider_customer_id) params.set('customer', String(existing.provider_customer_id));
+  else if (identity.email) params.set('customer_email', identity.email);
 
   const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
@@ -277,17 +257,11 @@ async function createStripeCheckout(
     body: params.toString(),
     signal: AbortSignal.timeout(12000),
   });
-
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.url) {
-    const message = data?.error?.message || `Stripe HTTP ${response.status}`;
-    throw Object.assign(new Error(message), { statusCode: 502 });
+    throw Object.assign(new Error(data?.error?.message || `Stripe HTTP ${response.status}`), { statusCode: 502 });
   }
-
-  return {
-    id: data.id as string,
-    url: data.url as string,
-  };
+  return { id: data.id as string, url: data.url as string };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -296,6 +270,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { workspaceId } = await ensureAppUser(identity);
 
     if (req.method === 'GET') {
+      if (String(req.query?.view || '') === 'access') {
+        const [access, subscription] = await Promise.all([
+          getCreditStatus(identity.uid),
+          getSubscriptionAccess(identity.uid),
+        ]);
+        return res.status(200).json({ access, subscription });
+      }
       return res.status(200).json(await bootstrap(identity.uid, workspaceId));
     }
 
@@ -306,31 +287,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const action = String(req.body?.action || '');
 
-    if (action === 'sync-user') {
-      return res.status(200).json({ success: true, user: identity, workspaceId });
+    if (action === 'sync-user') return res.status(200).json({ success: true, user: identity, workspaceId });
+
+    if (action === 'access-status') {
+      return res.status(200).json({ access: await getCreditStatus(identity.uid) });
+    }
+
+    if (action === 'unlock-business') {
+      const businessId = String(req.body?.businessId || '').trim();
+      const token = String(req.body?.sealedContactToken || '').trim();
+      if (!businessId || !token) return res.status(400).json({ error: 'Dados protegidos do negócio são obrigatórios.' });
+
+      // Unseal first so invalid/forged payloads never consume a credit.
+      const contacts = unsealBusinessContacts(token, businessId);
+      const access = await consumeBusinessCredit(identity.uid, workspaceId, businessId);
+      return res.status(200).json({
+        success: true,
+        business: {
+          id: businessId,
+          phone: contacts.phone,
+          phones: contacts.phones,
+          email: contacts.email,
+          emails: contacts.emails,
+          contactLocked: false,
+          sealedContactToken: null,
+        },
+        access,
+      });
     }
 
     if (action === 'create-checkout') {
       const plan = String(req.body?.plan || '').toLowerCase();
-      if (!['go', 'pro', 'agency'].includes(plan)) {
-        return res.status(400).json({ error: 'Plano inválido' });
-      }
-
-      const checkout = await createStripeCheckout(req, identity, plan as PaidPlan);
-      return res.status(200).json(checkout);
+      if (!['go', 'pro', 'agency'].includes(plan)) return res.status(400).json({ error: 'Plano inválido' });
+      return res.status(200).json(await createStripeCheckout(req, identity, plan as PaidPlan));
     }
 
     if (action === 'confirm-checkout') {
       const sessionId = String(req.body?.sessionId || '').trim();
-      if (!sessionId.startsWith('cs_')) {
-        return res.status(400).json({ error: 'Sessão de checkout inválida' });
-      }
-
+      if (!sessionId.startsWith('cs_')) return res.status(400).json({ error: 'Sessão de checkout inválida' });
       const confirmed = await confirmStripeCheckoutSession(sessionId, identity.uid);
-      return res.status(200).json({
-        success: true,
-        subscription: confirmed.subscription,
-      });
+      return res.status(200).json({ success: true, subscription: confirmed.subscription });
     }
 
     if (action === 'create-billing-portal') {
@@ -352,11 +348,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'update-profile') {
       const displayName = String(req.body?.displayName || '').trim().slice(0, 120);
       if (!displayName) return res.status(400).json({ error: 'Nome inválido' });
-
       await appDataRequest(`app_users?firebase_uid=eq.${dbValue(identity.uid)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ display_name: displayName }),
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ display_name: displayName }),
       });
       return res.status(200).json({ success: true });
     }
@@ -366,7 +359,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const status = String(req.body?.status || 'NOVO');
       if (!businessId) return res.status(400).json({ error: 'businessId é obrigatório' });
       if (!LEAD_STATUSES.has(status)) return res.status(400).json({ error: 'status inválido' });
-
       await appDataRequest('user_leads?on_conflict=user_uid,business_id', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -376,8 +368,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           business_id: businessId,
           status,
           notes: String(req.body?.notes || '').slice(0, 10000),
-          business_snapshot:
-            req.body?.business && typeof req.body.business === 'object' ? req.body.business : null,
+          business_snapshot: req.body?.business && typeof req.body.business === 'object' ? req.body.business : null,
         }),
       });
       return res.status(200).json({ success: true });
@@ -387,10 +378,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const businessId = String(req.body?.businessId || '');
       const isFavorite = Boolean(req.body?.isFavorite);
       if (!businessId) return res.status(400).json({ error: 'businessId é obrigatório' });
-
       if (isFavorite) {
-        const business =
-          req.body?.business && typeof req.body.business === 'object' ? req.body.business : null;
+        const business = req.body?.business && typeof req.body.business === 'object' ? req.body.business : null;
         await appDataRequest('favorites?on_conflict=user_uid,business_id', {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -403,10 +392,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }),
         });
       } else {
-        await appDataRequest(
-          `favorites?user_uid=eq.${dbValue(identity.uid)}&business_id=eq.${dbValue(businessId)}`,
-          { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
-        );
+        await appDataRequest(`favorites?user_uid=eq.${dbValue(identity.uid)}&business_id=eq.${dbValue(businessId)}`, {
+          method: 'DELETE', headers: { Prefer: 'return=minimal' },
+        });
       }
       return res.status(200).json({ success: true });
     }
@@ -416,49 +404,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let route = await getActiveRoute(identity.uid);
       if (!route) route = await createActiveRoute(identity.uid, workspaceId);
       if (!route?.id) throw new Error('Não foi possível criar rota');
-
       await appDataRequest(`visit_route_stops?route_id=eq.${dbValue(route.id)}`, {
-        method: 'DELETE',
-        headers: { Prefer: 'return=minimal' },
+        method: 'DELETE', headers: { Prefer: 'return=minimal' },
       });
-
-      const rows = stops
-        .map((stop: any, position: number) => ({
-          route_id: route.id,
-          business_id: stop?.business?.id,
-          position,
-          visit_status: ['PENDENTE', 'VISITADO', 'PULADO'].includes(stop?.visitStatus)
-            ? stop.visitStatus
-            : 'PENDENTE',
-          business_snapshot: stop?.business,
-          added_at: stop?.addedAt
-            ? new Date(stop.addedAt).toISOString()
-            : new Date().toISOString(),
-        }))
-        .filter((stop: any) => stop.business_id && stop.business_snapshot);
-
+      const rows = stops.map((stop: any, position: number) => ({
+        route_id: route!.id,
+        business_id: stop?.business?.id,
+        position,
+        visit_status: ['PENDENTE', 'VISITADO', 'PULADO'].includes(stop?.visitStatus) ? stop.visitStatus : 'PENDENTE',
+        business_snapshot: stop?.business,
+        added_at: stop?.addedAt ? new Date(stop.addedAt).toISOString() : new Date().toISOString(),
+      })).filter((stop: any) => stop.business_id && stop.business_snapshot);
       if (rows.length > 0) {
         await appDataRequest('visit_route_stops', {
-          method: 'POST',
-          headers: { Prefer: 'return=minimal' },
-          body: JSON.stringify(rows),
+          method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(rows),
         });
       }
-
       await appDataRequest(`visit_routes?id=eq.${dbValue(route.id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ updated_at: new Date().toISOString() }),
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ updated_at: new Date().toISOString() }),
       });
       return res.status(200).json({ success: true });
     }
 
     if (action === 'recommendation-event') {
       const eventType = String(req.body?.eventType || '');
-      if (!RECOMMENDATION_EVENTS.has(eventType)) {
-        return res.status(400).json({ error: 'eventType inválido' });
-      }
-
+      if (!RECOMMENDATION_EVENTS.has(eventType)) return res.status(400).json({ error: 'eventType inválido' });
       await appDataRequest('recommendation_events', {
         method: 'POST',
         headers: { Prefer: 'return=minimal' },
@@ -470,10 +440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           category: req.body?.category || null,
           query: req.body?.query || null,
           location: req.body?.location || null,
-          metadata:
-            req.body?.metadata && typeof req.body.metadata === 'object'
-              ? req.body.metadata
-              : {},
+          metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
         }),
       });
       return res.status(201).json({ success: true });
@@ -483,14 +450,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const autoEnrich = req.body?.autoEnrich;
       const resultsBatchSize = Number(req.body?.resultsBatchSize);
       const body: Record<string, unknown> = { user_uid: identity.uid };
-
       if (typeof autoEnrich === 'boolean') body.auto_enrich = autoEnrich;
       if ([30, 60, 100].includes(resultsBatchSize)) body.results_batch_size = resultsBatchSize;
-
       await appDataRequest('user_settings?on_conflict=user_uid', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(body),
+        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(body),
       });
       return res.status(200).json({ success: true });
     }
@@ -498,15 +461,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'recent-business') {
       const businessId = String(req.body?.businessId || '');
       if (!businessId) return res.status(400).json({ error: 'businessId é obrigatório' });
-
       await appDataRequest('recent_businesses?on_conflict=user_uid,business_id', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({
           user_uid: identity.uid,
           business_id: businessId,
-          business_snapshot:
-            req.body?.business && typeof req.body.business === 'object' ? req.body.business : null,
+          business_snapshot: req.body?.business && typeof req.body.business === 'object' ? req.body.business : null,
           viewed_at: new Date().toISOString(),
         }),
       });
@@ -516,10 +477,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'generated-message') {
       const message = String(req.body?.message || '').trim();
       if (!message) return res.status(400).json({ error: 'message é obrigatória' });
-
       await appDataRequest('generated_messages', {
-        method: 'POST',
-        headers: { Prefer: 'return=minimal' },
+        method: 'POST', headers: { Prefer: 'return=minimal' },
         body: JSON.stringify({
           user_uid: identity.uid,
           workspace_id: workspaceId,
@@ -530,8 +489,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           model: req.body?.model || null,
         }),
       });
-
-      await incrementUsage(identity.uid, 'ai_messages');
       return res.status(201).json({ success: true });
     }
 
@@ -540,11 +497,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!['analyses', 'ai_messages', 'recommendation_refreshes'].includes(counter)) {
         return res.status(400).json({ error: 'contador inválido' });
       }
-
-      await incrementUsage(
-        identity.uid,
-        counter as 'analyses' | 'ai_messages' | 'recommendation_refreshes'
-      );
+      await incrementUsage(identity.uid, counter as 'analyses' | 'ai_messages' | 'recommendation_refreshes');
       return res.status(200).json({ success: true });
     }
 
@@ -553,16 +506,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const statusCode = Number(error?.statusCode || 500);
     console.error('[API /api/leads]:', error?.message || error);
     return res.status(statusCode).json({
-      error:
-        statusCode === 401
-          ? 'Sessão inválida ou expirada.'
-          : statusCode === 400 || statusCode === 403 || statusCode === 409
-            ? error?.message || 'Não foi possível concluir a operação de cobrança.'
-            : statusCode === 502
-              ? error?.message || 'Não foi possível acessar a Stripe.'
-              : statusCode === 503
-                ? error?.message || 'Configuração de cobrança incompleta.'
-                : 'Erro ao acessar os dados do usuário.',
+      error: error?.message || (statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Erro ao acessar os dados do usuário.'),
+      code: error?.code || undefined,
     });
   }
 }

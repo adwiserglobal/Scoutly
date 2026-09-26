@@ -4,17 +4,15 @@ import OnboardingExperience, {
   SCOUTLY_ONBOARDING_VERSION,
   type OnboardingAnswers,
 } from './OnboardingExperience';
-import TrialActivationScreen from './TrialActivationScreen';
 import {
   completeOnboardingTutorial,
   fetchOnboardingStatus,
   saveOnboardingAnswers,
-  startOnboardingTrial,
 } from '../services/onboardingApi';
 
 const PRODUCT_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
 
-type Mode = 'hidden' | 'wizard' | 'trial' | 'tutorial';
+type Mode = 'hidden' | 'wizard' | 'tutorial';
 
 function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
@@ -60,31 +58,11 @@ export default function OnboardingGate() {
           return;
         }
 
-        const plan = String(status.subscription?.plan || 'trial');
-        const subscriptionStatus = String(status.subscription?.status || 'pending');
-
-        if (plan === 'trial' && subscriptionStatus === 'pending') {
-          setMode('trial');
-          return;
-        }
-
-        // An expired trial is handled by the non-dismissible billing wall in the
-        // workspace. It must never be replaced by the optional product tutorial.
-        if (plan === 'expired' || ['expired', 'canceled', 'unpaid', 'incomplete_expired'].includes(subscriptionStatus)) {
-          setMode('hidden');
-          return;
-        }
-
-        if (!status.tutorialCompleted) {
-          setMode('tutorial');
-        } else {
-          setMode('hidden');
-        }
+        if (!status.tutorialCompleted) setMode('tutorial');
+        else setMode('hidden');
       })
       .catch((error) => {
         console.warn('[Scoutly Onboarding] Could not load status:', error);
-        // Entitlements are also enforced by the persisted subscription state;
-        // avoid trapping users on a broken onboarding request while it recovers.
         if (!cancelled) setMode('hidden');
       })
       .finally(() => {
@@ -98,10 +76,6 @@ export default function OnboardingGate() {
 
   useEffect(() => {
     if (mode !== 'tutorial') return;
-
-    // The guided tour is anchored to the dashboard controls. If a returning user
-    // entered through Pipeline/Favorites, bring them to the dashboard once, then
-    // spotlight the live controls there.
     if (pathname !== '/dashboard') {
       window.history.replaceState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -125,14 +99,9 @@ export default function OnboardingGate() {
 
   const submitAnswers = async (answers: OnboardingAnswers) => {
     await saveOnboardingAnswers(answers);
-    setMode('trial');
-  };
-
-  const startTrial = async () => {
-    await startOnboardingTrial();
-    // Reload the workspace so billing state, map requests and every paid feature
-    // begin from the exact server timestamp that started the 7-day entitlement.
-    window.location.reload();
+    // Every new account is already on Free. Go straight into the product tour;
+    // there is no trial activation wall anymore.
+    setMode('tutorial');
   };
 
   const finishTutorial = async () => {
@@ -140,12 +109,9 @@ export default function OnboardingGate() {
       await completeOnboardingTutorial();
     } finally {
       setMode('hidden');
+      window.dispatchEvent(new Event('scoutly-access-updated'));
     }
   };
-
-  if (mode === 'trial') {
-    return <TrialActivationScreen userName={user.displayName} onStart={startTrial} />;
-  }
 
   return (
     <OnboardingExperience

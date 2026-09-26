@@ -7,8 +7,45 @@ const VIDEO_URL_EN =
 const VIDEO_URL_PT =
   'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/1da8309837a368784dc99a7145a47b20bd0d9f133236fb0bb2d8cd03666c6d5e.mp4';
 
+const COPY_REPLACEMENTS: Array<[string, string]> = [
+  ['Start free for 7 days', 'Start free'],
+  ['7-day Pro trial', 'Free plan · 5 credits/day'],
+  ['No card required during trial', 'Up to 25 free credits/month'],
+  [
+    'Every new user starts with Pro access for 7 days. After that, choose the plan that fits your operating rhythm.',
+    'Every new user starts on Free with 5 credits per day, up to 25 per month. Upgrade whenever you need more capacity, AI and advanced features.',
+  ],
+  ['Up to 80 analyses per month', '80 prospecting credits per month'],
+  ['Up to null AI messages per month', '10 Scoutly AI conversations per day'],
+  ['Começar grátis por 7 dias', 'Começar grátis'],
+  ['Teste Pro por 7 dias', 'Plano Free · 5 créditos por dia'],
+  ['Sem cartão durante o teste', 'Até 25 créditos gratuitos por mês'],
+  [
+    'Todos os novos usuários começam com acesso ao Pro por 7 dias. Depois, basta escolher o plano adequado ao ritmo da operação.',
+    'Todos os novos usuários começam no Free com 5 créditos por dia, até 25 por mês. Faça upgrade quando precisar de mais capacidade, IA e recursos avançados.',
+  ],
+  ['Até 80 análises por mês', '80 créditos de prospecção por mês'],
+  ['Até null mensagens com IA por mês', '10 conversas com a Scoutly AI por dia'],
+];
+
 function getCurrentLanguage(): 'en' | 'pt' {
   return document.documentElement.lang.toLowerCase().startsWith('pt') ? 'pt' : 'en';
+}
+
+function patchMarketingCopy(root: ParentNode = document.body) {
+  if (!root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null = walker.nextNode();
+
+  while (node) {
+    const current = node.nodeValue || '';
+    let next = current;
+    for (const [from, to] of COPY_REPLACEMENTS) {
+      if (next.includes(from)) next = next.replace(from, to);
+    }
+    if (next !== current) node.nodeValue = next;
+    node = walker.nextNode();
+  }
 }
 
 function OverviewVideo() {
@@ -182,8 +219,13 @@ export default function MarketingMediaEnhancer() {
       setTarget((current) => (current === nextTarget ? current : nextTarget));
     };
 
-    findTarget();
-    const observer = new MutationObserver(findTarget);
+    const sync = () => {
+      findTarget();
+      patchMarketingCopy(document.body);
+    };
+
+    sync();
+    const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true });
 
     return () => observer.disconnect();
