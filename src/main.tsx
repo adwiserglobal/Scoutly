@@ -4,8 +4,12 @@ import App from './App.tsx';
 import { AuthProvider } from './context/AuthContext';
 import MarketingMediaEnhancer from './components/MarketingMediaEnhancer';
 import OnboardingGate from './components/OnboardingGate';
+import UpgradeOverlay from './components/UpgradeOverlay';
+import { installApiAuthBridge } from './lib/apiAuthBridge';
 import './index.css';
 import './marketing-overrides.css';
+
+installApiAuthBridge();
 
 const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
 const promoFromUrl = new URLSearchParams(window.location.search)
@@ -35,6 +39,7 @@ createRoot(document.getElementById('root')!).render(
       <App />
       <MarketingMediaEnhancer />
       <OnboardingGate />
+      <UpgradeOverlay />
     </AuthProvider>
   </StrictMode>,
 );
