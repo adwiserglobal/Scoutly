@@ -77,7 +77,9 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
         body: JSON.stringify({
           owner_uid: identity.uid,
           name: 'Meu workspace',
-          plan: 'free',
+          // Keep the legacy persisted value for backwards-compatible DB constraints.
+          // The entitlement layer maps pending trial rows to the permanent Free tier.
+          plan: 'trial',
         }),
       });
     } catch {
@@ -116,8 +118,9 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
       headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
       body: JSON.stringify({
         user_uid: identity.uid,
-        plan: 'free',
-        status: 'active',
+        // Legacy storage sentinel. Effective plan is Free until a paid Stripe plan is active.
+        plan: 'trial',
+        status: 'pending',
         current_period_start: null,
         current_period_end: null,
       }),
