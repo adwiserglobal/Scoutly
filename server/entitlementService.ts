@@ -94,43 +94,25 @@ export function readUnlockToken(token: string, userUid: string, businessId: stri
 }
 
 export async function ensureFreePlanForNewUser(userUid: string) {
+  // Deliberately keep the legacy persisted trial/pending sentinel because older
+  // databases may constrain subscription.plan. The entitlement functions map
+  // that sentinel to Free until a paid Stripe subscription is active.
   const rows = await appDataRequest<any[]>(
-    `subscriptions?user_uid=eq.${dbValue(userUid)}&select=plan,status,provider_subscription_id&limit=1`
+    `subscriptions?user_uid=eq.${dbValue(userUid)}&select=user_uid&limit=1`
   );
-  const current = rows[0] || null;
+  if (rows.length) return;
 
-  if (!current) {
-    await appDataRequest('subscriptions?on_conflict=user_uid', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({
-        user_uid: userUid,
-        plan: 'free',
-        status: 'active',
-        current_period_start: null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-      }),
-    });
-    return;
-  }
-
-  const plan = String(current.plan || '').toLowerCase();
-  const status = String(current.status || '').toLowerCase();
-  if (plan === 'trial' && status === 'pending' && !current.provider_subscription_id) {
-    await appDataRequest(`subscriptions?user_uid=eq.${dbValue(userUid)}&plan=eq.trial&status=eq.pending`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        plan: 'free',
-        status: 'active',
-        current_period_start: null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-  }
+  await appDataRequest('subscriptions?on_conflict=user_uid', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify({
+      user_uid: userUid,
+      plan: 'trial',
+      status: 'pending',
+      current_period_start: null,
+      current_period_end: null,
+    }),
+  });
 }
 
 async function rpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
