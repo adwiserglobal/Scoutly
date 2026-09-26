@@ -1,4 +1,5 @@
 import type { Business } from '../types';
+import { auth } from '../lib/firebase';
 
 export interface AgenticConversationContext {
   businessType?: string;
@@ -21,6 +22,7 @@ export interface AgenticChatResult {
   text: string;
   matchedBusinessIds: string[];
   modelUsed?: string;
+  access?: any;
   searchSummary?: {
     requestedCount: number;
     availableCount: number;
@@ -54,9 +56,15 @@ async function readJsonResponse<T = any>(response: Response, fallbackMessage: st
 }
 
 export async function sendAgenticChatMessage(payload: AgenticChatPayload): Promise<AgenticChatResult> {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('Usuário não autenticado');
+
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({
       message: payload.message,
       history: payload.history || [],
@@ -81,13 +89,20 @@ export async function sendAgenticChatMessage(payload: AgenticChatPayload): Promi
     }),
   });
 
-  const data = await readJsonResponse<AgenticChatResult>(
+  const data = await readJsonResponse<AgenticChatResult & { error?: string; code?: string }>(
     res,
     'A Scoutly Agentic recebeu uma resposta inválida do servidor.',
   );
 
   if (!res.ok) {
-    throw new Error((data as any)?.error || 'Erro ao comunicar com o Scoutly Agentic.');
+    const error: any = new Error(data?.error || 'Erro ao comunicar com o Scoutly Agentic.');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
+  }
+
+  if (data?.access) {
+    window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: data.access }));
   }
 
   return data;
