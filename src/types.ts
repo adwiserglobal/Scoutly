@@ -51,7 +51,7 @@ export interface Business {
   phones: string[];
   socials: string[];
   address: string;
-  source: string; // 'Overture Maps' or 'CNPJ / Minha Receita'
+  source: string;
   sources?: string[];
   cnpj?: string | null;
   razaoSocial?: string | null;
@@ -68,7 +68,6 @@ export interface Business {
   dataInicioAtividade?: string | null;
   situacaoCadastral?: string | null;
   hasCoordinates?: boolean;
-  // Helpers for UI/Map compatibility
   coordinates: {
     lat: number;
     lng: number;
@@ -80,6 +79,14 @@ export interface Business {
   openStatusText?: string;
   openingHoursRaw?: string | null;
   pageSpeed?: PageSpeedData;
+  // Freemium prospect protection. Protected contact values are never sent while locked.
+  isLocked?: boolean;
+  previouslyUnlocked?: boolean;
+  unlockToken?: string;
+  hasProtectedWebsite?: boolean;
+  hasProtectedEmail?: boolean;
+  hasProtectedPhone?: boolean;
+  hasProtectedSocials?: boolean;
 }
 
 export type VisitStatus = 'PENDENTE' | 'VISITADO' | 'PULADO';
@@ -92,12 +99,12 @@ export interface VisitRouteStop {
 
 export interface PageSpeedData {
   url: string;
-  score: number; // 0 - 100
-  fcp?: string; // e.g. "1.2 s"
-  lcp?: string; // e.g. "2.4 s"
-  tbt?: string; // e.g. "120 ms"
-  cls?: string; // e.g. "0.02"
-  speedIndex?: string; // e.g. "1.8 s"
+  score: number;
+  fcp?: string;
+  lcp?: string;
+  tbt?: string;
+  cls?: string;
+  speedIndex?: string;
   rating: 'FAST' | 'AVERAGE' | 'SLOW';
   opportunityTitle?: string;
   opportunityDescription?: string;
@@ -108,6 +115,6 @@ export interface PageSpeedData {
 export interface FilterOptions {
   searchQuery: string;
   websiteFilter: WebsiteFilter;
-  category: string; // 'TODAS' or specific category
+  category: string;
   sortBy: 'CONFIDENCE' | 'NOME' | 'COM_CONTATO';
 }
