@@ -46,7 +46,6 @@ async function createActiveRoute(userUid: string, workspaceId: string) {
 }
 
 async function bootstrap(userUid: string, workspaceId: string) {
-  // Resolve legacy trial/expired records before hydrating the raw subscription.
   const subscriptionAccess = await getSubscriptionAccess(userUid);
   const route = await getActiveRoute(userUid);
 
@@ -298,17 +297,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const token = String(req.body?.sealedContactToken || '').trim();
       if (!businessId || !token) return res.status(400).json({ error: 'Dados protegidos do negócio são obrigatórios.' });
 
-      // Unseal first so invalid/forged payloads never consume a credit.
+      // Validate the sealed source payload before consuming a credit. This also
+      // guarantees a forged request cannot be used to retrieve arbitrary data.
       const contacts = unsealBusinessContacts(token, businessId);
       const access = await consumeBusinessCredit(identity.uid, workspaceId, businessId);
+      const hasEmail = Boolean(contacts.email || contacts.emails.length > 0);
+      const emailPaidLocked = access.plan === 'free' && hasEmail;
+
       return res.status(200).json({
         success: true,
         business: {
           id: businessId,
           phone: contacts.phone,
           phones: contacts.phones,
-          email: contacts.email,
-          emails: contacts.emails,
+          // Email is a paid-plan entitlement. A Free client never receives the
+          // real value in the response, even after spending a prospecting credit.
+          email: emailPaidLocked ? '••••@••••••.com' : contacts.email,
+          emails: emailPaidLocked ? ['••••@••••••.com'] : contacts.emails,
+          emailPaidLocked,
+          hasProtectedEmail: hasEmail,
           contactLocked: false,
           sealedContactToken: null,
         },
