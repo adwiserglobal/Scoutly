@@ -27,6 +27,10 @@ function openPlans() {
   window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
 }
 
+function refreshAccess() {
+  window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
+}
+
 function LockedPanel({
   business,
   onClose,
@@ -148,6 +152,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
       .catch((error: any) => {
+        refreshAccess();
         setMessage(error?.message || 'Seus créditos acabaram. Escolha um plano para continuar prospectando.');
         setStatus('locked');
       });
@@ -172,7 +177,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
         <div>
           <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-white/[0.10] border-t-[#FF5A12]" />
           <p className="mt-4 text-sm font-medium text-stone-200">Abrindo negócio</p>
-          <p className="mt-1 text-xs text-stone-500">1 crédito é usado para liberar os dados.</p>
+          <p className="mt-1 text-xs text-stone-500">1 crédito é usado para visualizar este negócio.</p>
         </div>
       </div>
     </aside>
