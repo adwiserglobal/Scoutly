@@ -48,7 +48,7 @@
     },
     {
       "src": "/api/ai/generate-message",
-      "dest": "/api/ai/generate-message-gated.ts"
+      "dest": "/api/ai/generate-message.ts"
     },
     {
       "src": "/api/enrich",
