@@ -2,6 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { queryBrazilPlaces, hasBrazilPlacesDatabase } from '../server/brazilPlacesService.js';
 import { queryOvertureViaApi } from '../server/overtureHttpService.js';
 import { queryOsmPlacesInBBox } from '../server/osmPlacesService.js';
+import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
+import { ensureAppUser } from '../server/appDataService.js';
+import { protectBusinessResults } from '../server/entitlementService.js';
 
 const BRAZIL_INDEX_BBOX = {
   west: -47.2,
@@ -10,30 +13,26 @@ const BRAZIL_INDEX_BBOX = {
   north: -23.15,
 };
 
-function fullyInsideBrazilIndex(
-  west: number,
-  south: number,
-  east: number,
-  north: number,
-) {
-  return (
-    west >= BRAZIL_INDEX_BBOX.west &&
-    south >= BRAZIL_INDEX_BBOX.south &&
-    east <= BRAZIL_INDEX_BBOX.east &&
-    north <= BRAZIL_INDEX_BBOX.north
-  );
+function fullyInsideBrazilIndex(west: number, south: number, east: number, north: number) {
+  return west >= BRAZIL_INDEX_BBOX.west && south >= BRAZIL_INDEX_BBOX.south &&
+    east <= BRAZIL_INDEX_BBOX.east && north <= BRAZIL_INDEX_BBOX.north;
 }
 
-async function queryOvertureDirect(
-  west: number,
-  south: number,
-  east: number,
-  north: number,
-  limit: number,
-  zoom?: number,
-) {
+async function queryOvertureDirect(west: number, south: number, east: number, north: number, limit: number, zoom?: number) {
   const { queryPlacesInBBox } = await import('../server/overtureService.js');
   return queryPlacesInBBox(west, south, east, north, limit, zoom);
+}
+
+async function protectedResponse(res: VercelResponse, userUid: string, result: any, source?: string) {
+  const protectedResult = await protectBusinessResults(userUid, Array.isArray(result?.places) ? result.places : []);
+  res.setHeader('Cache-Control', 'private, no-store');
+  return res.status(200).json({
+    ...result,
+    places: protectedResult.businesses,
+    total: protectedResult.businesses.length,
+    source: source || result?.source,
+    creditState: protectedResult.creditState,
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -43,6 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const identity = await requireFirebaseIdentity(req as any);
+    await ensureAppUser(identity);
+
     const west = Number(req.query.west);
     const south = Number(req.query.south);
     const east = Number(req.query.east);
@@ -55,67 +57,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
-    const internalFallback = String(req.headers['x-scoutly-internal-fallback'] || '') === '1';
-
-    if (internalFallback) {
-      const overture = await queryOvertureDirect(west, south, east, north, safeLimit, zoom);
-      res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-      return res.status(200).json({
-        ...overture,
-        source: 'overture',
-        total: overture.places.length,
-      });
-    }
-
     const insideBrazilIndex = fullyInsideBrazilIndex(west, south, east, north);
 
     if (insideBrazilIndex && hasBrazilPlacesDatabase()) {
       try {
         const result = await queryBrazilPlaces(west, south, east, north, safeLimit);
-        if (result.places.length > 0) {
-          res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-          return res.status(200).json({ ...result, total: result.places.length });
-        }
+        if (result.places.length > 0) return protectedResponse(res, identity.uid, result);
         console.warn('[Fast Places] Local index returned 0 places; trying OSM national fallback.');
       } catch (err: any) {
         console.warn('[Fast Places] Local index unavailable; trying OSM national fallback:', err.message);
       }
     }
 
-    // National lightweight fallback. This avoids depending on DuckDB + remote
-    // Overture parquet just to render businesses when the user moves to another city.
     try {
       const osm = await queryOsmPlacesInBBox(
-        west,
-        south,
-        east,
-        north,
+        west, south, east, north,
         Math.min(safeLimit, zoom && zoom >= 14 ? 1800 : 1000),
       );
-      if (osm.places.length > 0) {
-        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
-        return res.status(200).json({
-          ...osm,
-          source: 'openstreetmap',
-          total: osm.places.length,
-        });
-      }
+      if (osm.places.length > 0) return protectedResponse(res, identity.uid, osm, 'openstreetmap');
       console.warn('[Fast Places] OSM returned 0 places; using heavy Overture fallback.');
     } catch (err: any) {
       console.warn('[Fast Places] OSM fallback unavailable; using heavy Overture fallback:', err?.message || err);
     }
 
-    const fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-    return res.status(200).json({
-      ...fallback,
-      source: 'overture',
-      total: fallback.places.length,
-    });
+    let fallback;
+    try {
+      fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);
+    } catch {
+      fallback = await queryOvertureDirect(west, south, east, north, safeLimit, zoom);
+    }
+    return protectedResponse(res, identity.uid, fallback, 'overture');
   } catch (err: any) {
     console.error('[API /api/places-fast Error]:', err);
-    return res.status(500).json({
+    const status = Number(err?.statusCode || 500);
+    return res.status(status).json({
       error: err?.message || 'Erro ao consultar estabelecimentos.',
+      code: err?.code || undefined,
       places: [],
     });
   }
