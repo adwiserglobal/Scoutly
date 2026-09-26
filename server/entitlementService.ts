@@ -288,7 +288,15 @@ export async function consumeBusinessCredit(
     ],
   });
 
-  return getCreditStatus(userUid);
+  // Free credits limit how many businesses can be inspected per day/month, but
+  // real contact data is never an entitlement of the Free plan. Throw only
+  // after the ledger reservation so the click still consumes exactly 1 credit
+  // while the API response remains free of plaintext paid contact information.
+  httpError(
+    '1 crédito foi usado para visualizar este negócio. E-mail e telefone reais são recursos dos planos pagos.',
+    402,
+    'CONTACTS_REQUIRE_PAID_PLAN',
+  );
 }
 
 export async function consumeAiConversation(userUid: string, workspaceId: string) {
