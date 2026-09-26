@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, FormEvent, KeyboardEvent, memo } from 'react';
-import { Search, Navigation, SlidersHorizontal, MapPin, Loader2 } from 'lucide-react';
+import { FormEvent, KeyboardEvent, memo, useEffect, useRef, useState } from 'react';
+import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { Business } from '../types';
 import RecommendedDropdown from './RecommendedDropdown';
 
@@ -8,7 +8,6 @@ interface HeaderProps {
   onSearch: (query: string) => void;
   onUseCurrentLocation: () => void;
   onSelectPreset?: (region: { name: string; lat: number; lng: number }) => void;
-  onOpenAIAssistant?: () => void;
   isLocating: boolean;
   totalOpportunitiesCount: number;
   totalBusinessesCount: number;
@@ -120,6 +119,7 @@ function Header({
         const response = await fetch(`/api/location-suggestions?${params.toString()}`, {
           signal: controller.signal,
         });
+
         if (!response.ok) {
           setSuggestions([]);
           return;
@@ -154,12 +154,14 @@ function Header({
     onSearch(nextQuery);
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+
     if (activeSuggestion >= 0 && suggestionsOpen && suggestions[activeSuggestion]) {
       chooseSuggestion(suggestions[activeSuggestion]);
       return;
     }
+
     if (searchInput.trim()) {
       setSuggestionsOpen(false);
       onSearch(searchInput.trim());
@@ -189,60 +191,47 @@ function Header({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-3 w-full shrink-0 pointer-events-auto">
-      <div className="flex items-center shrink-0 pr-1">
-        <img
-          src="/logo_white.png"
-          alt="Scoutly - Radar de Prospecção"
-          className="h-12 sm:h-14 md:h-16 w-auto object-contain cursor-pointer transition-transform duration-200 hover:scale-105 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
-      </div>
-
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/70 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-white/40 h-auto sm:h-[52px]">
+    <div className="w-full pointer-events-auto pl-14 pr-1 lg:pl-[88px] lg:pr-[300px]">
+      <div className="flex w-full items-center gap-2 max-[430px]:flex-wrap">
         <form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="relative flex items-center flex-1 sm:w-72 lg:w-80 group h-full"
+          className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[420px] xl:w-[470px]"
         >
-          <div className="absolute left-3.5 text-stone-400 group-focus-within:text-[#FF4D00] transition pointer-events-none z-10">
-            <Search className="w-4 h-4" />
+          <div className="scoutly-search-focus-ring relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+            <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
+
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={handleInputKeyDown}
+              onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
+              placeholder="Busque empresas, categorias ou bairros"
+              autoComplete="off"
+              aria-autocomplete="list"
+              aria-expanded={suggestionsOpen}
+              className="h-full w-full rounded-2xl bg-transparent pl-11 pr-[88px] text-[13px] text-white outline-none placeholder:text-stone-500 sm:pr-[104px]"
+            />
+
+            {isSuggesting && (
+              <Loader2 className="absolute right-[78px] h-3.5 w-3.5 animate-spin text-stone-500 sm:right-[92px]" />
+            )}
+
+            <button
+              type="submit"
+              className="absolute right-1.5 flex h-8 items-center justify-center rounded-[11px] bg-[#FF5A12] px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#ff6a27] active:scale-[0.97] sm:px-4"
+            >
+              Buscar
+            </button>
           </div>
-
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-            onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
-            placeholder="Empresa, segmento ou local..."
-            autoComplete="off"
-            aria-autocomplete="list"
-            aria-expanded={suggestionsOpen}
-            className="w-full h-full bg-white/80 border-none rounded-full pl-10 pr-24 py-2.5 text-xs text-stone-900 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[#FF4D00]/50 transition shadow-inner"
-          />
-
-          {isSuggesting && (
-            <div className="absolute right-[76px] top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3.5 py-1.5 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-full text-[11px] font-bold tracking-wider uppercase transition active:scale-95 shadow-2xs cursor-pointer"
-          >
-            BUSCAR
-          </button>
 
           {suggestionsOpen && suggestions.length > 0 && (
             <div
               role="listbox"
-              className="absolute top-[calc(100%+10px)] left-0 right-0 z-[80] overflow-hidden rounded-2xl border border-white/50 bg-white/90 backdrop-blur-2xl shadow-[0_18px_50px_rgba(28,25,23,0.18)] p-1.5"
+              className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#121519]/[0.96] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.46)] backdrop-blur-2xl"
             >
-              <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">
+              <div className="px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
                 Locais
               </div>
               {suggestions.map((suggestion, index) => (
@@ -253,24 +242,20 @@ function Header({
                   aria-selected={activeSuggestion === index}
                   onMouseEnter={() => setActiveSuggestion(index)}
                   onClick={() => chooseSuggestion(suggestion)}
-                  className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
-                    activeSuggestion === index ? 'bg-[#FF4D00]/10' : 'hover:bg-stone-100/90'
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                    activeSuggestion === index ? 'bg-[#FF5A12]/12' : 'hover:bg-white/[0.05]'
                   }`}
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    activeSuggestion === index ? 'bg-[#FF4D00] text-white' : 'bg-stone-100 text-[#FF4D00]'
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                    activeSuggestion === index ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.05] text-[#FF6A26]'
                   }`}>
-                    <MapPin className="w-3.5 h-3.5" />
+                    <MapPin className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-semibold text-stone-900 truncate">
-                      {suggestion.primary}
-                    </div>
-                    <div className="text-[10px] text-stone-500 truncate">
-                      {suggestion.secondary || suggestion.label}
-                    </div>
+                    <div className="truncate text-[12px] font-medium text-white">{suggestion.primary}</div>
+                    <div className="truncate text-[10px] text-stone-500">{suggestion.secondary || suggestion.label}</div>
                   </div>
-                  <span className="text-[9px] font-semibold uppercase tracking-wide text-stone-400 shrink-0">
+                  <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-stone-600">
                     {kindLabel(suggestion.kind)}
                   </span>
                 </button>
@@ -281,37 +266,45 @@ function Header({
 
         <button
           type="button"
-          onClick={onUseCurrentLocation}
-          disabled={isLocating}
-          className="h-full px-4 py-2 bg-white/90 border-2 border-[#FF4D00] text-[#FF4D00] hover:bg-[#FF4D00] hover:text-white rounded-full text-xs font-bold tracking-wider uppercase transition disabled:opacity-50 whitespace-nowrap active:scale-95 shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+          onClick={onOpenFilters}
+          className="flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-stone-200 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#171a1f] sm:px-4"
+          title="Filtros"
         >
-          <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline-block">{isLocating ? 'LOCALIZANDO' : 'PERTO DE VOCÊ'}</span>
+          <SlidersHorizontal className="h-4 w-4" />
+          <span className="hidden text-[11px] font-semibold sm:inline">Filtros</span>
         </button>
 
-     </div>
+        <button
+          type="button"
+          onClick={onUseCurrentLocation}
+          disabled={isLocating}
+          className="flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-[#FF5A12]/70 bg-[#161413]/[0.94] px-3.5 max-[430px]:order-2 max-[430px]:h-10 max-[430px]:flex-1 text-[#FF6A26] shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:bg-[#FF5A12]/10 disabled:opacity-50 sm:px-4"
+          title="Usar minha localização"
+        >
+          {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+          <span className="hidden text-[11px] font-semibold xl:inline">
+            {isLocating ? 'Localizando' : 'Perto de você'}
+          </span>
+        </button>
 
-      <RecommendedDropdown
-        businesses={recommendedBusinesses}
-        locked={recommendationsLocked}
-        onSelectBusiness={onSelectRecommended}
-        onUpgrade={onOpenRecommendationsUpgrade}
-      />
+        <div className="hidden xl:block">
+          <RecommendedDropdown
+            businesses={recommendedBusinesses}
+            locked={recommendationsLocked}
+            onSelectBusiness={onSelectRecommended}
+            onUpgrade={onOpenRecommendationsUpgrade}
+          />
+        </div>
 
-      <button
-        type="button"
-        onClick={onOpenFilters}
-        className="flex items-center gap-2 h-[52px] px-5 py-2 bg-white/70 backdrop-blur-md hover:bg-white border border-white/40 text-stone-700 hover:text-stone-900 rounded-full text-xs font-bold tracking-wider uppercase transition active:scale-95 shadow-sm cursor-pointer ml-auto sm:ml-0"
-      >
-        <SlidersHorizontal className="w-4 h-4" />
-        <span>Filtros</span>
-      </button>
+      </div>
 
-      <div className="flex items-center gap-2 h-[52px] px-4 py-2 bg-white/70 backdrop-blur-md border border-white/40 rounded-full shadow-sm text-xs font-semibold text-stone-800 shrink-0">
-        <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D00]"></span>
-        <span className="tracking-tight whitespace-nowrap">
-          {totalBusinessesCount} {totalBusinessesCount === 1 ? 'negócio' : 'negócios'}
-        </span>
+      <div className="mt-2 flex items-center gap-2 lg:hidden">
+        <div className="max-w-[55vw] truncate rounded-full border border-white/10 bg-[#111418]/[0.82] px-3 py-1.5 text-[9px] font-medium text-stone-400 backdrop-blur-xl">
+          {currentRegionName}
+        </div>
+        <div className="rounded-full border border-white/10 bg-[#111418]/[0.82] px-3 py-1.5 text-[9px] font-semibold text-stone-300 backdrop-blur-xl">
+          {new Intl.NumberFormat('pt-BR').format(totalBusinessesCount)} resultados
+        </div>
       </div>
     </div>
   );

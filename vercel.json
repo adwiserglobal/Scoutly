@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "routes": [
     {
+      "src": "/internal/intern/?",
+      "dest": "/internal/intern/index.html"
+    },
+    {
       "handle": "filesystem"
     },
     {

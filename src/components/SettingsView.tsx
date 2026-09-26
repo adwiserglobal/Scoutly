@@ -104,10 +104,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
     : '';
 
   return (
-    <div className="flex-1 h-full overflow-y-auto bg-[#FAF7F2] px-4 py-6 md:px-8 md:py-10">
+    <div className="flex-1 h-full overflow-y-auto bg-[#090c10] px-4 py-6 md:px-8 md:py-10">
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-stone-950">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">
             Configurações
           </h1>
           <p className="mt-1 text-sm text-stone-500">
@@ -116,9 +116,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
         </div>
 
         <div className="space-y-5">
-          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+          <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="mb-5">
-              <h2 className="text-sm font-semibold text-stone-900">Meu perfil</h2>
+              <h2 className="text-sm font-semibold text-white">Meu perfil</h2>
               <p className="mt-1 text-xs text-stone-500">
                 Informações usadas na sua conta Scoutly.
               </p>
@@ -130,10 +130,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   <img
                     src={user.photoURL}
                     alt={displayName || user.email || 'Perfil'}
-                    className="h-16 w-16 rounded-full border border-stone-200 object-cover"
+                    className="h-16 w-16 rounded-full border border-white/[0.08] object-cover"
                   />
                 ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-stone-200 bg-[#FAF7F2] text-sm font-semibold text-stone-600">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/[0.08] bg-[#090c10] text-sm font-semibold text-stone-600">
                     {initials}
                   </div>
                 )}
@@ -148,7 +148,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                     type="text"
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
-                    className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-900 outline-none transition focus:border-[#FF4D00]"
+                    className="w-full rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-stone-700 focus:border-[#FF5A12]/60"
                     placeholder="Seu nome"
                   />
                 </div>
@@ -161,39 +161,39 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                     type="email"
                     value={user?.email || ''}
                     readOnly
-                    className="w-full cursor-not-allowed rounded-xl border border-stone-200 bg-[#F7F4EF] px-3.5 py-2.5 text-sm text-stone-500 outline-none"
+                    className="w-full cursor-not-allowed rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3.5 py-2.5 text-sm text-stone-600 outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-stone-100 pt-4">
-              <span className="text-[11px] text-stone-400">
+            <div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4">
+              <span className="text-[11px] text-stone-600">
                 {savedMessage || 'A foto é sincronizada com seu provedor de login.'}
               </span>
               <button
                 type="button"
                 onClick={saveProfile}
                 disabled={isSavingProfile || !displayName.trim()}
-                className="rounded-xl bg-stone-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#FF4D00] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#FF5A12] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSavingProfile ? 'Salvando...' : 'Salvar nome'}
               </button>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+          <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="mb-5">
-              <h2 className="text-sm font-semibold text-stone-900">Preferências</h2>
+              <h2 className="text-sm font-semibold text-white">Preferências</h2>
               <p className="mt-1 text-xs text-stone-500">
                 Estas configurações ficam sincronizadas com sua conta Scoutly.
               </p>
             </div>
 
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-white/[0.07]">
               <div className="flex items-center justify-between gap-5 py-4 first:pt-0">
                 <div>
-                  <div className="text-sm font-medium text-stone-800">
+                  <div className="text-sm font-medium text-stone-200">
                     Analisar empresas automaticamente
                   </div>
                   <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-stone-500">
@@ -207,7 +207,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   aria-checked={autoEnrich}
                   onClick={() => updateAutoEnrich(!autoEnrich)}
                   className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-                    autoEnrich ? 'bg-[#FF4D00]' : 'bg-stone-300'
+                    autoEnrich ? 'bg-[#FF5A12]' : 'bg-white/[0.12]'
                   }`}
                 >
                   <span
@@ -220,7 +220,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
 
               <div className="flex items-center justify-between gap-5 py-4 last:pb-0">
                 <div>
-                  <div className="text-sm font-medium text-stone-800">
+                  <div className="text-sm font-medium text-stone-200">
                     Empresas carregadas por vez
                   </div>
                   <p className="mt-1 text-[11px] text-stone-500">
@@ -231,7 +231,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                 <select
                   value={resultsBatchSize}
                   onChange={(event) => updateBatchSize(Number(event.target.value))}
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 outline-none focus:border-[#FF4D00]"
+                  className="rounded-xl border border-white/[0.08] bg-[#0b0e12] px-3 py-2 text-xs font-medium text-stone-300 outline-none focus:border-[#FF5A12]/60"
                 >
                   <option value={30}>30</option>
                   <option value={60}>60</option>
@@ -241,9 +241,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+          <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="mb-5">
-              <h2 className="text-sm font-semibold text-stone-900">Plano e pagamento</h2>
+              <h2 className="text-sm font-semibold text-white">Plano e pagamento</h2>
               <p className="mt-1 text-xs text-stone-500">
                 Seu acesso à Scoutly e informações de cobrança.
               </p>
@@ -251,19 +251,19 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-600">
                   Plano atual
                 </span>
-                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                <span className="mt-1.5 block text-sm font-semibold text-white">
                   {billing.planName}
                 </span>
               </div>
 
               <div>
-                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-600">
                   Status
                 </span>
-                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                <span className="mt-1.5 block text-sm font-semibold text-white">
                   {billing.isExpired
                     ? 'Acesso encerrado'
                     : billing.isTrial
@@ -277,10 +277,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               </div>
 
               <div>
-                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-600">
                   Cobrança
                 </span>
-                <span className="mt-1.5 block text-sm font-semibold text-stone-900">
+                <span className="mt-1.5 block text-sm font-semibold text-white">
                   {billing.isTrial || billing.monthlyPrice === null
                     ? 'Sem cobrança no teste'
                     : `${formatBRL(billing.monthlyPrice)} / mês`}
@@ -288,7 +288,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               </div>
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-5 flex flex-col gap-3 border-t border-white/[0.07] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-xl">
                 <p className="text-[11px] leading-relaxed text-stone-500">
                   {billing.cancelAtPeriodEnd && periodEndLabel
@@ -298,7 +298,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                       : 'Atualize o plano, método de pagamento, faturas ou cancelamento com segurança pela Stripe.'}
                 </p>
                 {billingError && (
-                  <p className="mt-2 text-[11px] font-medium text-red-600">{billingError}</p>
+                  <p className="mt-2 text-[11px] font-medium text-rose-400">{billingError}</p>
                 )}
               </div>
 
@@ -306,7 +306,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                 type="button"
                 onClick={handleBillingAction}
                 disabled={isOpeningBilling}
-                className="shrink-0 rounded-xl bg-[#FF4D00] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-wait disabled:opacity-60"
+                className="shrink-0 rounded-xl bg-[#FF5A12] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-wait disabled:opacity-60"
               >
                 {isOpeningBilling
                   ? 'Abrindo...'
@@ -317,10 +317,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 md:p-6">
+          <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-stone-900">Sessão</h2>
+                <h2 className="text-sm font-semibold text-white">Sessão</h2>
                 <p className="mt-1 text-xs text-stone-500">
                   Encerra o acesso da sua conta neste dispositivo.
                 </p>
@@ -329,7 +329,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-xs font-semibold text-stone-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                className="rounded-xl border border-white/[0.08] bg-[#111418] px-4 py-2 text-xs font-semibold text-stone-300 transition hover:border-rose-500/20 hover:bg-rose-500/[0.08]0/[0.08] hover:text-rose-400"
               >
                 Sair da conta
               </button>

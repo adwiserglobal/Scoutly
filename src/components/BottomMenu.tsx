@@ -1,11 +1,7 @@
-import { memo } from 'react';
-import {
-  Compass,
-  Star,
-  Columns3,
-  Settings,
-} from 'lucide-react';
+import { memo, useState } from 'react';
+import { Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
+import SupportCenterPage from './SupportCenterPage';
 
 interface BottomMenuProps {
   currentTab: NavigationTab;
@@ -20,11 +16,16 @@ function BottomMenu({
   savedLeadsCount,
   pipelineDealsCount,
 }: BottomMenuProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopHovered, setDesktopHovered] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
+
   const navItems = [
     {
       id: 'INICIO' as NavigationTab,
       label: 'Início',
-      icon: Compass,
+      icon: Home,
     },
     {
       id: 'FAVORITOS' as NavigationTab,
@@ -38,15 +39,60 @@ function BottomMenu({
       icon: Columns3,
       badge: pipelineDealsCount > 0 ? pipelineDealsCount : null,
     },
-    {
-      id: 'CONFIGURACOES' as NavigationTab,
-      label: 'Config.',
-      icon: Settings,
-    },
   ];
 
-  return (
-    <div className="fixed bottom-[52px] left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 bg-stone-900/60 backdrop-blur-xl border border-white/10 p-1.5 rounded-full shadow-2xl">
+  const navigate = (tab: NavigationTab) => {
+    onTabChange(tab);
+    setMobileOpen(false);
+  };
+
+  const renderSettings = (expanded: boolean) => {
+    const isActive = currentTab === 'CONFIGURACOES';
+    return (
+      <button
+        type="button"
+        onClick={() => navigate('CONFIGURACOES')}
+        title={!expanded ? 'Configurações' : undefined}
+        className={`group relative flex h-12 w-full items-center rounded-xl transition-all duration-200 ${
+          expanded ? 'gap-3 px-3' : 'justify-center px-0'
+        } ${
+          isActive
+            ? 'bg-white/[0.075] text-white shadow-[inset_2px_0_0_#FF5A12]'
+            : 'text-stone-400 hover:bg-white/[0.045] hover:text-white'
+        }`}
+      >
+        <Settings className={`h-[18px] w-[18px] shrink-0 transition ${
+          isActive ? 'text-[#FF5A12]' : 'text-stone-500 group-hover:text-stone-300'
+        }`} />
+        {expanded && <span className="text-[12px] font-medium">Configurações</span>}
+      </button>
+    );
+  };
+
+  const renderHelp = (expanded: boolean) => (
+    <button
+      type="button"
+      onClick={() => {
+        setSupportOpen(true);
+        setMobileOpen(false);
+      }}
+      title={!expanded ? 'Ajuda e suporte' : undefined}
+      className={`group relative flex h-12 w-full items-center rounded-xl text-stone-400 transition-all duration-200 hover:bg-white/[0.045] hover:text-white ${
+        expanded ? 'gap-3 px-3' : 'justify-center px-0'
+      }`}
+    >
+      <HelpCircle className="h-[18px] w-[18px] shrink-0 text-stone-500 transition group-hover:text-[#FF6A26]" />
+      {expanded && (
+        <>
+          <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">Ajuda</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.45)]" />
+        </>
+      )}
+    </button>
+  );
+
+  const renderNavigation = (expanded: boolean) => (
+    <nav className="flex flex-col gap-1.5">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = currentTab === item.id;
@@ -55,37 +101,141 @@ function BottomMenu({
           <button
             key={item.id}
             type="button"
-            onClick={() => onTabChange(item.id)}
-            className={`relative flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all duration-300 overflow-hidden group cursor-pointer ${
+            onClick={() => navigate(item.id)}
+            title={!expanded ? item.label : undefined}
+            className={`group relative flex h-12 w-full items-center rounded-xl transition-all duration-200 ${
+              expanded ? 'gap-3 px-3' : 'justify-center px-0'
+            } ${
               isActive
-                ? 'text-white'
-                : 'text-stone-400 hover:text-white hover:bg-white/10'
+                ? 'bg-white/[0.075] text-white shadow-[inset_2px_0_0_#FF5A12]'
+                : 'text-stone-400 hover:bg-white/[0.045] hover:text-white'
             }`}
           >
-            {isActive && (
-              <div className="absolute inset-0 bg-[#FF4D00] rounded-full shadow-inner" />
-            )}
-            
-            <div className="relative z-10 flex items-center gap-2">
-              <Icon className={`w-4 h-4 ${isActive ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-300`} />
-              <span className="hidden sm:inline-block">{item.label}</span>
-            </div>
+            <Icon className={`h-[18px] w-[18px] shrink-0 transition ${
+              isActive ? 'text-[#FF5A12]' : 'text-stone-500 group-hover:text-stone-300'
+            }`} />
 
-            {item.badge !== null && item.badge !== undefined && (
-              <span
-                className={`absolute top-0 right-0 sm:static sm:ml-1.5 -mt-1 sm:mt-0 flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] font-black relative z-10 shadow-xs ${
-                  isActive
-                    ? 'bg-white text-[#FF4D00]'
-                    : 'bg-[#FF4D00] text-white'
-                }`}
-              >
+            {expanded && (
+              <>
+                <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">
+                  {item.label}
+                </span>
+                {item.badge !== null && item.badge !== undefined && (
+                  <span className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                    isActive ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.08] text-stone-400'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </>
+            )}
+
+            {!expanded && item.badge !== null && item.badge !== undefined && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF5A12] px-1 text-[8px] font-bold text-white">
                 {item.badge}
               </span>
             )}
           </button>
         );
       })}
-    </div>
+    </nav>
+  );
+
+  return (
+    <>
+      <aside
+        onMouseEnter={() => setDesktopHovered(true)}
+        onMouseLeave={() => setDesktopHovered(false)}
+        className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.97] py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:flex ${
+          desktopExpanded ? 'w-[190px] px-3' : 'w-[72px] px-2'
+        }`}
+      >
+        <div className={`mb-9 flex h-14 items-center ${
+          desktopExpanded ? 'justify-start px-1' : 'justify-center'
+        }`}>
+          {desktopExpanded ? (
+            <img
+              src="/logo_white.png"
+              alt="Scoutly"
+              className="h-12 w-auto max-w-[164px] object-contain object-left"
+            />
+          ) : (
+            <img
+              src="/scoutly-mark.png"
+              alt="Scoutly"
+              className="h-8 w-8 object-contain"
+            />
+          )}
+        </div>
+
+        <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
+
+        <div className="space-y-1 border-t border-white/[0.08] pt-3">
+          {renderHelp(desktopExpanded)}
+          {renderSettings(desktopExpanded)}
+        </div>
+      </aside>
+
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="fixed left-4 top-4 z-50 flex h-[44px] w-[44px] items-center justify-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] text-white shadow-[0_12px_36px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-[18px] w-[18px]" />
+        </button>
+
+        <div
+          className={`fixed inset-0 z-[90] transition ${
+            mobileOpen ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+          aria-hidden={!mobileOpen}
+        >
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setMobileOpen(false)}
+            className={`absolute inset-0 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300 ${
+              mobileOpen ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+
+          <aside className={`absolute inset-y-0 left-0 flex w-[286px] max-w-[84vw] flex-col border-r border-white/10 bg-[#0d0f12]/[0.98] px-4 py-5 shadow-[24px_0_70px_rgba(0,0,0,0.48)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}>
+            <div className="mb-9 flex items-center justify-between gap-4 px-1">
+              <img
+                src="/logo_white.png"
+                alt="Scoutly"
+                className="h-10 w-auto max-w-[136px] object-contain object-left"
+              />
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-stone-300"
+                aria-label="Fechar menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1">{renderNavigation(true)}</div>
+
+            <div className="space-y-1 border-t border-white/[0.08] pt-3">
+              {renderHelp(true)}
+              {renderSettings(true)}
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <SupportCenterPage
+        isOpen={supportOpen}
+        onOpen={() => setSupportOpen(true)}
+        onClose={() => setSupportOpen(false)}
+      />
+    </>
   );
 }
 

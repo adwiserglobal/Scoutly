@@ -2,6 +2,23 @@ import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
 import { auth } from '../lib/firebase';
 
+async function readJsonResponse<T = any>(response: Response, fallbackMessage: string): Promise<T> {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(fallbackMessage);
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const looksLikeHtml = /<\s*!doctype|<\s*html/i.test(raw);
+    if (looksLikeHtml) {
+      throw new Error('O serviço de dados respondeu de forma inválida. Mantivemos os dados já carregados e tentaremos atualizar novamente.');
+    }
+    throw new Error(fallbackMessage);
+  }
+}
+
 export async function fetchPlacesFromOverture(
   west: number,
   south: number,
@@ -25,14 +42,17 @@ export async function fetchPlacesFromOverture(
   const res = await fetch(`/api/places-fast?${params.toString()}`, {
     method: 'GET',
     signal,
+    headers: { Accept: 'application/json' },
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao carregar dados do Overture Maps.');
-  }
+  const data = await readJsonResponse<any>(
+    res,
+    'Não foi possível atualizar os estabelecimentos desta área.'
+  );
 
-  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error || 'Erro ao carregar dados do Overture Maps.');
+  }
   const places = (data.places || []).map((p: any) => ({
     ...p,
     category: translateCategory(p.category),
@@ -107,6 +127,7 @@ async function appDataAction(action: string, payload: Record<string, unknown> = 
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string; business?: Business | null }>;
   favorites: Record<string, boolean>;
+  favoriteBusinesses?: Business[];
   settings?: {
     auto_enrich?: boolean;
     results_batch_size?: number;
@@ -127,7 +148,7 @@ export async function fetchUserLeads(): Promise<UserUserData> {
   try {
     const res = await authenticatedFetch('/api/leads');
     if (!res.ok) return { leads: {}, favorites: {} };
-    return await res.json();
+    return await readJsonResponse<UserUserData>(res, 'Não foi possível carregar os dados salvos da conta.');
   } catch (err) {
     console.warn('[API] Error fetching saved user data:', err);
     return { leads: {}, favorites: {} };
@@ -166,6 +187,56 @@ export async function saveUserLead(
     console.warn('[API] Error saving user lead:', err);
     return false;
   }
+}
+
+export async function searchBusinessesByQuery(query: string, currentRegionName: string) {
+  const params = new URLSearchParams({
+    q: query,
+    currentRegionName,
+  });
+
+  const res = await fetch(`/api/search?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  const data = await readJsonResponse<any>(res, 'Não foi possível concluir a busca.');
+
+  if (!res.ok) {
+    throw new Error(data?.error || 'Não foi possível concluir a busca.');
+  }
+
+  const businesses = Array.isArray(data?.businesses)
+    ? data.businesses.map((item: any) => {
+        const lat = Number(item.latitude ?? item.lat ?? item.coordinates?.lat);
+        const lng = Number(item.longitude ?? item.lng ?? item.coordinates?.lng);
+
+        return {
+          ...item,
+          latitude: lat,
+          longitude: lng,
+          coordinates: { lat, lng },
+          websites: Array.isArray(item.websites) ? item.websites : item.website ? [item.website] : [],
+          email: item.email || item.emails?.[0] || null,
+          emails: Array.isArray(item.emails) ? item.emails : item.email ? [item.email] : [],
+          phone: item.phone || item.phones?.[0] || null,
+          phones: Array.isArray(item.phones) ? item.phones : item.phone ? [item.phone] : [],
+          socials: Array.isArray(item.socials) ? item.socials : [],
+          operatingStatus: item.operatingStatus || null,
+          source: item.source || item.sources?.[0] || 'Scoutly Search',
+          leadStatus: item.leadStatus || 'NOVO',
+          confidence: typeof item.confidence === 'number' ? item.confidence : 0.8,
+          address: item.address || '',
+          category: item.category || item.basicCategory || item.taxonomyPrimary || 'Serviços Gerais',
+          website: item.website || null,
+        };
+      })
+      .filter((item: any) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+    : [];
+
+  return {
+    ...data,
+    businesses,
+  };
 }
 
 export function getGoogleBusinessLink(
@@ -244,6 +315,20 @@ export interface AIChatResult {
   text: string;
   matchedBusinessIds: string[];
   modelUsed?: string;
+  searchSummary?: {
+    requestedCount: number;
+    availableCount: number;
+    matchingCount: number;
+    shownCount: number;
+    businessType: string;
+    regionName: string;
+    appliedFilters: string[];
+    usedCurrentContext?: boolean;
+  };
+  suggestedAction?: {
+    type: 'add_to_pipeline';
+    businessIds: string[];
+  };
   newRegion?: {
     name: string;
     center: { lat: number; lng: number };
@@ -279,12 +364,13 @@ export async function sendAIChatMessage(payload: AIChatPayload): Promise<AIChatR
     }),
   });
 
+  const data = await readJsonResponse<any>(res, 'A Scoutly AI recebeu uma resposta inválida do servidor.');
+
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Erro ao comunicar com a IA');
+    throw new Error(data?.error || 'Erro ao comunicar com a IA');
   }
 
-  return res.json();
+  return data;
 }
 
 export async function fetchContextualSuggestions(
@@ -298,8 +384,8 @@ export async function fetchContextualSuggestions(
       body: JSON.stringify({ recentSearches, currentRegionName }),
     });
     if (!res.ok) return [];
-    const data = await res.json();
-    return data.suggestions || [];
+    const data = await readJsonResponse<any>(res, 'Não foi possível carregar sugestões contextuais.');
+    return Array.isArray(data?.suggestions) ? data.suggestions : [];
   } catch (err) {
     console.warn('[API] Error fetching contextual suggestions:', err);
     return [];

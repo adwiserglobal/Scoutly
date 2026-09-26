@@ -27,3 +27,15 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install Internal dependencies
+        working-directory: internal
+        run: npm install --no-audit --no-fund
+
+      - name: Internal TypeScript
+        working-directory: internal
+        run: npm run lint
+
+      - name: Internal Build
+        working-directory: internal
+        run: npm run build

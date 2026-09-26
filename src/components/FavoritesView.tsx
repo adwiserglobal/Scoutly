@@ -1,19 +1,17 @@
-import { useState, useMemo, memo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import {
-  Star,
-  Search,
-  Download,
-  Phone,
-  ExternalLink,
   ChevronRight,
-  Compass,
-  Sparkles,
-  Trash2,
-  Filter,
   Columns3,
+  Compass,
+  Download,
+  ExternalLink,
+  Search,
+  Sparkles,
+  Star,
+  Trash2,
 } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
-import { getWhatsAppLink, getTrustIcon } from '../services/api';
+import { getTrustIcon, getWhatsAppLink } from '../services/api';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 
@@ -26,7 +24,6 @@ interface FavoritesViewProps {
   onOpenAIChat: () => void;
 }
 
-// Subcomponent to fetch and render PageSpeed score cleanly on each favorite card
 function FavoriteCard({
   biz,
   onSelect,
@@ -38,156 +35,153 @@ function FavoriteCard({
   onToggleFavorite?: (b: Business) => void;
   onUpdateLeadStatus: (id: string, status: LeadStatus, notes?: string) => void;
 }) {
-  const waLink = getWhatsAppLink(biz.phone || (biz.phones && biz.phones[0]));
+  const waLink = getWhatsAppLink(biz.phone || biz.phones?.[0]);
   const hasWebsite = Boolean(biz.website);
-  const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
-    hasWebsite ? biz.website : null
-  );
-
-  const statusColors: Record<LeadStatus, { bg: string; text: string; border: string; label: string }> = {
-    NOVO: { bg: 'bg-stone-100', text: 'text-stone-600', border: 'border-stone-200', label: 'Fora do Funil' },
-    CONTATADO: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Contatado' },
-    EM_NEGOCIACAO: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Em Negociação' },
-    FECHADO: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Fechado' },
-    PERDIDO: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', label: 'Perdido' },
-    ARQUIVADO: { bg: 'bg-stone-100', text: 'text-stone-500', border: 'border-stone-200', label: 'Arquivado' },
-  };
-
-  const statusCfg = statusColors[biz.leadStatus || 'NOVO'];
+  const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(hasWebsite ? biz.website : null);
+  const confidence = Math.round((biz.confidence || 0.8) * 100);
 
   return (
-    <div className="p-5 bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase tracking-wider">
+    <article className="group flex min-h-[250px] flex-col justify-between rounded-[22px] border border-white/[0.08] bg-[#111418] p-4 shadow-[0_14px_40px_rgba(0,0,0,0.18)] transition hover:border-white/[0.14] hover:bg-[#15191e]">
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="inline-flex rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-stone-400">
               {biz.category}
             </span>
-            <h3 className="text-sm font-bold text-stone-900 mt-1.5 leading-snug group-hover:text-[#FF4D00] transition truncate">
+            <h3 className="mt-2 truncate text-[15px] font-semibold tracking-[-0.015em] text-white transition group-hover:text-[#FF6A26]">
               {biz.name}
             </h3>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-stone-500">
+              {biz.address || 'Endereço disponível no mapa'}
+            </p>
           </div>
 
-          {/* Favorite toggle and Trust Icon */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => onToggleFavorite?.(biz)}
-              className="p-1.5 hover:bg-amber-50 rounded-xl transition cursor-pointer text-amber-500"
-              title="Remover dos favoritos"
-            >
-              <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
-            </button>
-            <img
-              src={getTrustIcon(biz.confidence || 0.8)}
-              alt="Confiança"
-              className="w-4 h-4 object-contain"
-              title={`Confiança dos dados: ${Math.round((biz.confidence || 0.8) * 100)}%`}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => onToggleFavorite?.(biz)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12]/[0.09] text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.15]"
+            title="Remover dos favoritos"
+          >
+            <Star className="h-4 w-4 fill-current" />
+          </button>
         </div>
 
-        <p className="text-xs text-stone-500 line-clamp-2">
-          📍 {biz.address || 'Endereço na região ativa'}
-        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+            hasWebsite
+              ? 'bg-emerald-500/[0.10] text-emerald-400'
+              : 'bg-[#FF5A12]/[0.10] text-[#FF7A3D]'
+          }`}>
+            {hasWebsite ? 'Com site' : 'Sem site'}
+          </span>
 
-        {/* PageSpeed Badge if website exists */}
-        {hasWebsite && (
-          <div className="flex items-center gap-2 pt-1">
-            <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                isSpeedLoading
-                  ? 'bg-stone-100 text-stone-500 border-stone-200 animate-pulse'
-                  : pageSpeed
-                  ? pageSpeed.score >= 90
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : pageSpeed.score >= 50
-                    ? 'bg-amber-50 text-amber-800 border-amber-300'
-                    : 'bg-rose-50 text-rose-800 border-rose-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-200'
-              }`}
-            >
-              <img src="/velocimetro.png" alt="Speed" className="w-3.5 h-3.5 object-contain" />
-              <span>
-                {isSpeedLoading
-                  ? 'Medindo...'
-                  : pageSpeed
-                  ? `PageSpeed: ${pageSpeed.score}/100`
-                  : 'PageSpeed indisponível'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Pipeline Stage Tag */}
-        <div className="flex items-center gap-2 pt-1">
-          <span className="text-[10px] text-stone-400 font-bold uppercase">Pipeline:</span>
-          <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}
-          >
-            {statusCfg.label}
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[10px] font-medium text-stone-400">
+            {biz.leadStatus && biz.leadStatus !== 'NOVO' ? biz.leadStatus.replaceAll('_', ' ') : 'Fora do pipeline'}
           </span>
         </div>
 
-        {/* Notes preview if any */}
+        {hasWebsite && (
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-white/[0.07] bg-black/[0.12] px-3 py-2.5">
+            <span className="text-[10px] text-stone-500">PageSpeed mobile</span>
+            <span className={`text-[11px] font-semibold ${
+              isSpeedLoading
+                ? 'text-stone-500'
+                : pageSpeed
+                  ? pageSpeed.score >= 90
+                    ? 'text-emerald-400'
+                    : pageSpeed.score >= 50
+                      ? 'text-amber-400'
+                      : 'text-rose-400'
+                  : 'text-stone-500'
+            }`}>
+              {isSpeedLoading ? 'Medindo...' : pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
+            </span>
+          </div>
+        )}
+
         {biz.notes && (
-          <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#EDE8E0] text-[11px] text-stone-700 italic">
-            "{biz.notes}"
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 text-[10px] leading-relaxed text-stone-400">
+            {biz.notes}
           </div>
         )}
       </div>
 
-      {/* Actions footer */}
-      <div className="mt-4 pt-3.5 border-t border-stone-100 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          {waLink && (
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => recordRecommendationWhatsApp(biz)}
-              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl transition cursor-pointer"
-              title="Abrir WhatsApp"
-            >
-              <img
-                src="/whatsapp_icone.png"
-                alt="WhatsApp"
-                className="w-4 h-4 object-contain"
-              />
-            </a>
-          )}
-          {hasWebsite && (
-            <a
-              href={biz.website!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-xl transition cursor-pointer"
-              title="Abrir Site"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          )}
-          {/* Unfavorite button */}
+      <div className="mt-4 flex items-center gap-2 border-t border-white/[0.07] pt-3">
+        <div className="mr-auto flex items-center gap-2 text-[10px] text-stone-500">
+          <span className="font-semibold text-stone-300">{confidence}%</span>
+          <img
+            src={getTrustIcon(biz.confidence || 0.8)}
+            alt=""
+            className="h-4 w-4 object-contain opacity-80"
+            title={`Confiança dos dados: ${confidence}%`}
+          />
+        </div>
+
+        {waLink && (
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => recordRecommendationWhatsApp(biz)}
+            className="flex h-8 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[10px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+          >
+            WhatsApp
+          </a>
+        )}
+
+        {hasWebsite && (
+          <a
+            href={biz.website!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-stone-400 transition hover:bg-white/[0.06] hover:text-white"
+            title="Abrir site"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+
+        {(!biz.leadStatus || biz.leadStatus === 'NOVO') ? (
           <button
             type="button"
-            onClick={() => onToggleFavorite?.(biz)}
-            className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-            title="Remover dos favoritos"
+            onClick={() => onUpdateLeadStatus(biz.id, 'CONTATADO', biz.notes)}
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-2.5 text-[10px] font-semibold text-[#FF7A3D] transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.13]"
+            title="Adicionar ao pipeline"
           >
-            <Trash2 className="w-4 h-4" />
+            <Columns3 className="h-3.5 w-3.5" />
+            <span className="hidden 2xl:inline">Pipeline</span>
           </button>
-        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onUpdateLeadStatus(biz.id, 'NOVO', biz.notes)}
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[10px] font-semibold text-stone-400 transition hover:bg-white/[0.06] hover:text-white"
+            title="Remover do pipeline"
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            <span className="hidden 2xl:inline">No pipeline</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onToggleFavorite?.(biz)}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-500 transition hover:bg-rose-500/[0.08] hover:text-rose-400"
+          title="Remover dos favoritos"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
 
         <button
           type="button"
           onClick={() => onSelect(biz)}
-          className="inline-flex items-center gap-1 px-3.5 py-2 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+          className="flex h-8 items-center gap-1 rounded-xl bg-[#FF5A12] px-3 text-[10px] font-semibold text-white transition hover:bg-[#ff6a27]"
         >
-          <span>Ver detalhes</span>
-          <ChevronRight className="w-3.5 h-3.5" />
+          Detalhes
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -200,196 +194,161 @@ function FavoritesView({
   onOpenAIChat,
 }: FavoritesViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('TODAS');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('TODAS');
 
-  // Strictly filter by isFavorite
-  const favoriteBusinesses = useMemo(() => {
-    return businesses.filter((b) => Boolean(b.isFavorite));
-  }, [businesses]);
+  const favoriteBusinesses = useMemo(
+    () => businesses.filter((business) => Boolean(business.isFavorite)),
+    [businesses]
+  );
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    favoriteBusinesses.forEach((b) => {
-      if (b.category) set.add(b.category);
-    });
-    return Array.from(set);
-  }, [favoriteBusinesses]);
+  const categories = useMemo(
+    () => Array.from(new Set(favoriteBusinesses.map((business) => business.category).filter(Boolean))),
+    [favoriteBusinesses]
+  );
 
   const filteredFavorites = useMemo(() => {
-    return favoriteBusinesses.filter((b) => {
-      if (selectedCategoryFilter !== 'TODAS' && b.category !== selectedCategoryFilter) {
-        return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = b.name.toLowerCase().includes(q);
-        const matchCat = b.category.toLowerCase().includes(q);
-        const matchAddr = b.address.toLowerCase().includes(q);
-        const matchNotes = (b.notes || '').toLowerCase().includes(q);
-        if (!matchName && !matchCat && !matchAddr && !matchNotes) return false;
-      }
-      return true;
+    const q = searchQuery.trim().toLowerCase();
+
+    return favoriteBusinesses.filter((business) => {
+      if (selectedCategoryFilter !== 'TODAS' && business.category !== selectedCategoryFilter) return false;
+      if (!q) return true;
+
+      return [
+        business.name,
+        business.category,
+        business.address,
+        business.notes || '',
+      ].some((value) => value.toLowerCase().includes(q));
     });
   }, [favoriteBusinesses, selectedCategoryFilter, searchQuery]);
 
-  // Export favorites to CSV
   const handleExportCSV = () => {
     if (favoriteBusinesses.length === 0) return;
 
-    const headers = [
-      'ID',
-      'Nome da Empresa',
-      'Categoria',
-      'Etapa Pipeline',
-      'Telefone',
-      'Tem Website',
-      'Website',
-      'Endereço',
-      'Anotações',
-    ];
-
-    const rows = favoriteBusinesses.map((b) => [
-      `"${b.id}"`,
-      `"${b.name.replace(/"/g, '""')}"`,
-      `"${b.category.replace(/"/g, '""')}"`,
-      `"${b.leadStatus || 'NOVO'}"`,
-      `"${b.phone || (b.phones && b.phones[0]) || ''}"`,
-      b.website ? 'Sim' : 'Não',
-      `"${b.website || ''}"`,
-      `"${b.address.replace(/"/g, '""')}"`,
-      `"${(b.notes || '').replace(/"/g, '""')}"`,
+    const headers = ['ID', 'Nome da Empresa', 'Categoria', 'Etapa Pipeline', 'Telefone', 'Tem Website', 'Website', 'Endereço', 'Anotações'];
+    const rows = favoriteBusinesses.map((business) => [
+      `"${business.id}"`,
+      `"${business.name.replace(/"/g, '""')}"`,
+      `"${business.category.replace(/"/g, '""')}"`,
+      `"${business.leadStatus || 'NOVO'}"`,
+      `"${business.phone || business.phones?.[0] || ''}"`,
+      business.website ? 'Sim' : 'Não',
+      `"${business.website || ''}"`,
+      `"${business.address.replace(/"/g, '""')}"`,
+      `"${(business.notes || '').replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
+    const csv = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `scoutly-favoritos-${new Date().toISOString().slice(0, 10)}.csv`
-    );
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', `scoutly-favoritos-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-y-auto p-4 md:p-8">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="h-full flex-1 overflow-y-auto bg-[#090c10] px-4 py-6 md:px-8 md:py-8">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-100 text-amber-900 rounded-xl">
-                <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
-              </div>
-              <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
-                Empresas Favoritas
-              </h1>
-            </div>
-            <p className="text-xs text-stone-500 font-medium mt-1">
-              Lista de negócios marcados como favoritos com estrela, separados do pipeline comercial.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              disabled={favoriteBusinesses.length === 0}
-              className="px-4 py-2.5 bg-white border border-[#EDE8E0] hover:bg-stone-50 text-stone-800 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4 text-stone-600" />
-              <span>Exportar CSV ({favoriteBusinesses.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Filter and Search Bar */}
-        <div className="p-4 bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar favoritos por nome, categoria ou anotações..."
-              className="w-full bg-[#FAF7F2] border border-[#EDE8E0] rounded-2xl pl-10 pr-4 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#FF4D00]"
-            />
-          </div>
-
-          {/* Category Filter Pills if categories exist */}
-          {categories.length > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-              <button
-                type="button"
-                onClick={() => setSelectedCategoryFilter('TODAS')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  selectedCategoryFilter === 'TODAS'
-                    ? 'bg-stone-900 text-white shadow-2xs'
-                    : 'bg-[#FAF7F2] text-stone-600 hover:bg-stone-100 border border-[#EDE8E0]'
-                }`}
-              >
-                Todas ({favoriteBusinesses.length})
-              </button>
-              {categories.slice(0, 5).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                    selectedCategoryFilter === cat
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-[#FAF7F2] text-stone-600 hover:bg-stone-100 border border-[#EDE8E0]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Lead List / Empty State */}
-        {filteredFavorites.length === 0 ? (
-          <div className="p-12 text-center bg-white rounded-3xl border border-[#EDE8E0] shadow-2xs flex flex-col items-center justify-center max-w-lg mx-auto mt-8">
-            <div className="w-14 h-14 rounded-3xl bg-amber-50 flex items-center justify-center text-amber-500 mb-4 border border-amber-200">
-              <Star className="w-7 h-7 fill-amber-500 text-amber-500" />
-            </div>
-            <h3 className="text-base font-bold text-stone-900 mb-1">
-              Nenhuma empresa favoritada ainda
-            </h3>
-            <p className="text-xs text-stone-500 max-w-sm mb-6">
-              Para favoritar uma empresa, clique no ícone de estrela <strong>(★)</strong> em qualquer card no mapa ou na lista.
-            </p>
             <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] text-[#FF6A26]">
+                <Star className="h-5 w-5 fill-current" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-[-0.03em] text-white">Favoritos</h1>
+                <p className="mt-1 text-xs text-stone-500">Empresas salvas para acompanhamento e prospecção.</p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={favoriteBusinesses.length === 0}
+            className="flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3.5 text-[11px] font-semibold text-stone-300 transition hover:border-white/[0.14] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV ({favoriteBusinesses.length})
+          </button>
+        </header>
+
+        {favoriteBusinesses.length > 0 && (
+          <section className="flex flex-col gap-3 rounded-[22px] border border-white/[0.08] bg-[#101318] p-3 md:flex-row md:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Buscar por nome, categoria, endereço ou anotação"
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0b0e12] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-600 focus:border-[#FF5A12]/50"
+              />
+            </div>
+
+            {categories.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {['TODAS', ...categories.slice(0, 5)].map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategoryFilter(category)}
+                    className={`whitespace-nowrap rounded-xl border px-3 py-2 text-[10px] font-semibold transition ${
+                      selectedCategoryFilter === category
+                        ? 'border-[#FF5A12]/40 bg-[#FF5A12]/[0.12] text-[#FF7A3D]'
+                        : 'border-white/[0.07] bg-white/[0.025] text-stone-500 hover:text-stone-300'
+                    }`}
+                  >
+                    {category === 'TODAS' ? `Todas (${favoriteBusinesses.length})` : category}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {favoriteBusinesses.length === 0 ? (
+          <section className="mx-auto flex min-h-[520px] max-w-2xl flex-col items-center justify-center px-6 py-12 text-center">
+            <img
+              src="/empty-favorites.svg"
+              alt=""
+              className="mb-6 h-32 w-32 object-contain sm:h-36 sm:w-36"
+            />
+            <h2 className="text-xl font-semibold tracking-[-0.02em] text-white">Nenhum favorito salvo</h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-stone-500">
+              Salve empresas estratégicas para acompanhar depois sem perder os melhores prospects.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={onNavigateToExplore}
-                className="px-4 py-2.5 bg-stone-900 hover:bg-[#FF4D00] text-white rounded-2xl text-xs font-bold transition shadow-xs flex items-center gap-2 cursor-pointer"
+                className="flex h-10 items-center gap-2 rounded-xl bg-[#FF5A12] px-4 text-xs font-semibold text-white transition hover:bg-[#ff6a27]"
               >
-                <Compass className="w-4 h-4" />
-                <span>Explorar no Radar</span>
+                <Compass className="h-4 w-4" />
+                Explorar empresas
               </button>
               <button
                 type="button"
                 onClick={onOpenAIChat}
-                className="px-4 py-2.5 bg-white border border-[#EDE8E0] hover:bg-stone-50 text-stone-800 rounded-2xl text-xs font-bold transition shadow-2xs flex items-center gap-2 cursor-pointer"
+                className="flex h-10 items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-xs font-semibold text-stone-300 transition hover:text-white"
               >
-                <Sparkles className="w-4 h-4 text-[#FF4D00]" />
-                <span>Pedir à IA</span>
+                <Sparkles className="h-4 w-4 text-[#FF6A26]" />
+                Pedir à IA
               </button>
             </div>
+          </section>
+        ) : filteredFavorites.length === 0 ? (
+          <div className="rounded-[22px] border border-white/[0.08] bg-[#101318] px-6 py-14 text-center">
+            <p className="text-sm font-medium text-stone-300">Nenhum favorito corresponde aos filtros.</p>
+            <p className="mt-1 text-xs text-stone-600">Tente outra busca ou categoria.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredFavorites.map((biz) => (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredFavorites.map((business) => (
               <FavoriteCard
-                key={biz.id}
-                biz={biz}
+                key={business.id}
+                biz={business}
                 onSelect={onSelectBusiness}
                 onToggleFavorite={onToggleFavorite}
                 onUpdateLeadStatus={onUpdateLeadStatus}

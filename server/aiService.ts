@@ -157,6 +157,20 @@ export interface AIChatResponse {
   text: string;
   matchedBusinessIds: string[];
   modelUsed?: string;
+  searchSummary?: {
+    requestedCount: number;
+    availableCount: number;
+    matchingCount: number;
+    shownCount: number;
+    businessType: string;
+    regionName: string;
+    appliedFilters: string[];
+    usedCurrentContext?: boolean;
+  };
+  suggestedAction?: {
+    type: 'add_to_pipeline';
+    businessIds: string[];
+  };
   newRegion?: {
     name: string;
     center: { lat: number; lng: number };

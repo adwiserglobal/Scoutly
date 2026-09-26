@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { queryBrazilPlaces, hasBrazilPlacesDatabase } from '../server/brazilPlacesService.js';
 import { queryOvertureViaApi } from '../server/overtureHttpService.js';
+import { queryOsmPlacesInBBox } from '../server/osmPlacesService.js';
 
 const BRAZIL_INDEX_BBOX = {
   west: -47.2,
@@ -23,6 +24,18 @@ function fullyInsideBrazilIndex(
   );
 }
 
+async function queryOvertureDirect(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  limit: number,
+  zoom?: number,
+) {
+  const { queryPlacesInBBox } = await import('../server/overtureService.js');
+  return queryPlacesInBBox(west, south, east, north, limit, zoom);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -42,16 +55,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
+    const internalFallback = String(req.headers['x-scoutly-internal-fallback'] || '') === '1';
+
+    if (internalFallback) {
+      const overture = await queryOvertureDirect(west, south, east, north, safeLimit, zoom);
+      res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+      return res.status(200).json({
+        ...overture,
+        source: 'overture',
+        total: overture.places.length,
+      });
+    }
+
     const insideBrazilIndex = fullyInsideBrazilIndex(west, south, east, north);
 
     if (insideBrazilIndex && hasBrazilPlacesDatabase()) {
       try {
         const result = await queryBrazilPlaces(west, south, east, north, safeLimit);
-        res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-        return res.status(200).json({ ...result, total: result.places.length });
+        if (result.places.length > 0) {
+          res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+          return res.status(200).json({ ...result, total: result.places.length });
+        }
+        console.warn('[Fast Places] Local index returned 0 places; trying OSM national fallback.');
       } catch (err: any) {
-        console.warn('[Fast Places] Supabase unavailable, using isolated Overture fallback:', err.message);
+        console.warn('[Fast Places] Local index unavailable; trying OSM national fallback:', err.message);
       }
+    }
+
+    // National lightweight fallback. This avoids depending on DuckDB + remote
+    // Overture parquet just to render businesses when the user moves to another city.
+    try {
+      const osm = await queryOsmPlacesInBBox(
+        west,
+        south,
+        east,
+        north,
+        Math.min(safeLimit, zoom && zoom >= 14 ? 1800 : 1000),
+      );
+      if (osm.places.length > 0) {
+        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+        return res.status(200).json({
+          ...osm,
+          source: 'openstreetmap',
+          total: osm.places.length,
+        });
+      }
+      console.warn('[Fast Places] OSM returned 0 places; using heavy Overture fallback.');
+    } catch (err: any) {
+      console.warn('[Fast Places] OSM fallback unavailable; using heavy Overture fallback:', err?.message || err);
     }
 
     const fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);

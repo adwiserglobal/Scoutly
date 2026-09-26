@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { searchBusinesses } from '../server/businessSearchService.js';
+import { runScoutlyBusinessSearch } from '../server/searchFacade.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -17,8 +17,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const result = await searchBusinesses(query, currentRegionName);
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+    const result = await runScoutlyBusinessSearch(query, currentRegionName);
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
     return res.status(200).json(result);
   } catch (err: any) {
     console.error('[API /api/search Error]:', err);

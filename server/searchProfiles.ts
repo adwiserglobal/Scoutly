@@ -224,5 +224,9 @@ export function scoreAgainstProfile(
     profile.broadCategories.includes(taxonomy)
   ) return 90;
 
-  return 0;
+  // Brazilian niche businesses are frequently classified under generic Overture
+  // categories. If the business name itself contains a distinctive profile term,
+  // keep it as a valid lower-confidence result instead of dropping it entirely.
+  // This is especially important for despachantes, contabilidades and agencies.
+  return 70;
 }
