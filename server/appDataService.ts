@@ -1,6 +1,13 @@
 import type { FirebaseIdentity } from './firebaseTokenService.js';
+import { protectBusinessForClient } from './businessSealService.js';
 
 const DEFAULT_APP_DB_URL = 'https://fpyfphabdjutwqlwjwib.supabase.co';
+const SNAPSHOT_TABLES = new Set([
+  'user_leads',
+  'favorites',
+  'recent_businesses',
+  'visit_route_stops',
+]);
 
 function config() {
   const url = (process.env.SCOUTLY_APP_SUPABASE_URL || DEFAULT_APP_DB_URL).replace(/\/$/, '');
@@ -30,6 +37,22 @@ function headersFor(key: string, extra?: HeadersInit) {
   return headers;
 }
 
+function protectPersistedBusinessSnapshots(path: string, value: any) {
+  const table = path.replace(/^\//, '').split('?')[0];
+  if (!SNAPSHOT_TABLES.has(table)) return value;
+
+  const protectRow = (row: any) => {
+    if (!row || typeof row !== 'object' || !row.business_snapshot) return row;
+    return {
+      ...row,
+      business_snapshot: protectBusinessForClient(row.business_snapshot),
+    };
+  };
+
+  if (Array.isArray(value)) return value.map(protectRow);
+  return protectRow(value);
+}
+
 export async function appDataRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { url, key } = config();
   const response = await fetch(`${url}/rest/v1/${path.replace(/^\//, '')}`, {
@@ -45,7 +68,11 @@ export async function appDataRequest<T>(path: string, init: RequestInit = {}): P
 
   if (response.status === 204) return undefined as T;
   const text = await response.text();
-  return text ? (JSON.parse(text) as T) : (undefined as T);
+  if (!text) return undefined as T;
+
+  const parsed = JSON.parse(text);
+  const method = String(init.method || 'GET').toUpperCase();
+  return (method === 'GET' ? protectPersistedBusinessSnapshots(path, parsed) : parsed) as T;
 }
 
 export function dbValue(value: string) {
@@ -111,9 +138,9 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   );
 
   if (!subscriptions.length) {
-    // The 7-day clock must only start after the user explicitly accepts it
-    // at the end of onboarding. This insert is conflict-safe because the
-    // workspace and onboarding requests can initialize the same account at once.
+    // Keep the legacy storage values compatible with the existing database
+    // constraints. Product access is normalized to the permanent Free tier by
+    // subscriptionAccessService until a paid Stripe subscription is active.
     await appDataRequest('subscriptions?on_conflict=user_uid', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
