@@ -77,7 +77,7 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
         body: JSON.stringify({
           owner_uid: identity.uid,
           name: 'Meu workspace',
-          plan: 'trial',
+          plan: 'free',
         }),
       });
     } catch {
@@ -111,16 +111,13 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   );
 
   if (!subscriptions.length) {
-    // The 7-day clock must only start after the user explicitly accepts it
-    // at the end of onboarding. This insert is conflict-safe because the
-    // workspace and onboarding requests can initialize the same account at once.
     await appDataRequest('subscriptions?on_conflict=user_uid', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
       body: JSON.stringify({
         user_uid: identity.uid,
-        plan: 'trial',
-        status: 'pending',
+        plan: 'free',
+        status: 'active',
         current_period_start: null,
         current_period_end: null,
       }),
