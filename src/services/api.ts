@@ -4,10 +4,7 @@ import { auth } from '../lib/firebase';
 
 async function readJsonResponse<T = any>(response: Response, fallbackMessage: string): Promise<T> {
   const raw = await response.text();
-  if (!raw.trim()) {
-    throw new Error(fallbackMessage);
-  }
-
+  if (!raw.trim()) throw new Error(fallbackMessage);
   try {
     return JSON.parse(raw) as T;
   } catch {
@@ -35,39 +32,24 @@ export async function fetchPlacesFromOverture(
     north: north.toFixed(6),
     limit: limit.toString(),
   });
-  if (zoom !== undefined) {
-    params.set('zoom', zoom.toString());
-  }
+  if (zoom !== undefined) params.set('zoom', zoom.toString());
 
   const res = await fetch(`/api/places-fast?${params.toString()}`, {
     method: 'GET',
     signal,
     headers: { Accept: 'application/json' },
   });
+  const data = await readJsonResponse<any>(res, 'Não foi possível atualizar os estabelecimentos desta área.');
+  if (!res.ok) throw new Error(data?.error || 'Erro ao carregar dados do Overture Maps.');
 
-  const data = await readJsonResponse<any>(
-    res,
-    'Não foi possível atualizar os estabelecimentos desta área.'
-  );
-
-  if (!res.ok) {
-    throw new Error(data?.error || 'Erro ao carregar dados do Overture Maps.');
-  }
   const places = (data.places || []).map((p: any) => ({
     ...p,
     category: translateCategory(p.category),
-    coordinates: {
-      lat: p.latitude,
-      lng: p.longitude,
-    },
+    coordinates: { lat: p.latitude, lng: p.longitude },
     leadStatus: 'NOVO' as const,
   }));
 
-  return {
-    places,
-    cached: !!data.cached,
-    durationMs: data.durationMs || 0,
-  };
+  return { places, cached: !!data.cached, durationMs: data.durationMs || 0 };
 }
 
 export async function enrichBusinessData(url: string, force = false) {
@@ -109,10 +91,8 @@ export async function checkBusinessSocials(url: string): Promise<{
 async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado');
-
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
-
   return fetch(input, { ...init, headers });
 }
 
@@ -124,22 +104,37 @@ async function appDataAction(action: string, payload: Record<string, unknown> = 
   });
 }
 
+export interface CreditAccessStatus {
+  plan: 'free' | 'go' | 'pro' | 'agency';
+  isFree: boolean;
+  isUnlimited: boolean;
+  remaining: number | null;
+  dailyRemaining: number | null;
+  dailyLimit: number | null;
+  monthlyRemaining: number | null;
+  monthlyLimit: number | null;
+  monthlyUsed: number;
+  dailyUsed: number;
+  resetsAt: string | null;
+  monthlyResetsAt: string | null;
+  aiDailyLimit: number | null;
+  aiDailyUsed: number;
+  aiDailyRemaining: number | null;
+  recommendationsAllowed: boolean;
+  aiAllowed: boolean;
+}
+
 export interface UserUserData {
   leads: Record<string, { status: any; notes: string; business?: Business | null }>;
   favorites: Record<string, boolean>;
   favoriteBusinesses?: Business[];
-  settings?: {
-    auto_enrich?: boolean;
-    results_batch_size?: number;
-  };
+  settings?: { auto_enrich?: boolean; results_batch_size?: number };
   recommendationEvents?: any[];
   recentBusinesses?: any[];
-  route?: {
-    exists: boolean;
-    stops: any[];
-  };
+  route?: { exists: boolean; stops: any[] };
   subscription?: any;
   usage?: any;
+  access?: CreditAccessStatus;
   user?: any;
   workspaceId?: string;
 }
@@ -155,6 +150,28 @@ export async function fetchUserLeads(): Promise<UserUserData> {
   }
 }
 
+export async function fetchAccessStatus(): Promise<CreditAccessStatus> {
+  const res = await authenticatedFetch('/api/leads?view=access', { headers: { Accept: 'application/json' } });
+  const data = await readJsonResponse<any>(res, 'Não foi possível carregar seus créditos.');
+  if (!res.ok || !data?.access) throw new Error(data?.error || 'Não foi possível carregar seus créditos.');
+  return data.access as CreditAccessStatus;
+}
+
+export async function unlockBusinessContact(business: any): Promise<{ business: any; access: CreditAccessStatus }> {
+  const res = await appDataAction('unlock-business', {
+    businessId: business?.id,
+    sealedContactToken: business?.sealedContactToken,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error: any = new Error(data?.error || 'Não foi possível liberar os dados deste negócio.');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
+  }
+  return { business: data.business, access: data.access };
+}
+
 export async function saveUserLead(
   businessId: string,
   status?: string,
@@ -164,24 +181,13 @@ export async function saveUserLead(
 ) {
   try {
     if (status !== undefined || notes !== undefined) {
-      const res = await appDataAction('save-lead', {
-        businessId,
-        status: status || 'NOVO',
-        notes: notes || '',
-        business,
-      });
+      const res = await appDataAction('save-lead', { businessId, status: status || 'NOVO', notes: notes || '', business });
       if (!res.ok) return false;
     }
-
     if (isFavorite !== undefined) {
-      const res = await appDataAction('favorite', {
-        businessId,
-        isFavorite,
-        business,
-      });
+      const res = await appDataAction('favorite', { businessId, isFavorite, business });
       if (!res.ok) return false;
     }
-
     return true;
   } catch (err) {
     console.warn('[API] Error saving user lead:', err);
@@ -190,26 +196,15 @@ export async function saveUserLead(
 }
 
 export async function searchBusinessesByQuery(query: string, currentRegionName: string) {
-  const params = new URLSearchParams({
-    q: query,
-    currentRegionName,
-  });
-
-  const res = await fetch(`/api/search?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
-  });
-
+  const params = new URLSearchParams({ q: query, currentRegionName });
+  const res = await fetch(`/api/search?${params.toString()}`, { headers: { Accept: 'application/json' } });
   const data = await readJsonResponse<any>(res, 'Não foi possível concluir a busca.');
-
-  if (!res.ok) {
-    throw new Error(data?.error || 'Não foi possível concluir a busca.');
-  }
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível concluir a busca.');
 
   const businesses = Array.isArray(data?.businesses)
     ? data.businesses.map((item: any) => {
         const lat = Number(item.latitude ?? item.lat ?? item.coordinates?.lat);
         const lng = Number(item.longitude ?? item.lng ?? item.coordinates?.lng);
-
         return {
           ...item,
           latitude: lat,
@@ -229,14 +224,9 @@ export async function searchBusinessesByQuery(query: string, currentRegionName: 
           category: item.category || item.basicCategory || item.taxonomyPrimary || 'Serviços Gerais',
           website: item.website || null,
         };
-      })
-      .filter((item: any) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+      }).filter((item: any) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
     : [];
-
-  return {
-    ...data,
-    businesses,
-  };
+  return { ...data, businesses };
 }
 
 export function getGoogleBusinessLink(
@@ -254,45 +244,24 @@ export function getGoogleRouteLink(
 ): string | null {
   if (businesses.length === 0) return null;
   if (businesses.length === 1) return getGoogleBusinessLink(businesses[0]);
-
-  const coordinate = (business: Pick<Business, 'latitude' | 'longitude'>) =>
-    `${business.latitude},${business.longitude}`;
-
+  const coordinate = (business: Pick<Business, 'latitude' | 'longitude'>) => `${business.latitude},${business.longitude}`;
   const destination = coordinate(businesses[businesses.length - 1]);
   const waypoints = businesses.slice(0, -1).map(coordinate).join('|');
-
-  const params = new URLSearchParams({
-    api: '1',
-    destination,
-    travelmode: 'driving',
-  });
-
+  const params = new URLSearchParams({ api: '1', destination, travelmode: 'driving' });
   if (waypoints) params.set('waypoints', waypoints);
-
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 export function getWhatsAppLink(phoneOrUrl?: string | null): string | null {
   if (!phoneOrUrl) return null;
-  
   const trimmed = phoneOrUrl.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    if (trimmed.includes('wa.me') || trimmed.includes('whatsapp.com')) {
-      return trimmed;
-    }
+    if (trimmed.includes('wa.me') || trimmed.includes('whatsapp.com')) return trimmed;
   }
-
   const digits = trimmed.replace(/\D/g, '');
   if (digits.length < 8) return null;
-
-  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) {
-    return `https://wa.me/55${digits}`;
-  }
-
-  if (digits.length >= 10) {
-    return `https://wa.me/${digits}`;
-  }
-
+  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) return `https://wa.me/55${digits}`;
+  if (digits.length >= 10) return `https://wa.me/${digits}`;
   return `https://wa.me/55${digits}`;
 }
 
@@ -315,6 +284,7 @@ export interface AIChatResult {
   text: string;
   matchedBusinessIds: string[];
   modelUsed?: string;
+  access?: CreditAccessStatus;
   searchSummary?: {
     requestedCount: number;
     availableCount: number;
@@ -325,23 +295,14 @@ export interface AIChatResult {
     appliedFilters: string[];
     usedCurrentContext?: boolean;
   };
-  suggestedAction?: {
-    type: 'add_to_pipeline';
-    businessIds: string[];
-  };
-  newRegion?: {
-    name: string;
-    center: { lat: number; lng: number };
-    businesses?: Business[];
-  };
+  suggestedAction?: { type: 'add_to_pipeline'; businessIds: string[] };
+  newRegion?: { name: string; center: { lat: number; lng: number }; businesses?: Business[] };
 }
 
 export async function sendAIChatMessage(payload: AIChatPayload): Promise<AIChatResult> {
-  const res = await fetch('/api/ai/chat', {
+  const res = await authenticatedFetch('/api/ai/chat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message: payload.message,
       history: payload.history || [],
@@ -363,22 +324,20 @@ export async function sendAIChatMessage(payload: AIChatPayload): Promise<AIChatR
       searchMode: payload.searchMode || 'default',
     }),
   });
-
   const data = await readJsonResponse<any>(res, 'A Scoutly AI recebeu uma resposta inválida do servidor.');
-
   if (!res.ok) {
-    throw new Error(data?.error || 'Erro ao comunicar com a IA');
+    const error: any = new Error(data?.error || 'Erro ao comunicar com a IA');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
   }
-
+  if (data?.access) window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: data.access }));
   return data;
 }
 
-export async function fetchContextualSuggestions(
-  recentSearches: string[],
-  currentRegionName?: string
-): Promise<string[]> {
+export async function fetchContextualSuggestions(recentSearches: string[], currentRegionName?: string): Promise<string[]> {
   try {
-    const res = await fetch('/api/ai/suggestions', {
+    const res = await authenticatedFetch('/api/ai/suggestions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recentSearches, currentRegionName }),
@@ -406,49 +365,48 @@ export interface GenerateMessageResult {
   source: 'gemini' | 'openrouter' | 'template';
   model?: string;
   variationIndex?: number;
+  access?: CreditAccessStatus;
 }
 
 export async function generateMessage(
   business: any,
-  options?: { variationIndex?: number; previousMessage?: string }
+  options?: { variationIndex?: number; previousMessage?: string; channel?: 'email' | 'whatsapp' }
 ): Promise<GenerateMessageResult> {
-  try {
-    const res = await fetch('/api/ai/generate-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        business,
-        variationIndex: options?.variationIndex || 0,
-        previousMessage: options?.previousMessage || '',
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Falha ao gerar mensagem com a API');
-    }
-    const data = await res.json();
-    const result = {
-      message: data.message || '',
-      source: data.source || 'template',
-      model: data.model,
-      variationIndex: data.variationIndex,
-    };
-
-    if (result.message) {
-      void saveGeneratedMessage({
-        businessId: business?.id,
-        businessName: business?.name,
-        message: result.message,
-        source: result.source,
-        model: result.model,
-      });
-    }
-
-    return result;
-  } catch (error) {
-    console.error('Failed to generate message:', error);
+  const res = await authenticatedFetch('/api/ai/generate-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      business,
+      channel: options?.channel || 'whatsapp',
+      variationIndex: options?.variationIndex || 0,
+      previousMessage: options?.previousMessage || '',
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error: any = new Error(data?.error || 'Falha ao gerar mensagem com a API');
+    error.code = data?.code;
+    error.status = res.status;
     throw error;
   }
+  const result = {
+    message: data.message || '',
+    source: data.source || 'template',
+    model: data.model,
+    variationIndex: data.variationIndex,
+    access: data.access,
+  } as GenerateMessageResult;
+  if (result.access) window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
+  if (result.message) {
+    void saveGeneratedMessage({
+      businessId: business?.id,
+      businessName: business?.name,
+      message: result.message,
+      source: result.source,
+      model: result.model,
+    });
+  }
+  return result;
 }
 
 export async function saveVisitRoute(stops: any[]) {
@@ -478,10 +436,7 @@ export async function saveRecommendationEvent(event: {
   }
 }
 
-export async function saveUserSettings(settings: {
-  autoEnrich?: boolean;
-  resultsBatchSize?: number;
-}) {
+export async function saveUserSettings(settings: { autoEnrich?: boolean; resultsBatchSize?: number }) {
   try {
     const res = await appDataAction('save-settings', settings);
     return res.ok;
@@ -539,49 +494,27 @@ export async function saveGeneratedMessage(data: {
 export async function createCheckoutSession(plan: 'go' | 'pro' | 'agency') {
   const res = await appDataAction('create-checkout', { plan });
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || !data?.url) {
-    throw new Error(data?.error || 'Não foi possível abrir o checkout.');
-  }
-
-  return {
-    id: String(data.id || ''),
-    url: String(data.url),
-  };
+  if (!res.ok || !data?.url) throw new Error(data?.error || 'Não foi possível abrir o checkout.');
+  return { id: String(data.id || ''), url: String(data.url) };
 }
 
 export async function confirmCheckoutSession(sessionId: string) {
   const res = await appDataAction('confirm-checkout', { sessionId });
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || !data?.subscription) {
-    throw new Error(data?.error || 'Não foi possível confirmar sua assinatura.');
-  }
-
+  if (!res.ok || !data?.subscription) throw new Error(data?.error || 'Não foi possível confirmar sua assinatura.');
   return data.subscription;
 }
 
 export async function createBillingPortalSession(plan?: 'go' | 'pro' | 'agency') {
   const res = await appDataAction('create-billing-portal', plan ? { plan } : {});
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || !data?.url) {
-    throw new Error(data?.error || 'Não foi possível abrir o portal de cobrança.');
-  }
-
-  return {
-    id: String(data.id || ''),
-    url: String(data.url),
-  };
+  if (!res.ok || !data?.url) throw new Error(data?.error || 'Não foi possível abrir o portal de cobrança.');
+  return { id: String(data.id || ''), url: String(data.url) };
 }
 
 export async function refreshSubscriptionFromStripe() {
   const res = await appDataAction('refresh-subscription');
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || !data?.subscription) {
-    throw new Error(data?.error || 'Não foi possível sincronizar sua assinatura.');
-  }
-
+  if (!res.ok || !data?.subscription) throw new Error(data?.error || 'Não foi possível sincronizar sua assinatura.');
   return data.subscription;
 }
