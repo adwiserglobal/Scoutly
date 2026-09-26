@@ -28,6 +28,10 @@ function openPlans() {
   window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
 }
 
+function refreshAccess() {
+  window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
+}
+
 function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavorite, message }: BusinessDetailsModalProps & { business: Business; message: string }) {
   const raw = business as any;
   return (
@@ -65,7 +69,7 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
               <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
                 <Mail className="h-4 w-4 text-stone-500" />
                 <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">E-mail</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">contato@empresa.com</p></div>
-                <Lock className="h-3.5 w-3.5 text-[#FF6A26]" />
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
               </button>
             )}
 
@@ -73,7 +77,7 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
               <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
                 <Phone className="h-4 w-4 text-stone-500" />
                 <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone / WhatsApp</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">(11) 99999-9999</p></div>
-                <Lock className="h-3.5 w-3.5 text-[#FF6A26]" />
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
               </button>
             )}
           </div>
@@ -132,6 +136,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
       .catch((error: any) => {
+        refreshAccess();
         setMessage(error?.message || 'Seus créditos acabaram. Escolha um plano para continuar prospectando.');
         setStatus('locked');
       });
@@ -146,7 +151,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
       <div className="rounded-2xl border border-white/[0.08] bg-[#0d1013] px-8 py-7 text-center text-white shadow-2xl">
         <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-white/[0.10] border-t-[#FF5A12]" />
         <p className="mt-4 text-sm font-semibold">Abrindo {business.name}</p>
-        <p className="mt-1 text-xs text-stone-500">1 crédito é usado para liberar os dados.</p>
+        <p className="mt-1 text-xs text-stone-500">1 crédito é usado para visualizar este negócio.</p>
       </div>
     </div>
   );
