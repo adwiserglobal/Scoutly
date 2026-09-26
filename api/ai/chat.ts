@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { handleScoutlyAgenticChat } from '../../server/agenticSearchService.js';
+import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
+import { ensureAppUser } from '../../server/appDataService.js';
+import { consumeAiConversation } from '../../server/entitlementService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -13,6 +16,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Mensagem é obrigatória' });
     }
+
+    const identity = await requireFirebaseIdentity(req as any);
+    const { workspaceId } = await ensureAppUser(identity);
+    const access = await consumeAiConversation(identity.uid, workspaceId);
 
     const response = await handleScoutlyAgenticChat({
       message: message.trim(),
@@ -29,11 +36,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json(response);
+    return res.status(200).json({ ...response, access });
   } catch (err: any) {
-    console.error('[API /api/ai/chat Error]:', err);
-    return res.status(500).json({
+    const statusCode = Number(err?.statusCode || 500);
+    console.error('[API /api/ai/chat Error]:', err?.message || err);
+    return res.status(statusCode).json({
       error: err?.message || 'Erro ao processar consulta do Scoutly Agentic.',
+      code: err?.code || undefined,
     });
   }
 }
