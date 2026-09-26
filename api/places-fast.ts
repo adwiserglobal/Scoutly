@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { queryBrazilPlaces, hasBrazilPlacesDatabase } from '../server/brazilPlacesService.js';
 import { queryOvertureViaApi } from '../server/overtureHttpService.js';
 import { queryOsmPlacesInBBox } from '../server/osmPlacesService.js';
+import { protectBusinessListForClient } from '../server/businessSealService.js';
 
 const BRAZIL_INDEX_BBOX = {
   west: -47.2,
@@ -10,12 +11,7 @@ const BRAZIL_INDEX_BBOX = {
   north: -23.15,
 };
 
-function fullyInsideBrazilIndex(
-  west: number,
-  south: number,
-  east: number,
-  north: number,
-) {
+function fullyInsideBrazilIndex(west: number, south: number, east: number, north: number) {
   return (
     west >= BRAZIL_INDEX_BBOX.west &&
     south >= BRAZIL_INDEX_BBOX.south &&
@@ -34,6 +30,16 @@ async function queryOvertureDirect(
 ) {
   const { queryPlacesInBBox } = await import('../server/overtureService.js');
   return queryPlacesInBBox(west, south, east, north, limit, zoom);
+}
+
+function safeResult(result: any, source?: string) {
+  const places = protectBusinessListForClient(Array.isArray(result?.places) ? result.places : []);
+  return {
+    ...result,
+    places,
+    ...(source ? { source } : {}),
+    total: places.length,
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -60,11 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (internalFallback) {
       const overture = await queryOvertureDirect(west, south, east, north, safeLimit, zoom);
       res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-      return res.status(200).json({
-        ...overture,
-        source: 'overture',
-        total: overture.places.length,
-      });
+      return res.status(200).json(safeResult(overture, 'overture'));
     }
 
     const insideBrazilIndex = fullyInsideBrazilIndex(west, south, east, north);
@@ -74,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const result = await queryBrazilPlaces(west, south, east, north, safeLimit);
         if (result.places.length > 0) {
           res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-          return res.status(200).json({ ...result, total: result.places.length });
+          return res.status(200).json(safeResult(result));
         }
         console.warn('[Fast Places] Local index returned 0 places; trying OSM national fallback.');
       } catch (err: any) {
@@ -82,8 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // National lightweight fallback. This avoids depending on DuckDB + remote
-    // Overture parquet just to render businesses when the user moves to another city.
     try {
       const osm = await queryOsmPlacesInBBox(
         west,
@@ -94,11 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (osm.places.length > 0) {
         res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
-        return res.status(200).json({
-          ...osm,
-          source: 'openstreetmap',
-          total: osm.places.length,
-        });
+        return res.status(200).json(safeResult(osm, 'openstreetmap'));
       }
       console.warn('[Fast Places] OSM returned 0 places; using heavy Overture fallback.');
     } catch (err: any) {
@@ -107,11 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);
     res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-    return res.status(200).json({
-      ...fallback,
-      source: 'overture',
-      total: fallback.places.length,
-    });
+    return res.status(200).json(safeResult(fallback, 'overture'));
   } catch (err: any) {
     console.error('[API /api/places-fast Error]:', err);
     return res.status(500).json({
