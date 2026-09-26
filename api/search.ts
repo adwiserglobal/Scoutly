@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runScoutlyBusinessSearch } from '../server/searchFacade.js';
+import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
+import { ensureAppUser } from '../server/appDataService.js';
+import { protectBusinessResults } from '../server/entitlementService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -17,13 +20,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const identity = await requireFirebaseIdentity(req as any);
+    await ensureAppUser(identity);
     const result = await runScoutlyBusinessSearch(query, currentRegionName);
-    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
-    return res.status(200).json(result);
+    const protectedResult = await protectBusinessResults(identity.uid, result.businesses || []);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).json({
+      ...result,
+      businesses: protectedResult.businesses,
+      creditState: protectedResult.creditState,
+    });
   } catch (err: any) {
     console.error('[API /api/search Error]:', err);
-    return res.status(500).json({
+    const status = Number(err?.statusCode || 500);
+    return res.status(status).json({
       error: err?.message || 'Erro ao buscar empresas.',
+      code: err?.code || undefined,
       businesses: [],
     });
   }
