@@ -23,8 +23,14 @@ export type CreditStatus = {
   aiAllowed: boolean;
 };
 
-const BUSINESS_UNLOCK_EVENT = 'business_unlock';
-const AI_CONVERSATION_EVENT = 'ai_conversation';
+// recommendation_events has a legacy CHECK constraint that only accepts the
+// original recommendation event types. Reuse the existing "search" type as a
+// durable ledger transport and isolate credit rows with an exact sentinel in
+// the query column. This keeps production compatible without requiring a DB
+// migration before credit enforcement can work.
+const LEDGER_EVENT_TYPE = 'search';
+const BUSINESS_UNLOCK_LEDGER_QUERY = '__scoutly_credit_business_unlock__';
+const AI_CONVERSATION_LEDGER_QUERY = '__scoutly_credit_ai_conversation__';
 
 function httpError(message: string, statusCode: number, code: string): never {
   throw Object.assign(new Error(message), { statusCode, code });
@@ -57,22 +63,23 @@ function validPeriod(startValue?: string | null, endValue?: string | null) {
 
 async function listLedgerEvents(
   userUid: string,
-  eventType: string,
+  ledgerQuery: string,
   start: Date,
   end: Date,
   limit = 250,
 ): Promise<Array<{ id: string; created_at: string }>> {
   return appDataRequest<Array<{ id: string; created_at: string }>>(
     `recommendation_events?user_uid=eq.${dbValue(userUid)}` +
-      `&event_type=eq.${dbValue(eventType)}` +
+      `&event_type=eq.${dbValue(LEDGER_EVENT_TYPE)}` +
+      `&query=eq.${dbValue(ledgerQuery)}` +
       `&created_at=gte.${dbValue(start.toISOString())}` +
       `&created_at=lt.${dbValue(end.toISOString())}` +
       `&select=id,created_at&order=created_at.asc,id.asc&limit=${Math.max(1, Math.min(limit, 500))}`
   );
 }
 
-async function countLedgerEvents(userUid: string, eventType: string, start: Date, end: Date) {
-  const rows = await listLedgerEvents(userUid, eventType, start, end, 250);
+async function countLedgerEvents(userUid: string, ledgerQuery: string, start: Date, end: Date) {
+  const rows = await listLedgerEvents(userUid, ledgerQuery, start, end, 250);
   return rows.length;
 }
 
@@ -86,7 +93,7 @@ async function deleteLedgerEvent(userUid: string, eventId: string) {
 async function reserveLimitedEvent(options: {
   userUid: string;
   workspaceId: string;
-  eventType: string;
+  ledgerQuery: string;
   businessId?: string | null;
   metadata?: Record<string, unknown>;
   windows: Array<{ start: Date; end: Date; limit: number; code: string; message: string }>;
@@ -94,7 +101,7 @@ async function reserveLimitedEvent(options: {
   for (const window of options.windows) {
     const count = await countLedgerEvents(
       options.userUid,
-      options.eventType,
+      options.ledgerQuery,
       window.start,
       window.end,
     );
@@ -111,9 +118,13 @@ async function reserveLimitedEvent(options: {
       body: JSON.stringify({
         user_uid: options.userUid,
         workspace_id: options.workspaceId,
-        event_type: options.eventType,
+        event_type: LEDGER_EVENT_TYPE,
         business_id: options.businessId || null,
-        metadata: options.metadata || {},
+        query: options.ledgerQuery,
+        metadata: {
+          ...(options.metadata || {}),
+          scoutly_ledger: true,
+        },
       }),
     }
   );
@@ -123,12 +134,12 @@ async function reserveLimitedEvent(options: {
     httpError('Não foi possível reservar seu crédito.', 409, 'CREDIT_RESERVATION_FAILED');
   }
 
-  // Post-insert verification closes the most common multi-tab race: every
-  // request must be among the first N deterministic ledger rows for each window.
+  // Post-insert verification closes the common multi-tab race: every request
+  // must be among the first N deterministic ledger rows in each active window.
   for (const window of options.windows) {
     const rows = await listLedgerEvents(
       options.userUid,
-      options.eventType,
+      options.ledgerQuery,
       window.start,
       window.end,
       Math.min(window.limit + 25, 250),
@@ -176,8 +187,8 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
   if (plan === 'go') {
     const month = billingPeriod || calendarMonth;
     const [monthlyUsed, aiDailyUsed] = await Promise.all([
-      countLedgerEvents(userUid, BUSINESS_UNLOCK_EVENT, month.start, month.end),
-      countLedgerEvents(userUid, AI_CONVERSATION_EVENT, day.start, day.end),
+      countLedgerEvents(userUid, BUSINESS_UNLOCK_LEDGER_QUERY, month.start, month.end),
+      countLedgerEvents(userUid, AI_CONVERSATION_LEDGER_QUERY, day.start, day.end),
     ]);
     return {
       plan,
@@ -201,8 +212,8 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
   }
 
   const [dailyUsed, monthlyUsed] = await Promise.all([
-    countLedgerEvents(userUid, BUSINESS_UNLOCK_EVENT, day.start, day.end),
-    countLedgerEvents(userUid, BUSINESS_UNLOCK_EVENT, calendarMonth.start, calendarMonth.end),
+    countLedgerEvents(userUid, BUSINESS_UNLOCK_LEDGER_QUERY, day.start, day.end),
+    countLedgerEvents(userUid, BUSINESS_UNLOCK_LEDGER_QUERY, calendarMonth.start, calendarMonth.end),
   ]);
   const dailyRemaining = Math.max(0, 5 - dailyUsed);
   const monthlyRemaining = Math.max(0, 25 - monthlyUsed);
@@ -250,7 +261,7 @@ export async function consumeBusinessCredit(
     await reserveLimitedEvent({
       userUid,
       workspaceId,
-      eventType: BUSINESS_UNLOCK_EVENT,
+      ledgerQuery: BUSINESS_UNLOCK_LEDGER_QUERY,
       businessId,
       metadata: { plan: 'go', source: 'business_open' },
       windows: [{
@@ -267,7 +278,7 @@ export async function consumeBusinessCredit(
   await reserveLimitedEvent({
     userUid,
     workspaceId,
-    eventType: BUSINESS_UNLOCK_EVENT,
+    ledgerQuery: BUSINESS_UNLOCK_LEDGER_QUERY,
     businessId,
     metadata: { plan: 'free', source: 'business_open' },
     windows: [
@@ -276,27 +287,19 @@ export async function consumeBusinessCredit(
         end: day.end,
         limit: 5,
         code: 'DAILY_CREDIT_LIMIT',
-        message: 'Seus 5 créditos gratuitos de hoje acabaram. Eles renovam à meia-noite UTC.',
+        message: 'Seus 5 créditos gratuitos de hoje acabaram.',
       },
       {
         start: month.start,
         end: month.end,
         limit: 25,
         code: 'MONTHLY_CREDIT_LIMIT',
-        message: 'Você atingiu o limite de 25 créditos gratuitos deste mês. Escolha um plano para continuar.',
+        message: 'Você atingiu o limite de 25 créditos gratuitos deste mês.',
       },
     ],
   });
 
-  // Free credits limit how many businesses can be inspected per day/month, but
-  // real contact data is never an entitlement of the Free plan. Throw only
-  // after the ledger reservation so the click still consumes exactly 1 credit
-  // while the API response remains free of plaintext paid contact information.
-  httpError(
-    '1 crédito foi usado para visualizar este negócio. E-mail e telefone reais são recursos dos planos pagos.',
-    402,
-    'CONTACTS_REQUIRE_PAID_PLAN',
-  );
+  return getCreditStatus(userUid);
 }
 
 export async function consumeAiConversation(userUid: string, workspaceId: string) {
@@ -315,7 +318,7 @@ export async function consumeAiConversation(userUid: string, workspaceId: string
   await reserveLimitedEvent({
     userUid,
     workspaceId,
-    eventType: AI_CONVERSATION_EVENT,
+    ledgerQuery: AI_CONVERSATION_LEDGER_QUERY,
     metadata: { plan: 'go', source: 'scoutly_ai' },
     windows: [{
       start: day.start,
