@@ -4,6 +4,7 @@ import { appDataRequest, dbValue, ensureAppUser } from '../../server/appDataServ
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { handleCustomerSupportAction } from '../../server/customerSupportService.js';
 import { getSubscriptionAccess, startTrialForUser } from '../../server/subscriptionAccessService.js';
+import { assertRecommendationAccess, ensureFreePlanForNewUser, getCreditState } from '../../server/entitlementService.js';
 import {
   handleInternalAction,
   requireInternalAccess,
@@ -50,6 +51,7 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
       return res.status(400).json({ error: 'Conte o que você espera do Scoutly.' });
     }
 
+    await ensureFreePlanForNewUser(identity.uid);
     await appDataRequest('user_settings?on_conflict=user_uid', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -67,18 +69,11 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
       }),
     });
 
-    return res.status(200).json({ success: true, onboardingVersion: ONBOARDING_VERSION });
+    return res.status(200).json({ success: true, onboardingVersion: ONBOARDING_VERSION, plan: 'free' });
   }
 
+  // Legacy compatibility only. New onboarding no longer presents a trial activation step.
   if (action === 'start-trial') {
-    const rows = await appDataRequest<any[]>(
-      `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_completed_at&limit=1`
-    );
-    const settings = rows[0] || null;
-    if (Number(settings?.onboarding_version || 0) < ONBOARDING_VERSION || !settings?.onboarding_completed_at) {
-      return res.status(409).json({ error: 'Conclua o onboarding antes de iniciar seu período de teste.' });
-    }
-
     const subscription = await startTrialForUser(identity.uid);
     return res.status(200).json({ success: true, subscription });
   }
@@ -174,6 +169,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await handleOnboardingAction(req, res, action);
     }
 
+    // Contextual recommendations are a Pro/Agency feature and are protected on the server,
+    // not merely hidden by the UI.
+    const identity = await requireFirebaseIdentity(req as any);
+    await ensureAppUser(identity);
+    const creditState = await getCreditState(identity.uid);
+    assertRecommendationAccess(creditState);
+
     const { recentSearches, currentRegionName } = req.body || {};
     const suggestions = await generateContextualSuggestions(
       Array.isArray(recentSearches) ? recentSearches : [],
@@ -205,14 +207,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    return res.status(500).json({
-      suggestions: [
-        'Ache restaurantes sem site em São Paulo',
-        'Busque clínicas e consultórios em São Paulo',
-        'Oficinas mecânicas com WhatsApp em São Paulo',
-        'Agências de marketing e B2B em São Paulo',
-      ],
-      error: err?.message || 'Falha ao gerar sugestões',
+    return res.status(statusCode).json({
+      suggestions: [],
+      error: err?.message || 'Recomendações indisponíveis.',
+      code: err?.code || undefined,
     });
   }
 }
