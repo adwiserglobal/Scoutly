@@ -64,12 +64,8 @@ export function unsealBusinessContacts(token: string, expectedBusinessId?: strin
     const decoded = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
     const payload = JSON.parse(decoded);
 
-    if (!payload?.businessId || Number(payload?.exp || 0) < Date.now()) {
-      throw new Error('expired');
-    }
-    if (expectedBusinessId && String(payload.businessId) !== String(expectedBusinessId)) {
-      throw new Error('business mismatch');
-    }
+    if (!payload?.businessId || Number(payload?.exp || 0) < Date.now()) throw new Error('expired');
+    if (expectedBusinessId && String(payload.businessId) !== String(expectedBusinessId)) throw new Error('business mismatch');
 
     return {
       businessId: String(payload.businessId),
@@ -101,7 +97,9 @@ export function protectBusinessForClient(business: any) {
     phones: hasPhone ? ['•••••••••••'] : [],
     email: hasEmail ? '••••@••••••.com' : null,
     emails: hasEmail ? ['••••@••••••.com'] : [],
-    contactLocked: hasPhone || hasEmail,
+    // Every business-detail open is a prospecting action and therefore goes
+    // through the server credit gate, even if the source has no contact data.
+    contactLocked: true,
     hasProtectedPhone: hasPhone,
     hasProtectedEmail: hasEmail,
     sealedContactToken: sealBusinessContacts(business),
