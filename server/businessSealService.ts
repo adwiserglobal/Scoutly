@@ -2,6 +2,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 
 const TOKEN_VERSION = 'v1';
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const MASKED_PHONE = '•••••••••••';
+const MASKED_EMAIL = '••••@••••••.com';
 
 function dataKey() {
   const secret = String(
@@ -88,15 +90,35 @@ export function protectBusinessForClient(business: any) {
 
   const phones = Array.isArray(business.phones) ? business.phones.filter(Boolean) : [];
   const emails = Array.isArray(business.emails) ? business.emails.filter(Boolean) : [];
-  const hasPhone = Boolean(business.phone || phones.length > 0);
-  const hasEmail = Boolean(business.email || emails.length > 0);
+  const hasPhone = Boolean(business.hasProtectedPhone || business.phone || phones.length > 0);
+  const hasEmail = Boolean(business.hasProtectedEmail || business.email || emails.length > 0);
+  const existingToken = typeof business.sealedContactToken === 'string'
+    ? business.sealedContactToken.trim()
+    : '';
+
+  // Snapshots may already have been protected before being persisted. Never
+  // unmask them and never re-seal placeholder values: preserve the opaque
+  // server token while normalizing every contact field back to a placeholder.
+  if (business.contactLocked && existingToken) {
+    return {
+      ...business,
+      phone: hasPhone ? MASKED_PHONE : null,
+      phones: hasPhone ? [MASKED_PHONE] : [],
+      email: hasEmail ? MASKED_EMAIL : null,
+      emails: hasEmail ? [MASKED_EMAIL] : [],
+      contactLocked: true,
+      hasProtectedPhone: hasPhone,
+      hasProtectedEmail: hasEmail,
+      sealedContactToken: existingToken,
+    };
+  }
 
   return {
     ...business,
-    phone: hasPhone ? '•••••••••••' : null,
-    phones: hasPhone ? ['•••••••••••'] : [],
-    email: hasEmail ? '••••@••••••.com' : null,
-    emails: hasEmail ? ['••••@••••••.com'] : [],
+    phone: hasPhone ? MASKED_PHONE : null,
+    phones: hasPhone ? [MASKED_PHONE] : [],
+    email: hasEmail ? MASKED_EMAIL : null,
+    emails: hasEmail ? [MASKED_EMAIL] : [],
     // Every business-detail open is a prospecting action and therefore goes
     // through the server credit gate, even if the source has no contact data.
     contactLocked: true,
