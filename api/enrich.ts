@@ -2,6 +2,24 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enrichBusinessWebsite } from '../server/enrichService.js';
 import { auditWebsiteTracking } from '../server/trackingAuditService.js';
 
+function stripProtectedContacts(result: any) {
+  if (!result || typeof result !== 'object') return result;
+  const safe = { ...result };
+  for (const key of [
+    'email',
+    'emails',
+    'phone',
+    'phones',
+    'whatsapp',
+    'whatsapps',
+    'contact',
+    'contacts',
+  ]) {
+    delete safe[key];
+  }
+  return safe;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -12,9 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const url = typeof req.query.url === 'string' ? req.query.url.trim() : '';
     const force = req.query.force === '1' || req.query.force === 'true';
 
-    if (!url) {
-      return res.status(400).json({ error: 'URL is required' });
-    }
+    if (!url) return res.status(400).json({ error: 'URL is required' });
 
     const [result, trackingAudit] = await Promise.all([
       enrichBusinessWebsite(url, { force }),
@@ -25,9 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ]);
 
     res.setHeader('Cache-Control', force ? 'no-store' : 's-maxage=300, stale-while-revalidate=900');
-
     return res.status(200).json({
-      ...result,
+      ...stripProtectedContacts(result),
       trackingAudit,
     });
   } catch (err: any) {
