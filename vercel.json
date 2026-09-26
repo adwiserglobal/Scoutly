@@ -31,6 +31,14 @@
       "dest": "/api/places-fast.ts"
     },
     {
+      "src": "/api/credits",
+      "dest": "/api/credits.ts"
+    },
+    {
+      "src": "/api/unlock-business",
+      "dest": "/api/unlock-business.ts"
+    },
+    {
       "src": "/api/ai/chat",
       "dest": "/api/ai/chat.ts"
     },
@@ -40,7 +48,7 @@
     },
     {
       "src": "/api/ai/generate-message",
-      "dest": "/api/ai/generate-message.ts"
+      "dest": "/api/ai/generate-message-gated.ts"
     },
     {
       "src": "/api/enrich",
