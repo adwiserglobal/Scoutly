@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { handleScoutlyAgenticChat } from '../../server/agenticSearchService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { ensureAppUser } from '../../server/appDataService.js';
-import { assertAiAllowed, consumeAiConversation } from '../../server/entitlementService.js';
+import { assertAiAllowed, consumeAiConversation, protectBusinessResults } from '../../server/entitlementService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const creditState = await consumeAiConversation(identity.uid);
     assertAiAllowed(creditState);
 
-    const response = await handleScoutlyAgenticChat({
+    const response: any = await handleScoutlyAgenticChat({
       message: message.trim(),
       history: Array.isArray(history) ? history : [],
       businesses: Array.isArray(businesses) ? businesses : [],
@@ -35,6 +35,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? conversationContext
           : null,
     });
+
+    // AI is not a side door around prospect credits. Any businesses discovered by
+    // an agentic regional search pass through the same redaction/token layer as the map.
+    if (response?.newRegion && Array.isArray(response.newRegion.businesses)) {
+      const protectedRegion = await protectBusinessResults(identity.uid, response.newRegion.businesses);
+      response.newRegion = {
+        ...response.newRegion,
+        businesses: protectedRegion.businesses,
+      };
+    }
 
     res.setHeader('Cache-Control', 'private, no-store');
     return res.status(200).json({ ...response, creditState });
