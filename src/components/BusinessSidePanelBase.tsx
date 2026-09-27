@@ -9,6 +9,7 @@ import {
   Copy,
   Gauge,
   Globe2,
+  Lock,
   Mail,
   MapPin,
   MessageCircle,
@@ -56,7 +57,7 @@ function StatusIcon({ ok, loading = false }: { ok: boolean; loading?: boolean })
   );
 }
 
-function SignalRow({ icon, label, value, detected, loading, title, action }: {
+function SignalRow({ icon, label, value, detected, loading, title, action, valueClassName = '' }: {
   icon: React.ReactNode;
   label: string;
   value: string;
@@ -64,6 +65,7 @@ function SignalRow({ icon, label, value, detected, loading, title, action }: {
   loading?: boolean;
   title?: string;
   action?: React.ReactNode;
+  valueClassName?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-3 last:border-b-0" title={title}>
@@ -71,7 +73,7 @@ function SignalRow({ icon, label, value, detected, loading, title, action }: {
         <span className="text-stone-400">{icon}</span>
         <div className="min-w-0">
           <span className="block text-[10px] font-medium text-stone-400">{label}</span>
-          <span className="mt-0.5 block truncate text-[11px] font-semibold text-stone-100">
+          <span className={`mt-0.5 block truncate text-[11px] font-semibold text-stone-100 ${valueClassName}`}>
             {loading ? 'Verificando' : value}
           </span>
         </div>
@@ -172,6 +174,10 @@ function normalizeWebsiteDomain(website?: string | null) {
   }
 }
 
+function isLockedEmail(value?: string | null) {
+  return Boolean(value && value.includes('•'));
+}
+
 export default function BusinessSidePanel({ business, onClose, onToggleFavorite }: BusinessSidePanelProps) {
   const [enrichment, setEnrichment] = useState<any>(null);
   const [trackingAudit, setTrackingAudit] = useState<any>(null);
@@ -267,7 +273,9 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
   const phoneToCopy = verifiedPhone || business.phone || business.phones?.[0] || null;
   const whatsappNumber = verifiedWhatsapp || phoneToCopy;
   const whatsappUrl = getWhatsAppLink(whatsappNumber);
-  const emailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
+  const rawEmailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
+  const emailLocked = isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked);
+  const emailAddress = emailLocked ? null : rawEmailAddress;
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const websiteDomain = useMemo(() => normalizeWebsiteDomain(business.website), [business.website]);
   const googleAdsTransparencyUrl = websiteDomain
@@ -505,11 +513,23 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
                   {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               ) : undefined} />
-              <SignalRow icon={<Mail className="h-4 w-4" />} label="Email" value={emailAddress || 'Não identificado'} detected={Boolean(emailAddress)} loading={hasWebsite && isEnrichmentLoading} action={emailAddress ? (
-                <button type="button" onClick={handleSendEmail} disabled={isGeneratingEmail} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-60" title="Gerar uma mensagem com IA e abrir no seu cliente de e-mail">
-                  {isGeneratingEmail ? <LoaderRing /> : <Mail className="h-3 w-3 text-[#FF6A26]" />}{isGeneratingEmail ? 'Preparando' : 'Enviar'}
-                </button>
-              ) : undefined} />
+              <SignalRow
+                icon={<Mail className="h-4 w-4" />}
+                label="Email"
+                value={emailLocked ? 'contato@empresa.com' : (emailAddress || 'Não identificado')}
+                detected={Boolean(rawEmailAddress)}
+                loading={hasWebsite && isEnrichmentLoading}
+                valueClassName={emailLocked ? 'select-none blur-[4px]' : ''}
+                action={emailLocked ? (
+                  <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="inline-flex items-center gap-1 rounded-lg border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-2 py-1 text-[9px] font-semibold text-[#FF8A52]" title="E-mail completo disponível nos planos pagos">
+                    <Lock className="h-3 w-3" /> Pro
+                  </button>
+                ) : emailAddress ? (
+                  <button type="button" onClick={handleSendEmail} disabled={isGeneratingEmail} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-60" title="Gerar uma mensagem com IA e abrir no seu cliente de e-mail">
+                    {isGeneratingEmail ? <LoaderRing /> : <Mail className="h-3 w-3 text-[#FF6A26]" />}{isGeneratingEmail ? 'Preparando' : 'Enviar'}
+                  </button>
+                ) : undefined}
+              />
               <SignalRow icon={<WhatsAppLogo />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} action={whatsappUrl ? (
                 <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecommendationWhatsApp(business)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-emerald-500/35 hover:text-white">
                   Abrir {verifiedWhatsapp ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
