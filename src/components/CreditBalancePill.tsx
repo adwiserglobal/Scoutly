@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { CreditAccessStatus, fetchAccessStatus } from '../services/api';
-
-const PRODUCT_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
 
 function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
 }
+
+const PRODUCT_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
 
 export default function CreditBalancePill() {
   const { user } = useAuth();
@@ -34,6 +33,7 @@ export default function CreditBalancePill() {
       setAccess(null);
       return;
     }
+
     void refresh();
 
     const onAccess = (event: Event) => {
@@ -42,6 +42,7 @@ export default function CreditBalancePill() {
       else void refresh();
     };
     const onFocus = () => void refresh();
+
     window.addEventListener('scoutly-access-updated', onAccess);
     window.addEventListener('focus', onFocus);
     return () => {
@@ -54,31 +55,34 @@ export default function CreditBalancePill() {
 
   let primary = 'Créditos';
   let secondary = '';
+
   if (access.isUnlimited) {
-    primary = 'Créditos ilimitados';
+    primary = 'Ilimitados';
     secondary = access.plan === 'agency' ? 'Agency' : 'Pro';
   } else if (access.plan === 'go') {
     primary = `${access.monthlyRemaining ?? 0} créditos`;
-    secondary = `${access.monthlyUsed}/80 usados no ciclo`;
+    secondary = `${access.monthlyUsed}/80 usados neste ciclo`;
   } else {
     primary = `${access.remaining ?? 0} créditos hoje`;
-    secondary = `${access.monthlyUsed}/25 usados no mês`;
+    secondary = `${access.dailyUsed}/5 hoje · ${access.monthlyUsed}/25 no mês`;
   }
 
   const clickable = !access.isUnlimited;
+
   return (
     <button
       type="button"
       onClick={() => clickable && window.dispatchEvent(new CustomEvent('scoutly-open-plans'))}
-      className={`fixed right-4 top-[72px] z-[68] flex h-[42px] items-center gap-2.5 rounded-2xl border border-white/[0.10] bg-[#111418]/[0.95] px-3 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.30)] backdrop-blur-2xl pointer-events-auto sm:right-[78px] sm:top-4 ${clickable ? 'transition hover:border-[#FF5A12]/35 hover:bg-[#171a1f]' : 'cursor-default'}`}
+      className={`fixed right-4 top-[74px] z-[69] flex min-h-[44px] items-center gap-2.5 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.96] px-3 pr-3.5 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl pointer-events-auto ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
+      aria-label={`${primary}. ${secondary}`}
     >
-      <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.10] text-[#FF6A26]">
-        <Coins className="h-3.5 w-3.5" />
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+        <img src="/credits-coin.png" alt="" className="h-8 w-8 object-contain" draggable={false} />
       </span>
       <span className="min-w-0">
         <span className="block whitespace-nowrap text-[11px] font-semibold leading-none text-stone-100">{primary}</span>
-        <span className="mt-1 block whitespace-nowrap text-[9px] leading-none text-stone-500">{secondary}</span>
+        <span className="mt-1.5 block whitespace-nowrap text-[9px] leading-none text-stone-500">{secondary}</span>
       </span>
     </button>
   );
