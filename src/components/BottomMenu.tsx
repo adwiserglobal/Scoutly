@@ -1,6 +1,8 @@
-import { memo, useState } from 'react';
-import { Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { Coins, Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { CreditAccessStatus, fetchAccessStatus } from '../services/api';
 import SupportCenterPage from './SupportCenterPage';
 
 interface BottomMenuProps {
@@ -16,10 +18,44 @@ function BottomMenu({
   savedLeadsCount,
   pipelineDealsCount,
 }: BottomMenuProps) {
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopHovered, setDesktopHovered] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [access, setAccess] = useState<CreditAccessStatus | null>(null);
   const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
+
+  const refreshAccess = useCallback(async () => {
+    if (!user) return;
+    try {
+      setAccess(await fetchAccessStatus());
+    } catch (error) {
+      console.warn('[Scoutly Sidebar Credits] Could not refresh balance:', error);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user) {
+      setAccess(null);
+      return;
+    }
+
+    void refreshAccess();
+
+    const onAccess = (event: Event) => {
+      const detail = (event as CustomEvent<CreditAccessStatus>).detail;
+      if (detail?.plan) setAccess(detail);
+      else void refreshAccess();
+    };
+    const onFocus = () => void refreshAccess();
+
+    window.addEventListener('scoutly-access-updated', onAccess);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('scoutly-access-updated', onAccess);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user?.uid, refreshAccess]);
 
   const navItems = [
     {
@@ -44,6 +80,76 @@ function BottomMenu({
   const navigate = (tab: NavigationTab) => {
     onTabChange(tab);
     setMobileOpen(false);
+  };
+
+  const openPlans = () => {
+    setMobileOpen(false);
+    window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
+  };
+
+  const lowCreditRemaining = access && !access.isUnlimited
+    ? access.plan === 'free'
+      ? (access.dailyRemaining ?? access.remaining)
+      : (access.remaining ?? access.monthlyRemaining)
+    : null;
+  const showLowCredit = lowCreditRemaining !== null && lowCreditRemaining <= 2;
+
+  const renderLowCredit = (expanded: boolean) => {
+    if (!showLowCredit || lowCreditRemaining === null || !access) return null;
+
+    const remaining = Math.max(0, lowCreditRemaining);
+    const limit = access.plan === 'free'
+      ? (access.dailyLimit ?? 5)
+      : (access.monthlyLimit ?? 80);
+    const rawProgress = limit > 0 ? (remaining / limit) * 100 : 0;
+    const progress = remaining > 0 ? Math.max(7, Math.min(100, rawProgress)) : 0;
+    const label = `${remaining} ${remaining === 1 ? 'Crédito restante' : 'Créditos restantes'}`;
+
+    if (!expanded) {
+      return (
+        <button
+          type="button"
+          onClick={openPlans}
+          title={`${label}. Faça o Upgrade para ter mais créditos.`}
+          className="group relative mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#FF6A26]/35 bg-[#FF5A12]/[0.08] text-[#FF7A3D] shadow-[0_10px_28px_rgba(0,0,0,0.25)] transition hover:border-[#FF6A26]/65 hover:bg-[#FF5A12]/[0.13]"
+        >
+          <Coins className="h-[17px] w-[17px]" />
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#0d0f12] bg-[#FF5A12] px-1 text-[9px] font-bold text-white shadow-[0_3px_10px_rgba(255,90,18,0.28)]">
+            {remaining}
+          </span>
+        </button>
+      );
+    }
+
+    return (
+      <div className="mb-3 overflow-hidden rounded-2xl border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-3 shadow-[0_14px_36px_rgba(0,0,0,0.22)]">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-[#FF6A26]/25 bg-[#FF5A12]/[0.10] text-[#FF7A3D]">
+            <Coins className="h-3.5 w-3.5" />
+          </span>
+          <span className="text-[11px] font-semibold tracking-[-0.01em] text-white">{label}</span>
+        </div>
+
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+          <div
+            className="h-full rounded-full bg-white/90 shadow-[0_0_9px_rgba(255,255,255,0.24)] transition-[width] duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <p className="mt-2.5 text-[9px] leading-[1.45] text-stone-500">
+          Faça o Upgrade para ter mais créditos.
+        </p>
+
+        <button
+          type="button"
+          onClick={openPlans}
+          className="mt-3 flex h-8 w-full items-center justify-center rounded-xl bg-[linear-gradient(100deg,#FF4D00_0%,#FF6A26_52%,#FF8A3D_100%)] text-[10px] font-semibold text-white shadow-[0_7px_20px_rgba(255,90,18,0.22)] transition hover:brightness-110 active:scale-[0.98]"
+        >
+          Upgrade
+        </button>
+      </div>
+    );
   };
 
   const renderSettings = (expanded: boolean) => {
@@ -83,10 +189,7 @@ function BottomMenu({
     >
       <HelpCircle className="h-[18px] w-[18px] shrink-0 text-stone-500 transition group-hover:text-[#FF6A26]" />
       {expanded && (
-        <>
-          <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">Ajuda</span>
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.45)]" />
-        </>
+        <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium">Ajuda</span>
       )}
     </button>
   );
@@ -170,6 +273,8 @@ function BottomMenu({
 
         <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
+        {renderLowCredit(desktopExpanded)}
+
         <div className="space-y-1 border-t border-white/[0.08] pt-3">
           {renderHelp(desktopExpanded)}
           {renderSettings(desktopExpanded)}
@@ -221,6 +326,8 @@ function BottomMenu({
             </div>
 
             <div className="flex-1">{renderNavigation(true)}</div>
+
+            {renderLowCredit(true)}
 
             <div className="space-y-1 border-t border-white/[0.08] pt-3">
               {renderHelp(true)}
