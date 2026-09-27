@@ -55,8 +55,26 @@ function BusinessCard({
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const isFavorited = Boolean(business.isFavorite);
 
+  // Search/list results are protected until the server accepts the business-open
+  // request. This prevents the Site/Google/Phone/WhatsApp shortcuts from
+  // bypassing the prospecting credit gate.
+  const requiresCreditGate = business.contactLocked !== false;
+
+  const openThroughCreditGate = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenDetails(business);
+  };
+
   const handleCopyPhone = async (event: React.MouseEvent) => {
     event.stopPropagation();
+
+    if (requiresCreditGate) {
+      event.preventDefault();
+      onOpenDetails(business);
+      return;
+    }
+
     if (!business.phone) return;
 
     try {
@@ -177,24 +195,36 @@ function BusinessCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <a
-            href={googleBusinessUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => event.stopPropagation()}
-            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
-            title="Abrir no Google"
-          >
-            <ExternalLink className="h-3 w-3" />
-            <span className="hidden md:inline">Google</span>
-          </a>
+          {requiresCreditGate ? (
+            <button
+              type="button"
+              onClick={openThroughCreditGate}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
+              title="Abra os dados do negócio para usar este atalho"
+            >
+              <ExternalLink className="h-3 w-3" />
+              <span className="hidden md:inline">Google</span>
+            </button>
+          ) : (
+            <a
+              href={googleBusinessUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+              title="Abrir no Google"
+            >
+              <ExternalLink className="h-3 w-3" />
+              <span className="hidden md:inline">Google</span>
+            </a>
+          )}
 
           {business.phone && (
             <button
               type="button"
               onClick={handleCopyPhone}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
-              title={copiedPhone ? 'Número copiado' : 'Copiar telefone'}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
+              title={requiresCreditGate ? 'Abra os dados do negócio para acessar o telefone' : copiedPhone ? 'Número copiado' : 'Copiar telefone'}
             >
               {copiedPhone ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
               <span className="hidden lg:inline">{copiedPhone ? 'Copiado' : 'Telefone'}</span>
@@ -202,31 +232,54 @@ function BusinessCard({
           )}
 
           {hasWebsite && (
-            <a
-              href={business.website!}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
-            >
-              Site
-            </a>
+            requiresCreditGate ? (
+              <button
+                type="button"
+                onClick={openThroughCreditGate}
+                className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
+                title="Abra os dados do negócio para acessar o site"
+              >
+                Site
+              </button>
+            ) : (
+              <a
+                href={business.website!}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+              >
+                Site
+              </a>
+            )
           )}
 
           {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => {
-                event.stopPropagation();
-                recordRecommendationWhatsApp(business);
-              }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
-            >
-              <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
-              <span className="hidden md:inline">WhatsApp</span>
-            </a>
+            requiresCreditGate ? (
+              <button
+                type="button"
+                onClick={openThroughCreditGate}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+                title="Abra os dados do negócio para acessar o WhatsApp"
+              >
+                <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                <span className="hidden md:inline">WhatsApp</span>
+              </button>
+            ) : (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  recordRecommendationWhatsApp(business);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+              >
+                <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                <span className="hidden md:inline">WhatsApp</span>
+              </a>
+            )
           )}
 
           <button
