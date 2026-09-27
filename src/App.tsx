@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import LoadingScreen from './components/LoadingScreen';
 import LoginView from './components/LoginView';
 import MarketingSite from './components/MarketingSite';
+import CreditBalancePill from './components/CreditBalancePill';
 
 const WorkspaceApp = lazy(() => import('./WorkspaceApp'));
 
@@ -87,6 +88,7 @@ export default function App() {
   return (
     <Suspense fallback={<LoadingScreen />}>
       <WorkspaceApp />
+      <CreditBalancePill />
     </Suspense>
   );
 }
