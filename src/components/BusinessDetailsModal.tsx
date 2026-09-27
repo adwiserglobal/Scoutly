@@ -32,14 +32,19 @@ function refreshAccess() {
   window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
 }
 
-async function showCreditsExhausted(code?: string) {
-  let access = null;
+async function refreshAccessStatus() {
   try {
-    access = await fetchAccessStatus();
+    const access = await fetchAccessStatus();
     window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: access }));
+    return access;
   } catch {
-    // Keep the modal flow available even if refreshing the counter fails.
+    refreshAccess();
+    return null;
   }
+}
+
+async function showCreditsExhausted(code?: string) {
+  const access = await refreshAccessStatus();
   window.dispatchEvent(new CustomEvent('scoutly-credits-exhausted', {
     detail: { code, access },
   }));
@@ -151,7 +156,19 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
       })
       .catch((error: any) => {
         const code = String(error?.code || '');
-        refreshAccess();
+
+        // Free business opens are successful after credit consumption; only the
+        // paid email stays masked and never arrives in plaintext from the API.
+        if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
+          setResolvedBusiness({
+            ...business,
+            contactLocked: false,
+            sealedContactToken: null,
+          } as Business);
+          setStatus('ready');
+          void refreshAccessStatus();
+          return;
+        }
 
         if (code === 'DAILY_CREDIT_LIMIT' || code === 'MONTHLY_CREDIT_LIMIT') {
           props.onClose();
@@ -159,6 +176,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
           return;
         }
 
+        refreshAccess();
         setMessage('Não foi possível abrir este negócio agora. Atualize a busca e tente novamente.');
         setStatus('locked');
       });
