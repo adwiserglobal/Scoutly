@@ -46,7 +46,6 @@ async function createActiveRoute(userUid: string, workspaceId: string) {
 }
 
 async function bootstrap(userUid: string, workspaceId: string) {
-  // Resolve legacy trial/expired records before hydrating the raw subscription.
   const subscriptionAccess = await getSubscriptionAccess(userUid);
   const route = await getActiveRoute(userUid);
 
@@ -120,7 +119,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
     favorites,
     favoriteBusinesses,
     settings: settingsRows[0] || { auto_enrich: true, results_batch_size: 30 },
-    recommendationEvents: eventRows,
+    recommendationEvents: eventRows.filter((event) => !String(event?.query || '').startsWith('__scoutly_credit_')),
     recentBusinesses: recentRows,
     subscription: {
       ...persistedSubscription,
@@ -264,6 +263,25 @@ async function createStripeCheckout(
   return { id: data.id as string, url: data.url as string };
 }
 
+function publicError(error: any, statusCode: number) {
+  const safeCodes = new Set([
+    'DAILY_CREDIT_LIMIT',
+    'MONTHLY_CREDIT_LIMIT',
+    'CONTACTS_REQUIRE_PAID_PLAN',
+    'AI_REQUIRES_PAID_PLAN',
+    'RECOMMENDATIONS_REQUIRE_PAID_PLAN',
+    'INVALID_BUSINESS_TOKEN',
+    'CREDIT_RESERVATION_FAILED',
+  ]);
+  const code = String(error?.code || '');
+  if (safeCodes.has(code)) {
+    return { error: error?.message || 'Não foi possível concluir esta ação.', code };
+  }
+  if (statusCode === 401) return { error: 'Sua sessão expirou. Entre novamente.' };
+  if (statusCode >= 500) return { error: 'Não foi possível concluir esta ação agora. Tente novamente em instantes.' };
+  return { error: 'Não foi possível concluir esta ação.', code: code || undefined };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const identity = await requireFirebaseIdentity(req as any);
@@ -298,7 +316,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const token = String(req.body?.sealedContactToken || '').trim();
       if (!businessId || !token) return res.status(400).json({ error: 'Dados protegidos do negócio são obrigatórios.' });
 
-      // Unseal first so invalid/forged payloads never consume a credit.
       const contacts = unsealBusinessContacts(token, businessId);
       const access = await consumeBusinessCredit(identity.uid, workspaceId, businessId);
       return res.status(200).json({
@@ -505,9 +522,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     const statusCode = Number(error?.statusCode || 500);
     console.error('[API /api/leads]:', error?.message || error);
-    return res.status(statusCode).json({
-      error: error?.message || (statusCode === 401 ? 'Sessão inválida ou expirada.' : 'Erro ao acessar os dados do usuário.'),
-      code: error?.code || undefined,
-    });
+    return res.status(statusCode).json(publicError(error, statusCode));
   }
 }

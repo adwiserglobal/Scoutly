@@ -2,7 +2,6 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 
 const TOKEN_VERSION = 'v1';
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-const MASKED_PHONE = '•••••••••••';
 const MASKED_EMAIL = '••••@••••••.com';
 
 function dataKey() {
@@ -27,6 +26,10 @@ function b64url(value: Buffer) {
 
 function fromB64url(value: string) {
   return Buffer.from(value, 'base64url');
+}
+
+function isMasked(value: unknown) {
+  return String(value || '').includes('•');
 }
 
 export function sealBusinessContacts(business: any) {
@@ -88,26 +91,30 @@ export function unsealBusinessContacts(token: string, expectedBusinessId?: strin
 export function protectBusinessForClient(business: any) {
   if (!business || typeof business !== 'object') return business;
 
-  const phones = Array.isArray(business.phones) ? business.phones.filter(Boolean) : [];
-  const emails = Array.isArray(business.emails) ? business.emails.filter(Boolean) : [];
-  const hasPhone = Boolean(business.hasProtectedPhone || business.phone || phones.length > 0);
-  const hasEmail = Boolean(business.hasProtectedEmail || business.email || emails.length > 0);
+  const rawPhones = Array.isArray(business.phones) ? business.phones.filter(Boolean) : [];
+  const rawEmails = Array.isArray(business.emails) ? business.emails.filter(Boolean) : [];
+  const visiblePhones = rawPhones.filter((phone: unknown) => !isMasked(phone));
+  const visiblePhone = business.phone && !isMasked(business.phone)
+    ? business.phone
+    : visiblePhones[0] || null;
+  const hasEmail = Boolean(business.hasProtectedEmail || business.email || rawEmails.length > 0);
   const existingToken = typeof business.sealedContactToken === 'string'
     ? business.sealedContactToken.trim()
     : '';
 
-  // Snapshots may already have been protected before being persisted. Never
-  // unmask them and never re-seal placeholder values: preserve the opaque
-  // server token while normalizing every contact field back to a placeholder.
+  // Previously persisted snapshots may already contain a valid opaque token.
+  // Preserve it, but never preserve a masked phone placeholder as if it were a
+  // real phone. Email remains server-sealed and is never sent in plaintext.
   if (business.contactLocked && existingToken) {
     return {
       ...business,
-      phone: hasPhone ? MASKED_PHONE : null,
-      phones: hasPhone ? [MASKED_PHONE] : [],
+      phone: visiblePhone,
+      phones: visiblePhones,
       email: hasEmail ? MASKED_EMAIL : null,
       emails: hasEmail ? [MASKED_EMAIL] : [],
       contactLocked: true,
-      hasProtectedPhone: hasPhone,
+      emailLocked: hasEmail,
+      hasProtectedPhone: false,
       hasProtectedEmail: hasEmail,
       sealedContactToken: existingToken,
     };
@@ -115,14 +122,15 @@ export function protectBusinessForClient(business: any) {
 
   return {
     ...business,
-    phone: hasPhone ? MASKED_PHONE : null,
-    phones: hasPhone ? [MASKED_PHONE] : [],
+    // Phone and other non-email business data are visible after the prospecting
+    // credit gate. Only email remains a paid field.
+    phone: visiblePhone,
+    phones: visiblePhones,
     email: hasEmail ? MASKED_EMAIL : null,
     emails: hasEmail ? [MASKED_EMAIL] : [],
-    // Every business-detail open is a prospecting action and therefore goes
-    // through the server credit gate, even if the source has no contact data.
     contactLocked: true,
-    hasProtectedPhone: hasPhone,
+    emailLocked: hasEmail,
+    hasProtectedPhone: false,
     hasProtectedEmail: hasEmail,
     sealedContactToken: sealBusinessContacts(business),
   };
