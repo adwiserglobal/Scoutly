@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import BusinessDetailsModalBase from './BusinessDetailsModalBase';
-import { unlockBusinessContact } from '../services/api';
+import { fetchAccessStatus, unlockBusinessContact } from '../services/api';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -32,8 +32,23 @@ function refreshAccess() {
   window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
 }
 
+async function showCreditsExhausted(code?: string) {
+  let access = null;
+  try {
+    access = await fetchAccessStatus();
+    window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: access }));
+  } catch {
+    // Keep the modal flow available even if refreshing the counter fails.
+  }
+  window.dispatchEvent(new CustomEvent('scoutly-credits-exhausted', {
+    detail: { code, access },
+  }));
+}
+
 function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavorite, message }: BusinessDetailsModalProps & { business: Business; message: string }) {
   const raw = business as any;
+  const phone = business.phone && !String(business.phone).includes('•') ? business.phone : null;
+
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-[7px] pointer-events-auto">
       <div className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0d1013] text-white shadow-[0_30px_100px_rgba(0,0,0,0.58)]">
@@ -55,7 +70,7 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
 
         <div className="p-6">
           <div className="rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.06] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Lock className="h-4 w-4 text-[#FF6A26]" /> Dados protegidos</div>
+            <div className="flex items-center gap-2 text-sm font-semibold"><Lock className="h-4 w-4 text-[#FF6A26]" /> Não foi possível abrir este negócio</div>
             <p className="mt-2 text-xs leading-relaxed text-stone-400">{message}</p>
           </div>
 
@@ -65,18 +80,17 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
               <div><p className="text-[10px] uppercase tracking-wide text-stone-600">Endereço</p><p className="mt-1 text-xs text-stone-300">{business.address || 'Não informado'}</p></div>
             </div>
 
+            {phone && (
+              <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left">
+                <Phone className="h-4 w-4 text-stone-500" />
+                <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone</p><p className="mt-1 text-xs text-stone-300">{phone}</p></div>
+              </div>
+            )}
+
             {raw.hasProtectedEmail && (
               <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
                 <Mail className="h-4 w-4 text-stone-500" />
                 <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">E-mail</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">contato@empresa.com</p></div>
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
-              </button>
-            )}
-
-            {raw.hasProtectedPhone && (
-              <button type="button" onClick={openPlans} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
-                <Phone className="h-4 w-4 text-stone-500" />
-                <div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone / WhatsApp</p><p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">(11) 99999-9999</p></div>
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
               </button>
             )}
@@ -102,7 +116,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   const { business } = props;
   const [resolvedBusiness, setResolvedBusiness] = useState<Business | null>(business);
   const [status, setStatus] = useState<'unlocking' | 'ready' | 'locked'>(business ? 'unlocking' : 'ready');
-  const [message, setMessage] = useState('Liberando os dados deste negócio…');
+  const [message, setMessage] = useState('Não foi possível abrir este negócio agora. Tente novamente.');
   const attemptRef = useRef('');
 
   useEffect(() => {
@@ -119,7 +133,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
       return;
     }
     if (!raw.sealedContactToken) {
-      setMessage('Os dados completos deste negócio são um recurso pago. Escolha um plano para continuar.');
+      setMessage('Atualize a busca e tente abrir o negócio novamente.');
       setStatus('locked');
       return;
     }
@@ -136,8 +150,16 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
       .catch((error: any) => {
+        const code = String(error?.code || '');
         refreshAccess();
-        setMessage(error?.message || 'Seus créditos acabaram. Escolha um plano para continuar prospectando.');
+
+        if (code === 'DAILY_CREDIT_LIMIT' || code === 'MONTHLY_CREDIT_LIMIT') {
+          props.onClose();
+          void showCreditsExhausted(code);
+          return;
+        }
+
+        setMessage('Não foi possível abrir este negócio agora. Atualize a busca e tente novamente.');
         setStatus('locked');
       });
   }, [business]);
