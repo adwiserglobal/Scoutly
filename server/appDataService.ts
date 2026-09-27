@@ -221,9 +221,9 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   }
 
   if (isNewUser && identity.email) {
-    // Welcome email is deliberately best-effort: account creation must never
-    // fail just because the lifecycle-email provider is temporarily unavailable.
-    void emitWelcomeEvent(identity).catch((error) => {
+    // Await the provider call so serverless runtimes cannot terminate before
+    // the event is accepted. Failure is still best-effort and never blocks signup.
+    await emitWelcomeEvent(identity).catch((error) => {
       console.warn('[Scoutly Welcome] Falha ao emitir user.created:', error?.message || error);
     });
   }
