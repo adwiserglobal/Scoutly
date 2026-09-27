@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
 import { Business } from '../types';
 import BusinessSidePanelBase from './BusinessSidePanelBase';
-import { getGoogleBusinessLink, unlockBusinessContact } from '../services/api';
+import { fetchAccessStatus, getGoogleBusinessLink, unlockBusinessContact } from '../services/api';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -31,6 +31,19 @@ function refreshAccess() {
   window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
 }
 
+async function showCreditsExhausted(code?: string) {
+  let access = null;
+  try {
+    access = await fetchAccessStatus();
+    window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: access }));
+  } catch {
+    // The modal still opens with the server rule even if the balance refresh fails.
+  }
+  window.dispatchEvent(new CustomEvent('scoutly-credits-exhausted', {
+    detail: { code, access },
+  }));
+}
+
 function LockedPanel({
   business,
   onClose,
@@ -38,6 +51,8 @@ function LockedPanel({
   message,
 }: BusinessSidePanelProps & { message: string }) {
   const raw = business as any;
+  const phone = business.phone && !String(business.phone).includes('•') ? business.phone : null;
+
   return (
     <aside className="fixed inset-y-0 right-0 z-[85] flex w-full max-w-[390px] flex-col border-l border-white/[0.08] bg-[#0d1013]/[0.98] text-white shadow-[-24px_0_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl pointer-events-auto">
       <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 py-5">
@@ -67,7 +82,7 @@ function LockedPanel({
         <div className="rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.06] p-4">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Lock className="h-4 w-4 text-[#FF6A26]" />
-            Dados protegidos
+            Não foi possível abrir este negócio
           </div>
           <p className="mt-2 text-xs leading-relaxed text-stone-400">{message}</p>
         </div>
@@ -81,23 +96,22 @@ function LockedPanel({
             </div>
           </div>
 
+          {phone && (
+            <div className="flex w-full items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left">
+              <Phone className="h-4 w-4 shrink-0 text-stone-500" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone</p>
+                <p className="mt-1 text-xs text-stone-300">{phone}</p>
+              </div>
+            </div>
+          )}
+
           {raw.hasProtectedEmail && (
             <button type="button" onClick={openPlans} className="flex w-full items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
               <Mail className="h-4 w-4 shrink-0 text-stone-500" />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] uppercase tracking-wide text-stone-600">E-mail</p>
                 <p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">contato@empresa.com</p>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
-            </button>
-          )}
-
-          {raw.hasProtectedPhone && (
-            <button type="button" onClick={openPlans} className="flex w-full items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5 text-left hover:border-[#FF5A12]/25">
-              <Phone className="h-4 w-4 shrink-0 text-stone-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase tracking-wide text-stone-600">Telefone / WhatsApp</p>
-                <p className="mt-1 select-none text-xs text-stone-400 blur-[4px]">(11) 99999-9999</p>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#FF6A26]"><Lock className="h-3.5 w-3.5" /> Pro</div>
             </button>
@@ -121,7 +135,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
   const { business } = props;
   const [resolvedBusiness, setResolvedBusiness] = useState<Business>(business);
   const [status, setStatus] = useState<'unlocking' | 'ready' | 'locked'>('unlocking');
-  const [message, setMessage] = useState('Liberando os dados deste negócio…');
+  const [message, setMessage] = useState('Não foi possível abrir este negócio agora. Tente novamente.');
   const attemptRef = useRef('');
 
   useEffect(() => {
@@ -134,7 +148,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
     }
 
     if (!raw.sealedContactToken) {
-      setMessage('Os dados de contato deste negócio são um recurso pago. Escolha um plano para continuar.');
+      setMessage('Atualize a busca e tente abrir o negócio novamente.');
       setStatus('locked');
       return;
     }
@@ -152,8 +166,16 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
       .catch((error: any) => {
+        const code = String(error?.code || '');
         refreshAccess();
-        setMessage(error?.message || 'Seus créditos acabaram. Escolha um plano para continuar prospectando.');
+
+        if (code === 'DAILY_CREDIT_LIMIT' || code === 'MONTHLY_CREDIT_LIMIT') {
+          props.onClose();
+          void showCreditsExhausted(code);
+          return;
+        }
+
+        setMessage('Não foi possível abrir este negócio agora. Atualize a busca e tente novamente.');
         setStatus('locked');
       });
   }, [business]);
