@@ -68,6 +68,11 @@ export interface Business {
   dataInicioAtividade?: string | null;
   situacaoCadastral?: string | null;
   hasCoordinates?: boolean;
+  contactLocked?: boolean;
+  emailLocked?: boolean;
+  hasProtectedPhone?: boolean;
+  hasProtectedEmail?: boolean;
+  sealedContactToken?: string | null;
   // Helpers for UI/Map compatibility
   coordinates: {
     lat: number;
