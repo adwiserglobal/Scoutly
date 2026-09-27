@@ -31,14 +31,19 @@ function refreshAccess() {
   window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
 }
 
-async function showCreditsExhausted(code?: string) {
-  let access = null;
+async function refreshAccessStatus() {
   try {
-    access = await fetchAccessStatus();
+    const access = await fetchAccessStatus();
     window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: access }));
+    return access;
   } catch {
-    // The modal still opens with the server rule even if the balance refresh fails.
+    refreshAccess();
+    return null;
   }
+}
+
+async function showCreditsExhausted(code?: string) {
+  const access = await refreshAccessStatus();
   window.dispatchEvent(new CustomEvent('scoutly-credits-exhausted', {
     detail: { code, access },
   }));
@@ -167,7 +172,21 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
       })
       .catch((error: any) => {
         const code = String(error?.code || '');
-        refreshAccess();
+
+        // Free is allowed to inspect the business after consuming a credit, but
+        // the paid email never leaves the server. Continue with the already-safe
+        // business payload (phone/website/etc. visible, email masked).
+        if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
+          const next = {
+            ...business,
+            contactLocked: false,
+            sealedContactToken: null,
+          } as Business;
+          setResolvedBusiness(next);
+          setStatus('ready');
+          void refreshAccessStatus();
+          return;
+        }
 
         if (code === 'DAILY_CREDIT_LIMIT' || code === 'MONTHLY_CREDIT_LIMIT') {
           props.onClose();
@@ -175,6 +194,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
           return;
         }
 
+        refreshAccess();
         setMessage('Não foi possível abrir este negócio agora. Atualize a busca e tente novamente.');
         setStatus('locked');
       });
