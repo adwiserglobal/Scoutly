@@ -2,6 +2,7 @@ import type { FirebaseIdentity } from './firebaseTokenService.js';
 import { protectBusinessForClient } from './businessSealService.js';
 
 const DEFAULT_APP_DB_URL = 'https://fpyfphabdjutwqlwjwib.supabase.co';
+const DEFAULT_APP_URL = 'https://www.scoutly.pro';
 const SNAPSHOT_TABLES = new Set([
   'user_leads',
   'favorites',
@@ -79,18 +80,83 @@ export function dbValue(value: string) {
   return encodeURIComponent(value);
 }
 
-export async function ensureAppUser(identity: FirebaseIdentity) {
-  await appDataRequest('app_users?on_conflict=firebase_uid', {
+function firstNameForWelcome(identity: FirebaseIdentity) {
+  const fromDisplayName = String(identity.displayName || '').trim().split(/\s+/)[0];
+  if (fromDisplayName) return fromDisplayName;
+
+  const fromEmail = String(identity.email || '')
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)[0];
+
+  if (!fromEmail) return 'por aqui';
+  return fromEmail.charAt(0).toUpperCase() + fromEmail.slice(1);
+}
+
+async function emitWelcomeEvent(identity: FirebaseIdentity) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey || !identity.email) {
+    if (!apiKey) console.warn('[Scoutly Welcome] RESEND_API_KEY não configurada; e-mail de boas-vindas não enviado.');
+    return;
+  }
+
+  const appUrl = String(process.env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, '');
+  const response = await fetch('https://api.resend.com/events/send', {
     method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
-      firebase_uid: identity.uid,
+      event: 'user.created',
       email: identity.email,
-      display_name: identity.displayName,
-      photo_url: identity.photoUrl,
-      last_seen_at: new Date().toISOString(),
+      payload: {
+        user_name: firstNameForWelcome(identity),
+        cta_url: `${appUrl}/dashboard`,
+      },
     }),
+    signal: AbortSignal.timeout(10000),
   });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`Resend Events HTTP ${response.status}: ${details.slice(0, 400)}`);
+  }
+}
+
+export async function ensureAppUser(identity: FirebaseIdentity) {
+  // Insert-only first: the returned row is our server-side source of truth for
+  // whether this account is genuinely new. This also prevents duplicate welcome
+  // events when multiple authenticated requests arrive at the same time.
+  const insertedUsers = await appDataRequest<Array<{ firebase_uid: string }>>(
+    'app_users?on_conflict=firebase_uid&select=firebase_uid',
+    {
+      method: 'POST',
+      headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+      body: JSON.stringify({
+        firebase_uid: identity.uid,
+        email: identity.email,
+        display_name: identity.displayName,
+        photo_url: identity.photoUrl,
+        last_seen_at: new Date().toISOString(),
+      }),
+    }
+  );
+  const isNewUser = insertedUsers.length > 0;
+
+  if (!isNewUser) {
+    await appDataRequest(`app_users?firebase_uid=eq.${dbValue(identity.uid)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        email: identity.email,
+        display_name: identity.displayName,
+        photo_url: identity.photoUrl,
+        last_seen_at: new Date().toISOString(),
+      }),
+    });
+  }
 
   let workspaces = await appDataRequest<Array<{ id: string }>>(
     `workspaces?owner_uid=eq.${dbValue(identity.uid)}&select=id&limit=1`
@@ -151,6 +217,14 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
         current_period_start: null,
         current_period_end: null,
       }),
+    });
+  }
+
+  if (isNewUser && identity.email) {
+    // Await the provider call so serverless runtimes cannot terminate before
+    // the event is accepted. Failure is still best-effort and never blocks signup.
+    await emitWelcomeEvent(identity).catch((error) => {
+      console.warn('[Scoutly Welcome] Falha ao emitir user.created:', error?.message || error);
     });
   }
 
