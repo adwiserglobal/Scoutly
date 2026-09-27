@@ -8,6 +8,7 @@ import CreditBalancePill from './components/CreditBalancePill';
 import { installAuthenticatedFetchPatch } from './lib/authenticatedFetchPatch';
 import './index.css';
 import './marketing-overrides.css';
+import './ai-icon.css';
 
 installAuthenticatedFetchPatch();
 
