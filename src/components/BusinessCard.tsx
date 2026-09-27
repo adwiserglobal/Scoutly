@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Globe2,
+  Lock,
   Mail,
   MapPin,
   Phone,
@@ -64,6 +65,12 @@ function BusinessCard({
     event.preventDefault();
     event.stopPropagation();
     onOpenDetails(business);
+  };
+
+  const showCreditsExhausted = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    window.dispatchEvent(new CustomEvent('scoutly-request-credits-exhausted'));
   };
 
   const handleCopyPhone = async (event: React.MouseEvent) => {
@@ -194,7 +201,17 @@ function BusinessCard({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={showCreditsExhausted}
+          className="scoutly-business-credit-lock hidden h-8 items-center gap-1.5 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] px-3 text-[9.5px] font-semibold text-[#FF7A3D]"
+          title="Seus créditos acabaram"
+        >
+          <Lock className="h-3.5 w-3.5" />
+          Sem créditos
+        </button>
+
+        <div className="scoutly-business-shortcuts flex shrink-0 items-center gap-1.5 overflow-x-auto no-scrollbar">
           {requiresCreditGate ? (
             <button
               type="button"
