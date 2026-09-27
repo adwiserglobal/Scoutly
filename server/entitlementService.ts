@@ -299,7 +299,14 @@ export async function consumeBusinessCredit(
     ],
   });
 
-  return getCreditStatus(userUid);
+  // The click is valid and the credit has already been consumed, but Free must
+  // never receive the plaintext paid email from /api/leads. The client treats
+  // this code as a successful Free open using the already-safe business data.
+  httpError(
+    'Crédito utilizado. O e-mail completo é um recurso dos planos pagos.',
+    402,
+    'CONTACTS_REQUIRE_PAID_PLAN',
+  );
 }
 
 export async function consumeAiConversation(userUid: string, workspaceId: string) {
