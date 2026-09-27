@@ -120,7 +120,7 @@ export default function CreditBalancePill() {
     secondary = `${access.monthlyUsed}/80 usados neste ciclo`;
   } else {
     primary = `${access.remaining ?? 0} créditos hoje`;
-    secondary = `${access.dailyUsed}/5 hoje · ${access.monthlyUsed}/25 no mês`;
+    secondary = 'Seus créditos resetam a 00:00 UTC';
   }
 
   const clickable = !access.isUnlimited;
@@ -148,22 +148,18 @@ export default function CreditBalancePill() {
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
       aria-label={`${primary}. ${secondary}`}
     >
-      <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center overflow-visible">
+      <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#ff8a4e]/55 bg-[radial-gradient(circle_at_35%_28%,#ffb47f_0%,#ff6a26_38%,#e94308_72%,#9d2607_100%)] shadow-[0_3px_12px_rgba(255,90,18,0.36),inset_0_1px_1px_rgba(255,255,255,0.42)]">
+        <Coins className="absolute h-[17px] w-[17px] text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.38)]" strokeWidth={2} />
         {!coinFailed && (
           <img
-            src="/credits-coin.png?v=20260927-4"
+            src="/credits-coin.png?v=20260927-5"
             alt="Créditos Scoutly"
             width={36}
             height={36}
-            className="block h-9 w-9 max-w-none object-contain drop-shadow-[0_3px_9px_rgba(255,90,18,0.40)]"
+            className="relative z-10 block h-9 w-9 max-w-none object-contain drop-shadow-[0_3px_9px_rgba(255,90,18,0.40)]"
             draggable={false}
             onError={() => setCoinFailed(true)}
           />
-        )}
-        {coinFailed && (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#FF5A12]/35 bg-[#FF5A12]/15 text-[#FF6A26]">
-            <Coins className="h-4 w-4" />
-          </span>
         )}
       </span>
       <span className="relative z-10 min-w-0">
