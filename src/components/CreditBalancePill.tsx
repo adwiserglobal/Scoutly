@@ -13,7 +13,6 @@ export default function CreditBalancePill() {
   const { user } = useAuth();
   const [access, setAccess] = useState<CreditAccessStatus | null>(null);
   const [pathname, setPathname] = useState(currentPath);
-  const [coinFailed, setCoinFailed] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -31,10 +30,6 @@ export default function CreditBalancePill() {
   }, []);
 
   useEffect(() => {
-    // Limited plans must never expose direct map/list shortcuts before the
-    // prospecting gate. The zero-credit state is also published to CSS so every
-    // result card removes its contact shortcuts immediately when the balance
-    // reaches zero.
     document.documentElement.dataset.scoutlyUnlimited = 'false';
     document.documentElement.dataset.scoutlyCreditsExhausted = 'false';
 
@@ -117,10 +112,10 @@ export default function CreditBalancePill() {
     secondary = access.plan === 'agency' ? 'Agency' : 'Pro';
   } else if (access.plan === 'go') {
     primary = `${access.monthlyRemaining ?? 0} créditos`;
-    secondary = `${access.monthlyUsed}/80 usados neste ciclo`;
+    secondary = 'Seus créditos resetam a 00:00 UTC';
   } else {
     primary = `${access.remaining ?? 0} créditos hoje`;
-    secondary = `${access.dailyUsed}/5 hoje · ${access.monthlyUsed}/25 no mês`;
+    secondary = 'Seus créditos resetam a 00:00 UTC';
   }
 
   const clickable = !access.isUnlimited;
@@ -148,23 +143,11 @@ export default function CreditBalancePill() {
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
       aria-label={`${primary}. ${secondary}`}
     >
-      <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center overflow-visible">
-        {!coinFailed && (
-          <img
-            src="/credits-coin.png?v=20260927-4"
-            alt="Créditos Scoutly"
-            width={36}
-            height={36}
-            className="block h-9 w-9 max-w-none object-contain drop-shadow-[0_3px_9px_rgba(255,90,18,0.40)]"
-            draggable={false}
-            onError={() => setCoinFailed(true)}
-          />
-        )}
-        {coinFailed && (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#FF5A12]/35 bg-[#FF5A12]/15 text-[#FF6A26]">
-            <Coins className="h-4 w-4" />
-          </span>
-        )}
+      <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center">
+        <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#ff9a66]/80 bg-gradient-to-br from-[#ff8a3d] via-[#ff5a12] to-[#d83b00] shadow-[0_4px_14px_rgba(255,90,18,0.45),inset_0_1px_0_rgba(255,255,255,0.45)]">
+          <span className="absolute inset-[3px] rounded-full border border-white/20" />
+          <Coins className="relative h-4 w-4 text-white drop-shadow-sm" strokeWidth={2.15} />
+        </span>
       </span>
       <span className="relative z-10 min-w-0">
         <span className="block whitespace-nowrap text-[11px] font-semibold leading-none text-stone-100">{primary}</span>
