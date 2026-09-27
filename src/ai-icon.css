@@ -1,0 +1,17 @@
+/* Scoutly AI icon system.
+   Every Lucide Sparkles instance is rendered with the same branded orange
+   four-point sparkle so AI affordances stay visually consistent. */
+.lucide-sparkles {
+  background-image: url('/ai-sparkles-orange.svg') !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  color: transparent !important;
+  stroke: transparent !important;
+  overflow: visible;
+}
+
+.lucide-sparkles > * {
+  stroke: transparent !important;
+  fill: transparent !important;
+}
