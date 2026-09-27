@@ -167,6 +167,7 @@ export async function unlockBusinessContact(business: any): Promise<{ business: 
     const error: any = new Error(data?.error || 'Não foi possível liberar os dados deste negócio.');
     error.code = data?.code;
     error.status = res.status;
+    error.access = data?.access || null;
     throw error;
   }
   return { business: data.business, access: data.access };
@@ -259,211 +260,48 @@ export function getWhatsAppLink(phoneOrUrl?: string | null): string | null {
     if (trimmed.includes('wa.me') || trimmed.includes('whatsapp.com')) return trimmed;
   }
   const digits = trimmed.replace(/\D/g, '');
-  if (digits.length < 8) return null;
-  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) return `https://wa.me/55${digits}`;
-  if (digits.length >= 10) return `https://wa.me/${digits}`;
-  return `https://wa.me/55${digits}`;
+  if (digits.length < 10) return null;
+  return `https://wa.me/${digits}`;
 }
 
-export function getTrustIcon(confidence?: number): string {
-  const val = typeof confidence === 'number' ? confidence : 0.8;
-  if (val >= 0.85) return '/high_trust.png';
-  if (val >= 0.70) return '/medium_trust.png';
-  return '/low_trust.png';
-}
-
-export interface AIChatPayload {
-  message: string;
-  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
-  businesses: Business[];
-  currentRegionName?: string;
-  searchMode?: 'default' | 'deep';
-}
-
-export interface AIChatResult {
-  text: string;
-  matchedBusinessIds: string[];
-  modelUsed?: string;
-  access?: CreditAccessStatus;
-  searchSummary?: {
-    requestedCount: number;
-    availableCount: number;
-    matchingCount: number;
-    shownCount: number;
-    businessType: string;
-    regionName: string;
-    appliedFilters: string[];
-    usedCurrentContext?: boolean;
-  };
-  suggestedAction?: { type: 'add_to_pipeline'; businessIds: string[] };
-  newRegion?: { name: string; center: { lat: number; lng: number }; businesses?: Business[] };
-}
-
-export async function sendAIChatMessage(payload: AIChatPayload): Promise<AIChatResult> {
-  const res = await authenticatedFetch('/api/ai/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: payload.message,
-      history: payload.history || [],
-      businesses: payload.businesses.slice(0, 80).map((b) => ({
-        id: b.id,
-        name: b.name,
-        category: b.category,
-        address: b.address,
-        lat: b.coordinates.lat,
-        lng: b.coordinates.lng,
-        website: b.website,
-        phone: b.phone,
-        phones: b.phones,
-        socials: b.socials,
-        leadStatus: b.leadStatus,
-        confidence: b.confidence,
-      })),
-      currentRegionName: payload.currentRegionName,
-      searchMode: payload.searchMode || 'default',
-    }),
-  });
-  const data = await readJsonResponse<any>(res, 'A Scoutly AI recebeu uma resposta inválida do servidor.');
-  if (!res.ok) {
-    const error: any = new Error(data?.error || 'Erro ao comunicar com a IA');
-    error.code = data?.code;
-    error.status = res.status;
-    throw error;
-  }
-  if (data?.access) window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: data.access }));
-  return data;
-}
-
-export async function fetchContextualSuggestions(recentSearches: string[], currentRegionName?: string): Promise<string[]> {
-  try {
-    const res = await authenticatedFetch('/api/ai/suggestions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recentSearches, currentRegionName }),
-    });
-    if (!res.ok) return [];
-    const data = await readJsonResponse<any>(res, 'Não foi possível carregar sugestões contextuais.');
-    return Array.isArray(data?.suggestions) ? data.suggestions : [];
-  } catch (err) {
-    console.warn('[API] Error fetching contextual suggestions:', err);
-    return [];
-  }
-}
-
-export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
-  const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(url)}`);
+export async function saveVisitRoute(stops: Array<{ business: Business; visitStatus: string; addedAt: number }>) {
+  const res = await appDataAction('save-route', { stops });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao carregar métricas do PageSpeed.');
+    throw new Error(data?.error || 'Não foi possível salvar a rota.');
   }
-  return res.json();
+  return true;
 }
 
-export interface GenerateMessageResult {
-  message: string;
-  source: 'gemini' | 'openrouter' | 'template';
-  model?: string;
-  variationIndex?: number;
-  access?: CreditAccessStatus;
-}
-
-export async function generateMessage(
-  business: any,
-  options?: { variationIndex?: number; previousMessage?: string; channel?: 'email' | 'whatsapp' }
-): Promise<GenerateMessageResult> {
-  const res = await authenticatedFetch('/api/ai/generate-message', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      business,
-      channel: options?.channel || 'whatsapp',
-      variationIndex: options?.variationIndex || 0,
-      previousMessage: options?.previousMessage || '',
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const error: any = new Error(data?.error || 'Falha ao gerar mensagem com a API');
-    error.code = data?.code;
-    error.status = res.status;
-    throw error;
-  }
-  const result = {
-    message: data.message || '',
-    source: data.source || 'template',
-    model: data.model,
-    variationIndex: data.variationIndex,
-    access: data.access,
-  } as GenerateMessageResult;
-  if (result.access) window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
-  if (result.message) {
-    void saveGeneratedMessage({
-      businessId: business?.id,
-      businessName: business?.name,
-      message: result.message,
-      source: result.source,
-      model: result.model,
-    });
-  }
-  return result;
-}
-
-export async function saveVisitRoute(stops: any[]) {
-  try {
-    const res = await appDataAction('save-route', { stops });
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving visit route:', error);
-    return false;
-  }
-}
-
-export async function saveRecommendationEvent(event: {
-  eventType: 'search' | 'favorite_add' | 'favorite_remove' | 'pipeline_add' | 'pipeline_remove' | 'whatsapp_click';
-  businessId?: string;
-  category?: string;
-  query?: string;
-  location?: string;
+export async function recordRecommendationEvent(payload: {
+  eventType: string;
+  businessId?: string | null;
+  category?: string | null;
+  query?: string | null;
+  location?: string | null;
   metadata?: Record<string, unknown>;
 }) {
   try {
-    const res = await appDataAction('recommendation-event', event);
+    const res = await appDataAction('recommendation-event', payload as Record<string, unknown>);
     return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving recommendation event:', error);
+  } catch {
     return false;
   }
 }
 
 export async function saveUserSettings(settings: { autoEnrich?: boolean; resultsBatchSize?: number }) {
-  try {
-    const res = await appDataAction('save-settings', settings);
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving user settings:', error);
-    return false;
-  }
+  const res = await appDataAction('save-settings', settings);
+  return res.ok;
 }
 
-export async function saveUserProfile(displayName: string) {
-  try {
-    const res = await appDataAction('update-profile', { displayName });
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving user profile:', error);
-    return false;
-  }
+export async function saveRecentBusiness(business: Business) {
+  const res = await appDataAction('recent-business', { businessId: business.id, business });
+  return res.ok;
 }
 
-export async function saveRecentBusiness(businessId: string, business?: Business) {
-  try {
-    const res = await appDataAction('recent-business', { businessId, business });
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving recent business:', error);
-    return false;
-  }
+export async function saveGeneratedMessage(data: { businessId?: string; businessName?: string; message: string; source?: string; model?: string }) {
+  const res = await appDataAction('generated-message', data);
+  return res.ok;
 }
 
 export async function recordUsage(counter: 'analyses' | 'ai_messages' | 'recommendation_refreshes') {
@@ -475,46 +313,76 @@ export async function recordUsage(counter: 'analyses' | 'ai_messages' | 'recomme
   }
 }
 
-export async function saveGeneratedMessage(data: {
-  businessId?: string;
-  businessName?: string;
-  message: string;
-  source?: string;
-  model?: string;
-}) {
-  try {
-    const res = await appDataAction('generated-message', data);
-    return res.ok;
-  } catch (error) {
-    console.warn('[API] Error saving generated message:', error);
-    return false;
-  }
-}
-
 export async function createCheckoutSession(plan: 'go' | 'pro' | 'agency') {
   const res = await appDataAction('create-checkout', { plan });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.url) throw new Error(data?.error || 'Não foi possível abrir o checkout.');
-  return { id: String(data.id || ''), url: String(data.url) };
+  return data as { id: string; url: string };
 }
 
 export async function confirmCheckoutSession(sessionId: string) {
   const res = await appDataAction('confirm-checkout', { sessionId });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data?.subscription) throw new Error(data?.error || 'Não foi possível confirmar sua assinatura.');
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível confirmar a assinatura.');
   return data.subscription;
 }
 
 export async function createBillingPortalSession(plan?: 'go' | 'pro' | 'agency') {
-  const res = await appDataAction('create-billing-portal', plan ? { plan } : {});
+  const res = await appDataAction('create-billing-portal', { plan });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.url) throw new Error(data?.error || 'Não foi possível abrir o portal de cobrança.');
-  return { id: String(data.id || ''), url: String(data.url) };
+  return data as { url: string };
 }
 
 export async function refreshSubscriptionFromStripe() {
   const res = await appDataAction('refresh-subscription');
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data?.subscription) throw new Error(data?.error || 'Não foi possível sincronizar sua assinatura.');
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível atualizar a assinatura.');
   return data.subscription;
+}
+
+export async function updateProfile(displayName: string) {
+  const res = await appDataAction('update-profile', { displayName });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível atualizar seu perfil.');
+  return true;
+}
+
+export async function generateMessage(
+  business: any,
+  options: { variationIndex?: number; previousMessage?: string } = {}
+): Promise<{ message: string; subject?: string; source: 'gemini' | 'openrouter' | 'template'; model?: string }> {
+  const res = await authenticatedFetch('/api/ai/generate-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      business,
+      variationIndex: options.variationIndex || 0,
+      previousMessage: options.previousMessage || '',
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.message) throw new Error(data?.error || 'Não foi possível gerar a abordagem.');
+  void saveGeneratedMessage({
+    businessId: business?.id,
+    businessName: business?.name,
+    message: data.message,
+    source: data.source,
+    model: data.model,
+  });
+  void recordUsage('ai_messages');
+  return data;
+}
+
+export async function getPageSpeed(url: string): Promise<PageSpeedData> {
+  const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(url)}`);
+  const data = await readJsonResponse<any>(res, 'Não foi possível medir a performance do site.');
+  if (!res.ok) throw new Error(data?.error || 'Erro ao medir PageSpeed.');
+  return data as PageSpeedData;
+}
+
+export function getTrustIcon(confidence: number) {
+  if (confidence >= 0.8) return '/high_trust.png';
+  if (confidence >= 0.5) return '/medium_trust.png';
+  return '/low_trust.png';
 }
