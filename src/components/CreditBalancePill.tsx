@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { CreditAccessStatus, fetchAccessStatus } from '../services/api';
 
@@ -139,15 +138,19 @@ export default function CreditBalancePill() {
     <button
       type="button"
       onClick={handleClick}
-      className={`fixed right-[78px] top-4 z-[80] isolate flex min-h-[46px] items-center gap-2.5 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] px-2.5 pr-3.5 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
+      className={`fixed right-[78px] top-4 z-[80] isolate flex min-h-[50px] items-center gap-2 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] px-2.5 pr-3.5 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
       aria-label={`${primary}. ${secondary}`}
     >
-      <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center">
-        <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#ff9a66]/80 bg-gradient-to-br from-[#ff8a3d] via-[#ff5a12] to-[#d83b00] shadow-[0_4px_14px_rgba(255,90,18,0.45),inset_0_1px_0_rgba(255,255,255,0.45)]">
-          <span className="absolute inset-[3px] rounded-full border border-white/20" />
-          <Coins className="relative h-4 w-4 text-white drop-shadow-sm" strokeWidth={2.15} />
-        </span>
+      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center overflow-visible">
+        <img
+          src="/credits-coin.png?v=20260927-5"
+          alt="Créditos Scoutly"
+          width={40}
+          height={40}
+          className="block h-10 w-10 max-w-none object-contain drop-shadow-[0_4px_12px_rgba(255,90,18,0.38)]"
+          draggable={false}
+        />
       </span>
       <span className="relative z-10 min-w-0">
         <span className="block whitespace-nowrap text-[11px] font-semibold leading-none text-stone-100">{primary}</span>
