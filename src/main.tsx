@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import MarketingMediaEnhancer from './components/MarketingMediaEnhancer';
 import OnboardingGate from './components/OnboardingGate';
 import DeveloperWelcomeGate from './components/DeveloperWelcomeGate';
+import FlashPromoGate from './components/FlashPromoGate';
 import { installAuthenticatedFetchPatch } from './lib/authenticatedFetchPatch';
 import './index.css';
 import './marketing-overrides.css';
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')!).render(
       <MarketingMediaEnhancer />
       <OnboardingGate />
       <DeveloperWelcomeGate />
+      <FlashPromoGate />
     </AuthProvider>
   </StrictMode>,
 );
