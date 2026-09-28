@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from 'react';
-import { Columns3, Coins, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
+import { Columns3, HelpCircle, Home, Menu, Settings, Star, X } from 'lucide-react';
 import { NavigationTab } from '../types';
 import SupportCenterPage from './SupportCenterPage';
 import { useAuth } from '../context/AuthContext';
@@ -23,7 +23,6 @@ function BottomMenu({
   const [desktopHovered, setDesktopHovered] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [access, setAccess] = useState<CreditAccessStatus | null>(null);
-  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
 
   const refreshAccess = useCallback(async () => {
     if (!user) return;
@@ -60,6 +59,7 @@ function BottomMenu({
     ? Math.max(0, access.remaining ?? 0)
     : null;
   const showLowCreditNudge = lowCreditsRemaining !== null && lowCreditsRemaining > 0 && lowCreditsRemaining <= 2;
+  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered || showLowCreditNudge;
 
   const navItems = [
     {
@@ -91,57 +91,40 @@ function BottomMenu({
     setMobileOpen(false);
   };
 
-  const renderLowCreditCard = (expanded: boolean, mobile = false) => {
+  const renderLowCreditCard = (mobile = false) => {
     if (!showLowCreditNudge || lowCreditsRemaining === null) return null;
 
-    const card = (
-      <div className={`${mobile ? 'relative mt-2' : 'absolute bottom-[calc(100%+10px)] left-0'} z-[120] w-[238px] rounded-2xl border border-white/[0.10] bg-[#111418]/[0.985] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl ${mobile ? '' : 'pointer-events-none translate-y-1 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100'}`}>
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#ff9a66]/70 bg-gradient-to-br from-[#ff8a3d] via-[#ff5a12] to-[#d83b00] shadow-[0_4px_14px_rgba(255,90,18,0.32)]">
-            <Coins className="h-4 w-4 text-white" strokeWidth={2.1} />
-          </span>
+    return (
+      <div className={`${mobile ? 'mt-2' : 'mb-3'} w-full rounded-2xl border border-[#FF5A12]/25 bg-[#111418]/[0.985] p-3 shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl`}>
+        <div className="flex items-start gap-2.5">
+          <img
+            src="/credits-coin.png?v=20260928-1"
+            alt="Créditos Scoutly"
+            width={32}
+            height={32}
+            className="mt-0.5 h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(255,90,18,0.30)]"
+            draggable={false}
+          />
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-semibold text-white">{lowCreditsRemaining} créditos restantes</div>
-            <div className="mt-1 text-[9px] leading-4 text-stone-500">Faça o Upgrade para ter mais créditos.</div>
+            <div className="text-[11px] font-semibold leading-4 text-white">{lowCreditsRemaining} créditos restantes</div>
+            <div className="mt-1 text-[9px] leading-[14px] text-stone-500">Faça o Upgrade para ter mais créditos.</div>
           </div>
         </div>
+
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.09]">
           <div
             className="h-full rounded-full bg-white transition-all"
             style={{ width: `${Math.max(12, (lowCreditsRemaining / 5) * 100)}%` }}
           />
         </div>
+
         <button
           type="button"
           onClick={openPlans}
-          className="pointer-events-auto mt-3 flex h-9 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff7a2f] via-[#ff5a12] to-[#ff3d00] text-[11px] font-semibold text-white shadow-[0_8px_24px_rgba(255,90,18,0.28)] transition hover:brightness-110 active:scale-[0.98]"
+          className="mt-3 flex h-9 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff7a2f] via-[#ff5a12] to-[#ff3d00] text-[11px] font-semibold text-white shadow-[0_8px_22px_rgba(255,90,18,0.24)] transition hover:brightness-110 active:scale-[0.98]"
         >
           Upgrade
         </button>
-      </div>
-    );
-
-    if (mobile) return card;
-
-    return (
-      <div className="group relative mb-2">
-        <button
-          type="button"
-          onClick={openPlans}
-          className={`flex h-11 w-full items-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-stone-300 transition hover:border-[#FF5A12]/30 hover:bg-[#FF5A12]/[0.05] ${expanded ? 'gap-2.5 px-3' : 'justify-center px-0'}`}
-          aria-label={`${lowCreditsRemaining} créditos restantes. Fazer upgrade.`}
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ff9a66]/65 bg-gradient-to-br from-[#ff8a3d] via-[#ff5a12] to-[#d83b00] shadow-[0_4px_14px_rgba(255,90,18,0.25)]">
-            <Coins className="h-3.5 w-3.5 text-white" strokeWidth={2.1} />
-          </span>
-          {expanded && (
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-[10px] font-semibold text-white">{lowCreditsRemaining} créditos</span>
-              <span className="mt-0.5 block text-[8px] text-stone-600">restantes</span>
-            </span>
-          )}
-        </button>
-        {card}
       </div>
     );
   };
@@ -242,7 +225,11 @@ function BottomMenu({
         onMouseEnter={() => setDesktopHovered(true)}
         onMouseLeave={() => setDesktopHovered(false)}
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.97] py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:flex ${
-          desktopExpanded ? 'w-[190px] px-3' : 'w-[72px] px-2'
+          desktopExpanded
+            ? showLowCreditNudge
+              ? 'w-[220px] px-3'
+              : 'w-[190px] px-3'
+            : 'w-[72px] px-2'
         }`}
       >
         <div className={`mb-9 flex h-14 items-center ${
@@ -266,7 +253,7 @@ function BottomMenu({
         <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
         <div>
-          {renderLowCreditCard(desktopExpanded)}
+          {renderLowCreditCard()}
           <div className="space-y-1 border-t border-white/[0.08] pt-3">
             {renderHelp(desktopExpanded)}
             {renderSettings(desktopExpanded)}
@@ -321,7 +308,7 @@ function BottomMenu({
             <div className="flex-1">{renderNavigation(true)}</div>
 
             <div>
-              {renderLowCreditCard(true, true)}
+              {renderLowCreditCard(true)}
               <div className="mt-2 space-y-1 border-t border-white/[0.08] pt-3">
                 {renderHelp(true)}
                 {renderSettings(true)}
