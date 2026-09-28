@@ -138,13 +138,13 @@ export default function CreditBalancePill() {
     <button
       type="button"
       onClick={handleClick}
-      className={`fixed right-[78px] top-4 z-[80] isolate flex min-h-[50px] items-center gap-2 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] px-2.5 pr-3.5 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
+      className={`fixed right-[78px] top-4 z-[30] isolate flex min-h-[50px] items-center gap-2 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] px-2.5 pr-3.5 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
       aria-label={`${primary}. ${secondary}`}
     >
       <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center overflow-visible">
         <img
-          src="/credits-coin.png?v=20260927-5"
+          src="/credits-coin.png?v=20260928-1"
           alt="Créditos Scoutly"
           width={40}
           height={40}
