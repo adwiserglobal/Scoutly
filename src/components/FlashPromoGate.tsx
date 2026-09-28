@@ -96,9 +96,10 @@ export default function FlashPromoGate() {
 
     const onAccessUpdated = (event: Event) => {
       const access = (event as CustomEvent<any>).detail;
-      if (!access || (access.isFree && Number(access.monthlyUsed) === 5)) {
-        void refresh();
-      }
+      // The backend owns the exact lifetime count. Refresh after every Free
+      // credit update so the fifth credit can cross a day/month boundary and
+      // still unlock the one-time campaign immediately.
+      if (!access || access.isFree) void refresh();
     };
     const onFocus = () => void refresh();
 
