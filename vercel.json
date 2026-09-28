@@ -64,7 +64,7 @@
     },
     {
       "src": "/api/flash-promo",
-      "dest": "/api/flash-promo.ts"
+      "dest": "/api/pagespeed.ts?__scoutly_handler=flash-promo"
     },
     {
       "src": "/api/stripe-webhook",
