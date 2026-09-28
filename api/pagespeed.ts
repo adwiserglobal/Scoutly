@@ -1,7 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { analyzePageSpeed } from '../server/pagespeedService.js';
+import { handleFlashPromoRequest } from '../server/flashPromoHttpHandler.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (String(req.query.__scoutly_handler || '') === 'flash-promo') {
+    return handleFlashPromoRequest(req, res);
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
