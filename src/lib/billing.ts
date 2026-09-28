@@ -41,6 +41,11 @@ export interface PersistedSubscription {
   cancel_at_period_end?: boolean | null;
 }
 
+const DEVELOPER_EMAILS = new Set([
+  'eduardocamposmachadoalv@gmail.com',
+  'digitalfistpower@gmail.com',
+]);
+
 function freeStatus(subscription?: PersistedSubscription | null): BillingStatus {
   return {
     plan: 'free',
@@ -60,10 +65,33 @@ function freeStatus(subscription?: PersistedSubscription | null): BillingStatus 
   };
 }
 
+function developerStatus(): BillingStatus {
+  return {
+    plan: 'agency',
+    planName: 'Scoutly Developers',
+    trialStartedAt: '',
+    trialEndsAt: '',
+    daysRemaining: 0,
+    isTrial: false,
+    isExpired: false,
+    hasAccess: true,
+    monthlyPrice: null,
+    includedSeats: 5,
+    subscriptionStatus: 'developer',
+    cancelAtPeriodEnd: false,
+    periodEndsAt: '',
+    // Developer access is an internal entitlement, not a Stripe subscription.
+    paidPlanId: null,
+  };
+}
+
 export function getBillingStatus(
-  _user: User | null,
+  user: User | null,
   subscription?: PersistedSubscription | null
 ): BillingStatus {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (DEVELOPER_EMAILS.has(email)) return developerStatus();
+
   const persistedPlan = String(subscription?.plan || 'free').toLowerCase();
   const persistedStatus = String(subscription?.status || 'active').toLowerCase();
   const paidPlan = persistedPlan === 'go' || persistedPlan === 'pro' || persistedPlan === 'agency';
