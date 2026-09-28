@@ -28,6 +28,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isOpeningBilling, setIsOpeningBilling] = useState(false);
   const [billingError, setBillingError] = useState('');
+  const isDeveloper = billing.subscriptionStatus === 'developer';
 
   const initials = useMemo(() => {
     const source = displayName || user?.email || 'S';
@@ -81,6 +82,10 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   };
 
   const handleBillingAction = async () => {
+    // Scoutly Developers is an internal entitlement and has no Stripe customer
+    // or subscription to manage. Never send these accounts to the billing portal.
+    if (isDeveloper) return;
+
     if (!billing.paidPlanId) {
       onOpenPlans();
       return;
@@ -264,15 +269,17 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   Status
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-white">
-                  {billing.isExpired
-                    ? 'Acesso encerrado'
-                    : billing.isTrial
-                      ? `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
-                      : billing.subscriptionStatus === 'past_due'
-                        ? 'Pagamento pendente'
-                        : billing.cancelAtPeriodEnd
-                          ? 'Cancelamento agendado'
-                          : 'Assinatura ativa'}
+                  {isDeveloper
+                    ? 'Acesso interno ilimitado'
+                    : billing.isExpired
+                      ? 'Acesso encerrado'
+                      : billing.isTrial
+                        ? `${billing.daysRemaining} ${billing.daysRemaining === 1 ? 'dia restante' : 'dias restantes'}`
+                        : billing.subscriptionStatus === 'past_due'
+                          ? 'Pagamento pendente'
+                          : billing.cancelAtPeriodEnd
+                            ? 'Cancelamento agendado'
+                            : 'Assinatura ativa'}
                 </span>
               </div>
 
@@ -281,9 +288,11 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   Cobrança
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-white">
-                  {billing.isTrial || billing.monthlyPrice === null
-                    ? 'Sem cobrança no teste'
-                    : `${formatBRL(billing.monthlyPrice)} / mês`}
+                  {isDeveloper
+                    ? 'Sem cobrança'
+                    : billing.isTrial || billing.monthlyPrice === null
+                      ? 'Sem cobrança no teste'
+                      : `${formatBRL(billing.monthlyPrice)} / mês`}
                 </span>
               </div>
             </div>
@@ -291,29 +300,37 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             <div className="mt-5 flex flex-col gap-3 border-t border-white/[0.07] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-xl">
                 <p className="text-[11px] leading-relaxed text-stone-500">
-                  {billing.cancelAtPeriodEnd && periodEndLabel
-                    ? `Seu plano permanece ativo até ${periodEndLabel}. Você pode reativar ou alterar a assinatura pelo portal de cobrança.`
-                    : billing.isTrial
-                      ? 'O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Go, Pro ou Agency para continuar usando a Scoutly.'
-                      : 'Atualize o plano, método de pagamento, faturas ou cancelamento com segurança pela Stripe.'}
+                  {isDeveloper
+                    ? 'Sua conta faz parte do Scoutly Developers. Todos os recursos estão liberados e este acesso não possui assinatura Stripe associada.'
+                    : billing.cancelAtPeriodEnd && periodEndLabel
+                      ? `Seu plano permanece ativo até ${periodEndLabel}. Você pode reativar ou alterar a assinatura pelo portal de cobrança.`
+                      : billing.isTrial
+                        ? 'O teste inclui os recursos do Pro por 7 dias. Depois disso, é necessário escolher Go, Pro ou Agency para continuar usando a Scoutly.'
+                        : 'Atualize o plano, método de pagamento, faturas ou cancelamento com segurança pela Stripe.'}
                 </p>
-                {billingError && (
+                {billingError && !isDeveloper && (
                   <p className="mt-2 text-[11px] font-medium text-rose-400">{billingError}</p>
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleBillingAction}
-                disabled={isOpeningBilling}
-                className="shrink-0 rounded-xl bg-[#FF5A12] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-wait disabled:opacity-60"
-              >
-                {isOpeningBilling
-                  ? 'Abrindo...'
-                  : billing.paidPlanId
-                    ? 'Gerenciar assinatura'
-                    : 'Ver planos'}
-              </button>
+              {isDeveloper ? (
+                <div className="shrink-0 rounded-xl border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-4 py-2.5 text-xs font-semibold text-[#FF7A3D]">
+                  Acesso ilimitado
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleBillingAction}
+                  disabled={isOpeningBilling}
+                  className="shrink-0 rounded-xl bg-[#FF5A12] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#ff6a27] disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isOpeningBilling
+                    ? 'Abrindo...'
+                    : billing.paidPlanId
+                      ? 'Gerenciar assinatura'
+                      : 'Ver planos'}
+                </button>
+              )}
             </div>
           </section>
 
@@ -329,7 +346,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-xl border border-white/[0.08] bg-[#111418] px-4 py-2 text-xs font-semibold text-stone-300 transition hover:border-rose-500/20 hover:bg-rose-500/[0.08]0/[0.08] hover:text-rose-400"
+                className="rounded-xl border border-white/[0.08] bg-[#111418] px-4 py-2 text-xs font-semibold text-stone-300 transition hover:border-rose-500/20 hover:bg-rose-500/[0.08] hover:text-rose-400"
               >
                 Sair da conta
               </button>
