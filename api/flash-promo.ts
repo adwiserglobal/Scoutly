@@ -1,16 +1,103 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ensureAppUser } from '../server/appDataService.js';
+import { appDataRequest, dbValue, ensureAppUser } from '../server/appDataService.js';
+import { getCreditStatus } from '../server/entitlementService.js';
 import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
 import {
   createFlashPromoCheckout,
   getFlashPromoStatus,
+  hasPurchasedProBefore,
 } from '../server/flashPromoService.js';
+
+const FLASH_PROMO_LEDGER_QUERY = '__scoutly_credit_flash_promo_v1__';
+const BUSINESS_UNLOCK_LEDGER_QUERY = '__scoutly_credit_business_unlock__';
+const LEDGER_EVENT_TYPE = 'search';
+const OFFER_PRICE_CENTS = 3599;
 
 function requestOrigin(req: VercelRequest) {
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
   const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
   if (host) return `${proto}://${host}`;
   return String(process.env.APP_URL || 'https://www.scoutly.pro').replace(/\/$/, '');
+}
+
+function inactivePromo(reason: 'waiting_for_first_five' | 'missed_first_five' | 'not_free' | 'prior_pro') {
+  return {
+    eligible: false,
+    active: false,
+    startsAt: null,
+    expiresAt: null,
+    remainingSeconds: 0,
+    offerPriceCents: OFFER_PRICE_CENTS,
+    firstMonthOnly: true as const,
+    reason,
+  };
+}
+
+async function existingFlashWindow(userUid: string) {
+  const rows = await appDataRequest<Array<{ id: string; created_at: string }>>(
+    `recommendation_events?user_uid=eq.${dbValue(userUid)}` +
+      `&event_type=eq.${dbValue(LEDGER_EVENT_TYPE)}` +
+      `&query=eq.${dbValue(FLASH_PROMO_LEDGER_QUERY)}` +
+      '&select=id,created_at&order=created_at.asc,id.asc&limit=1'
+  );
+  return rows[0] || null;
+}
+
+async function lifetimeBusinessUnlockCount(userUid: string) {
+  // We only need to distinguish <5, exactly 5 and >5. Limiting to six rows
+  // keeps this eligibility check cheap even for long-time users.
+  const rows = await appDataRequest<Array<{ id: string }>>(
+    `recommendation_events?user_uid=eq.${dbValue(userUid)}` +
+      `&event_type=eq.${dbValue(LEDGER_EVENT_TYPE)}` +
+      `&query=eq.${dbValue(BUSINESS_UNLOCK_LEDGER_QUERY)}` +
+      '&select=id&order=created_at.asc,id.asc&limit=6'
+  );
+  return rows.length;
+}
+
+async function prepareFlashWindow(userUid: string, workspaceId: string) {
+  const existing = await existingFlashWindow(userUid);
+  if (existing) return { ready: true as const, reason: null };
+
+  const access = await getCreditStatus(userUid);
+  if (!access.isFree || access.isDeveloper) {
+    return { ready: false as const, reason: 'not_free' as const };
+  }
+
+  const lifetimeUnlocks = await lifetimeBusinessUnlockCount(userUid);
+  if (lifetimeUnlocks < 5) {
+    return { ready: false as const, reason: 'waiting_for_first_five' as const };
+  }
+  if (lifetimeUnlocks > 5) {
+    return { ready: false as const, reason: 'missed_first_five' as const };
+  }
+
+  if (await hasPurchasedProBefore(userUid)) {
+    return { ready: false as const, reason: 'prior_pro' as const };
+  }
+
+  // The fifth lifetime Free business open permanently unlocks one 12-hour
+  // window. This timestamp lives server-side, so clearing localStorage, changing
+  // browsers or logging out cannot reset the countdown.
+  await appDataRequest('recommendation_events', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      user_uid: userUid,
+      workspace_id: workspaceId,
+      event_type: LEDGER_EVENT_TYPE,
+      query: FLASH_PROMO_LEDGER_QUERY,
+      metadata: {
+        scoutly_ledger: true,
+        kind: 'flash_pro_first_purchase',
+        trigger: 'fifth_lifetime_free_credit',
+        offer_price_cents: OFFER_PRICE_CENTS,
+        duration_hours: 12,
+      },
+    }),
+  });
+
+  return { ready: true as const, reason: null };
 }
 
 function safeError(error: any) {
@@ -51,14 +138,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { workspaceId } = await ensureAppUser(identity);
 
     if (req.method === 'GET') {
-      const promo = await getFlashPromoStatus(identity.uid, workspaceId);
+      const prepared = await prepareFlashWindow(identity.uid, workspaceId);
       res.setHeader('Cache-Control', 'no-store, max-age=0');
+      if (!prepared.ready) return res.status(200).json({ promo: inactivePromo(prepared.reason) });
+
+      const promo = await getFlashPromoStatus(identity.uid, workspaceId);
       return res.status(200).json({ promo });
     }
 
     if (req.method === 'POST') {
       const action = String(req.body?.action || 'checkout').trim().toLowerCase();
       if (action !== 'checkout') return res.status(400).json({ error: 'Ação inválida.' });
+
+      const prepared = await prepareFlashWindow(identity.uid, workspaceId);
+      if (!prepared.ready) {
+        return res.status(409).json({
+          error: 'Esta Scoutly Flash Promo não está disponível para esta conta.',
+          code: 'FLASH_PROMO_UNAVAILABLE',
+        });
+      }
 
       const checkout = await createFlashPromoCheckout({
         userUid: identity.uid,
