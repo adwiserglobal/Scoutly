@@ -22,6 +22,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function syncAuthenticatedUser(currentUser: User) {
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch('/api/leads', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'sync-user' }),
+    });
+    if (!response.ok) {
+      console.warn('[Scoutly User Sync] Usuário autenticado, mas sincronização não foi concluída.');
+    }
+  } catch (error) {
+    console.warn('[Scoutly User Sync] Falha não bloqueante:', error);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -30,32 +49,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
-
-      if (currentUser) {
-        void currentUser
-          .getIdToken()
-          .then((token) =>
-            fetch('/api/leads', {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ action: 'sync-user' }),
-            })
-          )
-          .then((response) => {
-            if (!response.ok) {
-              console.warn('[Scoutly User Sync] Usuário autenticado, mas sincronização não foi concluída.');
-            }
-          })
-          .catch((error) => {
-            console.warn('[Scoutly User Sync] Falha não bloqueante:', error);
-          });
-      }
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    void syncAuthenticatedUser(user);
+
+    const heartbeat = window.setInterval(() => {
+      void syncAuthenticatedUser(user);
+    }, 30 * 60 * 1000);
+
+    const onFocus = () => void syncAuthenticatedUser(user);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user?.uid]);
 
   const signIn = async (email: string, pass: string) => {
     await signInWithEmailAndPassword(auth, email, pass);
