@@ -63,6 +63,10 @@
       "dest": "/api/leads.ts"
     },
     {
+      "src": "/api/flash-promo",
+      "dest": "/api/flash-promo.ts"
+    },
+    {
       "src": "/api/stripe-webhook",
       "dest": "/api/stripe-webhook.ts"
     },
