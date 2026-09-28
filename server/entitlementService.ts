@@ -7,6 +7,7 @@ export type CreditStatus = {
   plan: ProductPlan;
   isFree: boolean;
   isUnlimited: boolean;
+  isDeveloper: boolean;
   remaining: number | null;
   dailyRemaining: number | null;
   dailyLimit: number | null;
@@ -167,6 +168,7 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
       plan,
       isFree: false,
       isUnlimited: true,
+      isDeveloper: access.isDeveloper,
       remaining: null,
       dailyRemaining: null,
       dailyLimit: null,
@@ -194,6 +196,7 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
       plan,
       isFree: false,
       isUnlimited: false,
+      isDeveloper: false,
       remaining: Math.max(0, 80 - monthlyUsed),
       dailyRemaining: null,
       dailyLimit: null,
@@ -222,6 +225,7 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
     plan: 'free',
     isFree: true,
     isUnlimited: false,
+    isDeveloper: false,
     remaining: Math.min(dailyRemaining, monthlyRemaining),
     dailyRemaining,
     dailyLimit: 5,
