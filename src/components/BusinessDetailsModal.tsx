@@ -24,6 +24,20 @@ function unlockOnce(business: any) {
   return request;
 }
 
+function normalizeUnlockedBusiness(value: Business | null): Business | null {
+  if (!value) return value;
+  const raw = value as any;
+  const email = raw.email && !String(raw.email).includes('•') ? String(raw.email) : null;
+  const emails = Array.isArray(raw.emails)
+    ? raw.emails.filter((item: unknown) => item && !String(item).includes('•'))
+    : [];
+  return {
+    ...value,
+    email: email || emails[0] || raw.email || null,
+    emails: emails.length > 0 ? emails : email ? [email] : Array.isArray(raw.emails) ? raw.emails : [],
+  } as Business;
+}
+
 function openPlans() {
   window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
 }
@@ -56,7 +70,7 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
 
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-[7px] pointer-events-auto">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0d1013] text-white shadow-[0_30px_100px_rgba(0,0,0,0.58)]">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0d1013] text-white shadow-[-30px_0_100px_rgba(0,0,0,0.58)]">
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-6 py-5">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#FF6A26]">Detalhes do negócio</p>
@@ -119,10 +133,21 @@ function LockedBusinessModal({ business, onClose, onUpdateStatus, onToggleFavori
 
 export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   const { business } = props;
-  const [resolvedBusiness, setResolvedBusiness] = useState<Business | null>(business);
+  const [resolvedBusiness, setResolvedBusiness] = useState<Business | null>(normalizeUnlockedBusiness(business));
   const [status, setStatus] = useState<'unlocking' | 'ready' | 'locked'>(business ? 'unlocking' : 'ready');
   const [message, setMessage] = useState('Não foi possível abrir este negócio agora. Tente novamente.');
   const attemptRef = useRef('');
+
+  useEffect(() => {
+    if (!business) {
+      delete document.documentElement.dataset.scoutlyBusinessModal;
+      return;
+    }
+    document.documentElement.dataset.scoutlyBusinessModal = 'true';
+    return () => {
+      delete document.documentElement.dataset.scoutlyBusinessModal;
+    };
+  }, [business?.id]);
 
   useEffect(() => {
     if (!business) {
@@ -132,7 +157,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
     }
 
     const raw = business as any;
-    setResolvedBusiness(business);
+    setResolvedBusiness(normalizeUnlockedBusiness(business));
     if (!raw.contactLocked) {
       setStatus('ready');
       return;
@@ -150,21 +175,19 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
 
     unlockOnce(raw)
       .then((result) => {
-        setResolvedBusiness({ ...business, ...result.business, contactLocked: false } as Business);
+        setResolvedBusiness(normalizeUnlockedBusiness({ ...business, ...result.business, contactLocked: false } as Business));
         setStatus('ready');
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
       })
       .catch((error: any) => {
         const code = String(error?.code || '');
 
-        // Free business opens are successful after credit consumption; only the
-        // paid email stays masked and never arrives in plaintext from the API.
         if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
-          setResolvedBusiness({
+          setResolvedBusiness(normalizeUnlockedBusiness({
             ...business,
             contactLocked: false,
             sealedContactToken: null,
-          } as Business);
+          } as Business));
           setStatus('ready');
           void refreshAccessStatus();
           return;
@@ -183,7 +206,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   }, [business]);
 
   if (!business) return null;
-  if (status === 'ready') return <BusinessDetailsModalBase {...props} business={resolvedBusiness} />;
+  if (status === 'ready') return <BusinessDetailsModalBase {...props} business={normalizeUnlockedBusiness(resolvedBusiness)} />;
   if (status === 'locked') return <LockedBusinessModal {...props} business={business} message={message} />;
 
   return (
