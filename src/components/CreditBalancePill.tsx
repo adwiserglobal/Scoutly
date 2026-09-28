@@ -6,7 +6,7 @@ function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
 }
 
-const PRODUCT_PATHS = new Set(['/dashboard', '/favoritos', '/pipeline', '/configuracoes']);
+const HOME_PATH = '/dashboard';
 
 export default function CreditBalancePill() {
   const { user } = useAuth();
@@ -101,14 +101,17 @@ export default function CreditBalancePill() {
     return () => window.removeEventListener('scoutly-request-credits-exhausted', showExhausted);
   }, [access, refresh]);
 
-  if (!user || !PRODUCT_PATHS.has(pathname) || !access) return null;
+  // The floating credit balance belongs to the map Home only. It still keeps
+  // the global credit-gate state synchronized while the user visits other tabs.
+  if (!user || pathname !== HOME_PATH || !access) return null;
 
   let primary = 'Créditos';
   let secondary = '';
+  const isDeveloper = Boolean((access as any).isDeveloper);
 
   if (access.isUnlimited) {
     primary = 'Ilimitados';
-    secondary = access.plan === 'agency' ? 'Agency' : 'Pro';
+    secondary = isDeveloper ? 'Scoutly Developers' : access.plan === 'agency' ? 'Agency' : 'Pro';
   } else if (access.plan === 'go') {
     primary = `${access.monthlyRemaining ?? 0} créditos`;
     secondary = 'Seus créditos resetam a 00:00 UTC';
@@ -144,7 +147,7 @@ export default function CreditBalancePill() {
     >
       <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center overflow-visible">
         <img
-          src="/credits-coin.png?v=20260928-1"
+          src="/credits-coin.png?v=verified-20260928"
           alt="Créditos Scoutly"
           width={40}
           height={40}

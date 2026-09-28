@@ -6,8 +6,14 @@ export type SubscriptionAccess = {
   current_period_start: string | null;
   current_period_end: string | null;
   hasAccess: boolean;
-  reason: 'active' | 'free';
+  reason: 'active' | 'free' | 'developer';
+  isDeveloper: boolean;
 };
+
+const SCOUTLY_DEVELOPER_EMAILS = new Set([
+  'eduardocamposmachadoalv@gmail.com',
+  'digitalfistpower@gmail.com',
+]);
 
 function freeAccess(): SubscriptionAccess {
   return {
@@ -17,10 +23,37 @@ function freeAccess(): SubscriptionAccess {
     current_period_end: null,
     hasAccess: true,
     reason: 'free',
+    isDeveloper: false,
   };
 }
 
+function developerAccess(): SubscriptionAccess {
+  return {
+    // Developer accounts intentionally inherit the complete Agency feature set,
+    // while entitlementService marks their usage as unlimited server-side.
+    plan: 'agency',
+    status: 'active',
+    current_period_start: null,
+    current_period_end: null,
+    hasAccess: true,
+    reason: 'developer',
+    isDeveloper: true,
+  };
+}
+
+async function isScoutlyDeveloper(userUid: string) {
+  const rows = await appDataRequest<Array<{ email?: string | null }>>(
+    `app_users?firebase_uid=eq.${dbValue(userUid)}&select=email&limit=1`
+  );
+  const email = String(rows[0]?.email || '').trim().toLowerCase();
+  return SCOUTLY_DEVELOPER_EMAILS.has(email);
+}
+
 export async function getSubscriptionAccess(userUid: string): Promise<SubscriptionAccess> {
+  // This allowlist is deliberately server-side and exact-match only. Never use
+  // domains, prefixes or client-provided email values for developer access.
+  if (await isScoutlyDeveloper(userUid)) return developerAccess();
+
   const rows = await appDataRequest<any[]>(
     `subscriptions?user_uid=eq.${dbValue(userUid)}&select=plan,status,current_period_start,current_period_end&limit=1`
   );
@@ -40,6 +73,7 @@ export async function getSubscriptionAccess(userUid: string): Promise<Subscripti
       current_period_end: end,
       hasAccess: true,
       reason: 'active',
+      isDeveloper: false,
     };
   }
 

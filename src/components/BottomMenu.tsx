@@ -58,8 +58,11 @@ function BottomMenu({
   const lowCreditsRemaining = !access?.isUnlimited && access?.plan === 'free'
     ? Math.max(0, access.remaining ?? 0)
     : null;
-  const showLowCreditNudge = lowCreditsRemaining !== null && lowCreditsRemaining > 0 && lowCreditsRemaining <= 2;
-  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered || showLowCreditNudge;
+  const showLowCreditNudge = currentTab === 'INICIO' && lowCreditsRemaining !== null && lowCreditsRemaining > 0 && lowCreditsRemaining <= 2;
+
+  // Low credit must never keep the desktop rail expanded by itself. On Home it
+  // expands only while the pointer is actually over the sidebar.
+  const desktopExpanded = currentTab !== 'INICIO' || desktopHovered;
 
   const navItems = [
     {
@@ -98,7 +101,7 @@ function BottomMenu({
       <div className={`${mobile ? 'mt-2' : 'mb-3'} w-full rounded-2xl border border-[#FF5A12]/25 bg-[#111418]/[0.985] p-3 shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl`}>
         <div className="flex items-start gap-2.5">
           <img
-            src="/credits-coin.png?v=20260928-1"
+            src="/credits-coin.png?v=verified-20260928"
             alt="Créditos Scoutly"
             width={32}
             height={32}
@@ -226,7 +229,7 @@ function BottomMenu({
         onMouseLeave={() => setDesktopHovered(false)}
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/[0.08] bg-[#0d0f12]/[0.97] py-5 shadow-[18px_0_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:flex ${
           desktopExpanded
-            ? showLowCreditNudge
+            ? showLowCreditNudge && desktopHovered
               ? 'w-[220px] px-3'
               : 'w-[190px] px-3'
             : 'w-[72px] px-2'
@@ -253,7 +256,7 @@ function BottomMenu({
         <div className="flex-1">{renderNavigation(desktopExpanded)}</div>
 
         <div>
-          {renderLowCreditCard()}
+          {desktopHovered && renderLowCreditCard()}
           <div className="space-y-1 border-t border-white/[0.08] pt-3">
             {renderHelp(desktopExpanded)}
             {renderSettings(desktopExpanded)}
