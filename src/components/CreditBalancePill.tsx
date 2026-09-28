@@ -101,13 +101,11 @@ export default function CreditBalancePill() {
     return () => window.removeEventListener('scoutly-request-credits-exhausted', showExhausted);
   }, [access, refresh]);
 
-  // The floating credit balance belongs to the map Home only. It still keeps
-  // the global credit-gate state synchronized while the user visits other tabs.
   if (!user || pathname !== HOME_PATH || !access) return null;
 
   let primary = 'Créditos';
   let secondary = '';
-  const isDeveloper = Boolean((access as any).isDeveloper);
+  const isDeveloper = Boolean((access as CreditAccessStatus & { isDeveloper?: boolean }).isDeveloper);
 
   if (access.isUnlimited) {
     primary = 'Ilimitados';
@@ -141,17 +139,17 @@ export default function CreditBalancePill() {
     <button
       type="button"
       onClick={handleClick}
-      className={`fixed right-[78px] top-4 z-[30] isolate flex min-h-[54px] items-center gap-2 rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] py-1.5 pl-3 pr-4 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
+      className={`fixed right-[78px] top-4 z-[30] isolate flex min-h-[58px] items-center gap-2.5 overflow-visible rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] py-1.5 pl-4 pr-4 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}
       aria-label={`${primary}. ${secondary}`}
     >
-      <span className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center overflow-visible p-1">
+      <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center overflow-visible">
         <img
-          src="/credits-coin.png?v=verified-20260928-2"
+          src="/credits-coin.png?v=verified-20260928-3"
           alt="Créditos Scoutly"
-          width={36}
-          height={36}
-          className="block h-9 w-9 max-w-none object-contain drop-shadow-[0_4px_12px_rgba(255,90,18,0.38)]"
+          width={32}
+          height={32}
+          className="block h-8 w-8 max-w-none object-contain drop-shadow-[0_4px_12px_rgba(255,90,18,0.38)]"
           draggable={false}
         />
       </span>

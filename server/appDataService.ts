@@ -3,6 +3,7 @@ import { protectBusinessForClient } from './businessSealService.js';
 
 const DEFAULT_APP_DB_URL = 'https://fpyfphabdjutwqlwjwib.supabase.co';
 const DEFAULT_APP_URL = 'https://www.scoutly.pro';
+const ACTIVITY_EVENT_THROTTLE_MS = 10 * 60 * 1000;
 const SNAPSHOT_TABLES = new Set([
   'user_leads',
   'favorites',
@@ -80,7 +81,7 @@ export function dbValue(value: string) {
   return encodeURIComponent(value);
 }
 
-function firstNameForWelcome(identity: FirebaseIdentity) {
+function firstNameForEmail(identity: FirebaseIdentity) {
   const fromDisplayName = String(identity.displayName || '').trim().split(/\s+/)[0];
   if (fromDisplayName) return fromDisplayName;
 
@@ -94,14 +95,13 @@ function firstNameForWelcome(identity: FirebaseIdentity) {
   return fromEmail.charAt(0).toUpperCase() + fromEmail.slice(1);
 }
 
-async function emitWelcomeEvent(identity: FirebaseIdentity) {
+async function emitResendEvent(event: string, identity: FirebaseIdentity, payload: Record<string, unknown>) {
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   if (!apiKey || !identity.email) {
-    if (!apiKey) console.warn('[Scoutly Welcome] RESEND_API_KEY não configurada; e-mail de boas-vindas não enviado.');
+    if (!apiKey) console.warn(`[Scoutly Email] RESEND_API_KEY não configurada; evento ${event} não enviado.`);
     return;
   }
 
-  const appUrl = String(process.env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, '');
   const response = await fetch('https://api.resend.com/events/send', {
     method: 'POST',
     headers: {
@@ -109,12 +109,9 @@ async function emitWelcomeEvent(identity: FirebaseIdentity) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      event: 'user.created',
+      event,
       email: identity.email,
-      payload: {
-        user_name: firstNameForWelcome(identity),
-        cta_url: `${appUrl}/dashboard`,
-      },
+      payload,
     }),
     signal: AbortSignal.timeout(10000),
   });
@@ -125,10 +122,24 @@ async function emitWelcomeEvent(identity: FirebaseIdentity) {
   }
 }
 
+async function emitWelcomeEvent(identity: FirebaseIdentity) {
+  const appUrl = String(process.env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, '');
+  await emitResendEvent('user.created', identity, {
+    user_name: firstNameForEmail(identity),
+    cta_url: `${appUrl}/dashboard`,
+  });
+}
+
+async function emitActivityEvent(identity: FirebaseIdentity) {
+  const appUrl = String(process.env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, '');
+  await emitResendEvent('user.activity', identity, {
+    user_name: firstNameForEmail(identity),
+    cta_url: `${appUrl}/dashboard`,
+  });
+}
+
 export async function ensureAppUser(identity: FirebaseIdentity) {
-  // Insert-only first: the returned row is our server-side source of truth for
-  // whether this account is genuinely new. This also prevents duplicate welcome
-  // events when multiple authenticated requests arrive at the same time.
+  const now = new Date();
   const insertedUsers = await appDataRequest<Array<{ firebase_uid: string }>>(
     'app_users?on_conflict=firebase_uid&select=firebase_uid',
     {
@@ -139,13 +150,22 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
         email: identity.email,
         display_name: identity.displayName,
         photo_url: identity.photoUrl,
-        last_seen_at: new Date().toISOString(),
+        last_seen_at: now.toISOString(),
       }),
     }
   );
   const isNewUser = insertedUsers.length > 0;
+  let shouldEmitActivity = isNewUser;
 
   if (!isNewUser) {
+    const existingRows = await appDataRequest<Array<{ last_seen_at?: string | null }>>(
+      `app_users?firebase_uid=eq.${dbValue(identity.uid)}&select=last_seen_at&limit=1`
+    );
+    const previousLastSeen = existingRows[0]?.last_seen_at
+      ? new Date(existingRows[0].last_seen_at as string).getTime()
+      : 0;
+    shouldEmitActivity = !previousLastSeen || now.getTime() - previousLastSeen >= ACTIVITY_EVENT_THROTTLE_MS;
+
     await appDataRequest(`app_users?firebase_uid=eq.${dbValue(identity.uid)}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
@@ -153,7 +173,7 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
         email: identity.email,
         display_name: identity.displayName,
         photo_url: identity.photoUrl,
-        last_seen_at: new Date().toISOString(),
+        last_seen_at: now.toISOString(),
       }),
     });
   }
@@ -204,9 +224,6 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   );
 
   if (!subscriptions.length) {
-    // Keep the legacy storage values compatible with the existing database
-    // constraints. Product access is normalized to the permanent Free tier by
-    // subscriptionAccessService until a paid Stripe subscription is active.
     await appDataRequest('subscriptions?on_conflict=user_uid', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
@@ -221,10 +238,14 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
   }
 
   if (isNewUser && identity.email) {
-    // Await the provider call so serverless runtimes cannot terminate before
-    // the event is accepted. Failure is still best-effort and never blocks signup.
     await emitWelcomeEvent(identity).catch((error) => {
       console.warn('[Scoutly Welcome] Falha ao emitir user.created:', error?.message || error);
+    });
+  }
+
+  if (shouldEmitActivity && identity.email) {
+    await emitActivityEvent(identity).catch((error) => {
+      console.warn('[Scoutly Activity] Falha ao emitir user.activity:', error?.message || error);
     });
   }
 
