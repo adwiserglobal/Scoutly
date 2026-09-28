@@ -1,0 +1,45 @@
+/* Dark treatment for the legacy full business details modal. Scoped tightly to
+   the z-60 business overlay so other Scoutly cards/modals are unaffected. */
+div[class*="fixed"][class*="inset-0"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"][class*="bg-white"] {
+  background: #0d1013 !important;
+  border-color: rgba(255,255,255,.09) !important;
+  color: #f5f5f4 !important;
+}
+
+/* Replace the legacy light surfaces inside the business details modal. */
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .bg-white,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="bg-[#FAF7F2]"],
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="bg-[#FFF8F3]"] {
+  background-color: #111418 !important;
+}
+
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="border-stone-100"],
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="border-stone-200"],
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="border-[#EDE8E0]"] {
+  border-color: rgba(255,255,255,.09) !important;
+}
+
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-900,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-800,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-700 {
+  color: #f5f5f4 !important;
+}
+
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-600,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-500,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] .text-stone-400 {
+  color: #a8a29e !important;
+}
+
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="hover:bg-stone-50"]:hover,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] [class*="hover:bg-stone-100"]:hover {
+  background-color: rgba(255,255,255,.055) !important;
+}
+
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] input,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] textarea,
+div[class*="fixed"][class*="z-[60]"][class*="bg-black/50"] > div[class*="max-w-5xl"] select {
+  background: #0b0e12 !important;
+  color: #f5f5f4 !important;
+  border-color: rgba(255,255,255,.09) !important;
+}
