@@ -72,12 +72,23 @@ export function unsealBusinessContacts(token: string, expectedBusinessId?: strin
     if (!payload?.businessId || Number(payload?.exp || 0) < Date.now()) throw new Error('expired');
     if (expectedBusinessId && String(payload.businessId) !== String(expectedBusinessId)) throw new Error('business mismatch');
 
+    const rawEmail = payload?.contacts?.email || null;
+    const rawEmails = Array.isArray(payload?.contacts?.emails)
+      ? payload.contacts.emails.filter(Boolean)
+      : [];
+    const normalizedEmails = rawEmails.length > 0
+      ? rawEmails
+      : rawEmail
+        ? [rawEmail]
+        : [];
+    const normalizedEmail = rawEmail || normalizedEmails[0] || null;
+
     return {
       businessId: String(payload.businessId),
       phone: payload?.contacts?.phone || null,
       phones: Array.isArray(payload?.contacts?.phones) ? payload.contacts.phones : [],
-      email: payload?.contacts?.email || null,
-      emails: Array.isArray(payload?.contacts?.emails) ? payload.contacts.emails : [],
+      email: normalizedEmail,
+      emails: normalizedEmails,
     };
   } catch (error: any) {
     if (error?.statusCode) throw error;
@@ -123,7 +134,7 @@ export function protectBusinessForClient(business: any) {
   return {
     ...business,
     // Phone and other non-email business data are visible after the prospecting
-    // credit gate. Only email remains a paid field.
+    // credit gate. Only email remains a paid field until the server-side unlock.
     phone: visiblePhone,
     phones: visiblePhones,
     email: hasEmail ? MASKED_EMAIL : null,
