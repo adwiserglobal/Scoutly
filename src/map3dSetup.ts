@@ -2,6 +2,9 @@ import * as maplibregl from 'maplibre-gl';
 
 const MAP_3D_LAYER_ID = 'scoutly-3d-buildings';
 const MAP_3D_GLOW_LAYER_ID = 'scoutly-3d-business-glow';
+const MAP_3D_PARK_TREES_LAYER_ID = 'scoutly-3d-park-trees';
+const MAP_3D_GREEN_TREES_LAYER_ID = 'scoutly-3d-green-trees';
+const MAP_3D_TREE_IMAGE_ID = 'scoutly-3d-tree';
 type ScoutlyMapMode = 'classic' | '3d';
 
 const proto = maplibregl.Map.prototype as any;
@@ -16,13 +19,15 @@ function applyMapMode(map: maplibregl.Map, mode: ScoutlyMapMode, animate = true)
 
   setLayerVisibility(map, MAP_3D_LAYER_ID, is3D);
   setLayerVisibility(map, MAP_3D_GLOW_LAYER_ID, is3D);
+  setLayerVisibility(map, MAP_3D_PARK_TREES_LAYER_ID, is3D);
+  setLayerVisibility(map, MAP_3D_GREEN_TREES_LAYER_ID, is3D);
 
   // 3D is deliberately opt-in. We do not persist it between reloads so the
   // normal 2D experience remains the lightweight default on every new load.
   map.getContainer().classList.toggle('scoutly-map-3d-active', is3D);
 
-  // A cinematic angle close to the PinDrop reference, but intentionally less
-  // aggressive so MapLibre does not have to keep a huge horizon of tiles alive.
+  // Cinematic, but intentionally not too low to avoid keeping a huge horizon
+  // of tiles alive. This is the main performance difference from heavier 3D maps.
   const targetPitch = is3D ? 48 : 0;
   const targetBearing = is3D ? -14 : 0;
   const targetZoom = is3D ? Math.max(map.getZoom(), 15.05) : map.getZoom();
@@ -140,6 +145,126 @@ function buildingBaseExpression() {
   ] as any;
 }
 
+function ensureTreeImage(map: maplibregl.Map) {
+  if (map.hasImage(MAP_3D_TREE_IMAGE_ID)) return;
+
+  // Tiny raster generated once in-browser. No remote asset, no 3D mesh and no
+  // animation loop: a billboard icon is much cheaper than rendering tree models.
+  const canvas = document.createElement('canvas');
+  canvas.width = 48;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Soft night shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.beginPath();
+  ctx.ellipse(24, 59, 10, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Trunk.
+  ctx.fillStyle = '#6b4b33';
+  ctx.fillRect(21, 42, 6, 15);
+
+  // Canopy: three stacked silhouettes so it still reads as a tree at small sizes.
+  ctx.fillStyle = '#153d2d';
+  ctx.beginPath();
+  ctx.moveTo(24, 7);
+  ctx.lineTo(8, 34);
+  ctx.lineTo(40, 34);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#1c5a3f';
+  ctx.beginPath();
+  ctx.moveTo(24, 17);
+  ctx.lineTo(6, 45);
+  ctx.lineTo(42, 45);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#26734f';
+  ctx.beginPath();
+  ctx.moveTo(24, 28);
+  ctx.lineTo(10, 49);
+  ctx.lineTo(38, 49);
+  ctx.closePath();
+  ctx.fill();
+
+  map.addImage(MAP_3D_TREE_IMAGE_ID, ctx.getImageData(0, 0, canvas.width, canvas.height), {
+    pixelRatio: 2,
+  });
+}
+
+function addTreeLayers(map: maplibregl.Map, beforeId?: string) {
+  ensureTreeImage(map);
+  if (!map.hasImage(MAP_3D_TREE_IMAGE_ID)) return;
+
+  // Parks and reserves from CARTO's own vector source. Because these are source
+  // polygons, MapLibre places only a small number of symbols per feature instead
+  // of flooding the map with thousands of DOM markers.
+  if (!map.getLayer(MAP_3D_PARK_TREES_LAYER_ID)) {
+    map.addLayer({
+      id: MAP_3D_PARK_TREES_LAYER_ID,
+      type: 'symbol',
+      source: 'carto',
+      'source-layer': 'park',
+      minzoom: 14.8,
+      maxzoom: 19,
+      filter: ['in', ['get', 'class'], ['literal', ['park', 'national_park', 'nature_reserve']]],
+      layout: {
+        visibility: 'none',
+        'icon-image': MAP_3D_TREE_IMAGE_ID,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 14.8, 0.55, 17, 0.85, 19, 1.0],
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': false,
+        'icon-ignore-placement': false,
+        'icon-padding': 18,
+        'icon-pitch-alignment': 'viewport',
+        'icon-rotation-alignment': 'viewport',
+      },
+      paint: {
+        'icon-opacity': 0.94,
+      },
+    } as any, beforeId);
+  }
+
+  // CARTO exposes woods/grass/recreation grounds separately from parks. This
+  // catches urban green areas without creating a dedicated data request.
+  if (!map.getLayer(MAP_3D_GREEN_TREES_LAYER_ID)) {
+    map.addLayer({
+      id: MAP_3D_GREEN_TREES_LAYER_ID,
+      type: 'symbol',
+      source: 'carto',
+      'source-layer': 'landcover',
+      minzoom: 15.2,
+      maxzoom: 19,
+      filter: [
+        'any',
+        ['==', ['get', 'class'], 'wood'],
+        ['==', ['get', 'class'], 'grass'],
+        ['==', ['get', 'subclass'], 'recreation_ground'],
+      ],
+      layout: {
+        visibility: 'none',
+        'icon-image': MAP_3D_TREE_IMAGE_ID,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 15.2, 0.48, 17, 0.72, 19, 0.88],
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': false,
+        'icon-ignore-placement': false,
+        'icon-padding': 26,
+        'icon-pitch-alignment': 'viewport',
+        'icon-rotation-alignment': 'viewport',
+      },
+      paint: {
+        'icon-opacity': 0.82,
+      },
+    } as any, beforeId);
+  }
+}
+
 if (!proto.__scoutly3dPatched) {
   const originalAddSource = proto.addSource;
 
@@ -153,8 +278,7 @@ if (!proto.__scoutly3dPatched) {
         const height = buildingHeightExpression();
 
         // One native GPU extrusion layer only. No terrain DEM, no textures, no
-        // custom WebGL scene and no animation loop. This keeps the 3D mode much
-        // lighter than fully rendered city/terrain implementations.
+        // custom WebGL scene and no animation loop.
         this.addLayer(
           {
             id: MAP_3D_LAYER_ID,
@@ -185,8 +309,9 @@ if (!proto.__scoutly3dPatched) {
           firstSymbolLayerId
         );
 
-        // A single cheap circle layer creates the subtle night glow around the
-        // existing business pins. It is hidden in 2D and has no DOM markers.
+        addTreeLayers(this, firstSymbolLayerId);
+
+        // A single cheap circle layer creates a subtle night glow around the pins.
         if (!this.getLayer(MAP_3D_GLOW_LAYER_ID)) {
           this.addLayer({
             id: MAP_3D_GLOW_LAYER_ID,
@@ -212,8 +337,6 @@ if (!proto.__scoutly3dPatched) {
           (this as any).__scoutlyMapModeControlAdded = true;
         }
 
-        // Always start in classic 2D. The richer night scene exists only after
-        // the user explicitly clicks 3D on the current page load.
         applyMapMode(this, 'classic', false);
 
         console.info('[Scoutly Map] Lightweight night 3D mode enabled');
