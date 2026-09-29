@@ -105,7 +105,6 @@ function priceIdFromInvoiceLine(line: any): string {
 export async function hasPurchasedProBefore(userUid: string) {
   const subscription = await getSubscriptionRow(userUid);
   const normalPrice = normalProPriceId();
-  const flashPrice = flashReferencePriceId();
 
   // A persisted Pro subscription is already enough to disqualify the
   // first-purchase promotion, even if that subscription is now canceled.
@@ -126,10 +125,7 @@ export async function hasPurchasedProBefore(userUid: string) {
 
   for (const invoice of rows) {
     const lines = Array.isArray(invoice?.lines?.data) ? invoice.lines.data : [];
-    if (lines.some((line: any) => {
-      const priceId = priceIdFromInvoiceLine(line);
-      return priceId === normalPrice || priceId === flashPrice;
-    })) {
+    if (lines.some((line: any) => priceIdFromInvoiceLine(line) === normalPrice)) {
       return true;
     }
   }
