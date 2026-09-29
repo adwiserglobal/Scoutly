@@ -1,38 +1,51 @@
 import * as maplibregl from 'maplibre-gl';
 
 const MAP_3D_LAYER_ID = 'scoutly-3d-buildings';
-const MAP_MODE_STORAGE_KEY = 'scoutly-map-mode';
+const MAP_3D_GLOW_LAYER_ID = 'scoutly-3d-business-glow';
 type ScoutlyMapMode = 'classic' | '3d';
 
 const proto = maplibregl.Map.prototype as any;
 
-function getSavedMapMode(): ScoutlyMapMode {
-  if (typeof window === 'undefined') return 'classic';
-  return window.localStorage.getItem(MAP_MODE_STORAGE_KEY) === '3d' ? '3d' : 'classic';
-}
-
-function setSavedMapMode(mode: ScoutlyMapMode) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MAP_MODE_STORAGE_KEY, mode);
+function setLayerVisibility(map: maplibregl.Map, layerId: string, visible: boolean) {
+  if (!map.getLayer(layerId)) return;
+  map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
 }
 
 function applyMapMode(map: maplibregl.Map, mode: ScoutlyMapMode, animate = true) {
-  if (map.getLayer(MAP_3D_LAYER_ID)) {
-    map.setLayoutProperty(MAP_3D_LAYER_ID, 'visibility', mode === '3d' ? 'visible' : 'none');
-  }
+  const is3D = mode === '3d';
 
-  const camera = mode === '3d'
-    ? { pitch: 40, bearing: -12 }
-    : { pitch: 0, bearing: 0 };
+  setLayerVisibility(map, MAP_3D_LAYER_ID, is3D);
+  setLayerVisibility(map, MAP_3D_GLOW_LAYER_ID, is3D);
+
+  // 3D is deliberately opt-in. We do not persist it between reloads so the
+  // normal 2D experience remains the lightweight default on every new load.
+  map.getContainer().classList.toggle('scoutly-map-3d-active', is3D);
+
+  // A cinematic angle close to the PinDrop reference, but intentionally less
+  // aggressive so MapLibre does not have to keep a huge horizon of tiles alive.
+  const targetPitch = is3D ? 48 : 0;
+  const targetBearing = is3D ? -14 : 0;
+  const targetZoom = is3D ? Math.max(map.getZoom(), 15.05) : map.getZoom();
+
+  (map as any).setMaxPitch?.(60);
 
   if (animate) {
-    map.easeTo({ ...camera, duration: 520, essential: true });
+    map.easeTo({
+      pitch: targetPitch,
+      bearing: targetBearing,
+      zoom: targetZoom,
+      duration: 620,
+      essential: true,
+    });
   } else {
-    map.setPitch(camera.pitch);
-    map.setBearing(camera.bearing);
+    map.setPitch(targetPitch);
+    map.setBearing(targetBearing);
+    if (is3D && map.getZoom() < 15.05) map.setZoom(15.05);
   }
 
-  setSavedMapMode(mode);
+  window.dispatchEvent(new CustomEvent('scoutly-map-mode-changed', {
+    detail: { mode },
+  }));
 }
 
 function mapIcon() {
@@ -54,8 +67,6 @@ function cubeIcon() {
 class ScoutlyMapModeControl implements maplibregl.IControl {
   private map?: maplibregl.Map;
   private container?: HTMLDivElement;
-  private classicButton?: HTMLButtonElement;
-  private threeDButton?: HTMLButtonElement;
 
   onAdd(map: maplibregl.Map) {
     this.map = map;
@@ -67,16 +78,18 @@ class ScoutlyMapModeControl implements maplibregl.IControl {
 
     const classicButton = document.createElement('button');
     classicButton.type = 'button';
-    classicButton.className = 'scoutly-map-mode-btn';
+    classicButton.className = 'scoutly-map-mode-btn is-active';
     classicButton.title = 'Mapa clássico';
     classicButton.setAttribute('aria-label', 'Mapa clássico');
+    classicButton.setAttribute('aria-pressed', 'true');
     classicButton.innerHTML = `${mapIcon()}<span>2D</span>`;
 
     const threeDButton = document.createElement('button');
     threeDButton.type = 'button';
     threeDButton.className = 'scoutly-map-mode-btn';
-    threeDButton.title = 'Mapa 3D';
-    threeDButton.setAttribute('aria-label', 'Mapa 3D');
+    threeDButton.title = 'Mapa 3D noturno';
+    threeDButton.setAttribute('aria-label', 'Mapa 3D noturno');
+    threeDButton.setAttribute('aria-pressed', 'false');
     threeDButton.innerHTML = `${cubeIcon()}<span>3D</span>`;
 
     const setActiveState = (mode: ScoutlyMapMode) => {
@@ -96,13 +109,8 @@ class ScoutlyMapModeControl implements maplibregl.IControl {
       setActiveState('3d');
     });
 
-    const initialMode = getSavedMapMode();
-    setActiveState(initialMode);
-
     container.append(classicButton, threeDButton);
     this.container = container;
-    this.classicButton = classicButton;
-    this.threeDButton = threeDButton;
 
     return container;
   }
@@ -111,6 +119,25 @@ class ScoutlyMapModeControl implements maplibregl.IControl {
     this.container?.remove();
     this.map = undefined;
   }
+}
+
+function buildingHeightExpression() {
+  return [
+    'case',
+    ['has', 'render_height'], ['to-number', ['get', 'render_height'], 7],
+    ['has', 'height'], ['to-number', ['get', 'height'], 7],
+    ['has', 'levels'], ['*', ['to-number', ['get', 'levels'], 2], 3],
+    7,
+  ] as any;
+}
+
+function buildingBaseExpression() {
+  return [
+    'case',
+    ['has', 'render_min_height'], ['to-number', ['get', 'render_min_height'], 0],
+    ['has', 'min_height'], ['to-number', ['get', 'min_height'], 0],
+    0,
+  ] as any;
 }
 
 if (!proto.__scoutly3dPatched) {
@@ -123,49 +150,75 @@ if (!proto.__scoutly3dPatched) {
       try {
         const styleLayers = this.getStyle()?.layers || [];
         const firstSymbolLayerId = styleLayers.find((layer: any) => layer.type === 'symbol')?.id;
+        const height = buildingHeightExpression();
 
+        // One native GPU extrusion layer only. No terrain DEM, no textures, no
+        // custom WebGL scene and no animation loop. This keeps the 3D mode much
+        // lighter than fully rendered city/terrain implementations.
         this.addLayer(
           {
             id: MAP_3D_LAYER_ID,
             type: 'fill-extrusion',
             source: 'carto',
             'source-layer': 'building',
-            minzoom: 14.25,
+            minzoom: 15,
+            maxzoom: 19,
             layout: {
               visibility: 'none',
             },
             paint: {
-              'fill-extrusion-color': '#3d3d3d',
-              'fill-extrusion-height': [
+              'fill-extrusion-color': [
                 'interpolate',
                 ['linear'],
-                ['zoom'],
-                14.25,
-                3,
-                15,
-                9,
-                17,
-                13,
+                height,
+                0, '#151a20',
+                24, '#1b232c',
+                60, '#232d38',
+                120, '#2a3541',
               ],
-              'fill-extrusion-base': 0,
-              'fill-extrusion-opacity': 0.8,
+              'fill-extrusion-height': height,
+              'fill-extrusion-base': buildingBaseExpression(),
+              'fill-extrusion-opacity': 0.9,
               'fill-extrusion-vertical-gradient': true,
             },
           } as any,
           firstSymbolLayerId
         );
 
+        // A single cheap circle layer creates the subtle night glow around the
+        // existing business pins. It is hidden in 2D and has no DOM markers.
+        if (!this.getLayer(MAP_3D_GLOW_LAYER_ID)) {
+          this.addLayer({
+            id: MAP_3D_GLOW_LAYER_ID,
+            type: 'circle',
+            source: 'businesses',
+            minzoom: 15,
+            filter: ['!', ['has', 'point_count']],
+            layout: {
+              visibility: 'none',
+            },
+            paint: {
+              'circle-color': ['get', 'markerColor'],
+              'circle-radius': ['*', ['get', 'markerRadius'], 1.9],
+              'circle-opacity': 0.2,
+              'circle-blur': 0.72,
+              'circle-stroke-width': 0,
+            },
+          } as any);
+        }
+
         if (!(this as any).__scoutlyMapModeControlAdded) {
           this.addControl(new ScoutlyMapModeControl(), 'top-right');
           (this as any).__scoutlyMapModeControlAdded = true;
         }
 
-        const initialMode = getSavedMapMode();
-        applyMapMode(this, initialMode, false);
+        // Always start in classic 2D. The richer night scene exists only after
+        // the user explicitly clicks 3D on the current page load.
+        applyMapMode(this, 'classic', false);
 
-        console.info('[Scoutly Map] 2D/3D mode control enabled');
+        console.info('[Scoutly Map] Lightweight night 3D mode enabled');
       } catch (error) {
-        console.error('[Scoutly Map] Could not enable map mode control:', error);
+        console.error('[Scoutly Map] Could not enable 3D mode:', error);
       }
     }
 
