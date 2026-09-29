@@ -5,7 +5,6 @@ const FLASH_PROMO_LEDGER_QUERY = '__scoutly_credit_flash_promo_v1__';
 const FLASH_PROMO_EVENT_TYPE = 'search';
 const FLASH_PROMO_DURATION_MS = 12 * 60 * 60 * 1000;
 const FLASH_PROMO_PRICE_CENTS = 3599;
-const DEFAULT_FLASH_REFERENCE_PRICE_ID = 'price_1UK8nNK8NvQmIFt40V91vlyk';
 
 export type FlashPromoStatus = {
   eligible: boolean;
@@ -39,12 +38,6 @@ function requireStripeSecret() {
   const secret = String(process.env.STRIPE_SECRET_KEY || '').trim();
   if (!secret) httpError('STRIPE_SECRET_KEY não configurada.', 503, 'STRIPE_NOT_CONFIGURED');
   return secret;
-}
-
-function flashReferencePriceId() {
-  return String(
-    process.env.STRIPE_PRICE_PRO_FLASH || DEFAULT_FLASH_REFERENCE_PRICE_ID
-  ).trim();
 }
 
 function normalProPriceId() {
@@ -105,10 +98,8 @@ function priceIdFromInvoiceLine(line: any): string {
 export async function hasPurchasedProBefore(userUid: string) {
   const subscription = await getSubscriptionRow(userUid);
   const normalPrice = normalProPriceId();
-  const flashPrice = flashReferencePriceId();
 
-  // A persisted Pro subscription is already enough to disqualify the
-  // first-purchase promotion, even if that subscription is now canceled.
+  // Only a real Scoutly Pro purchase disqualifies the first-purchase offer.
   if (String(subscription?.plan || '').toLowerCase() === 'pro' && subscription?.provider_subscription_id) {
     return true;
   }
@@ -126,10 +117,7 @@ export async function hasPurchasedProBefore(userUid: string) {
 
   for (const invoice of rows) {
     const lines = Array.isArray(invoice?.lines?.data) ? invoice.lines.data : [];
-    if (lines.some((line: any) => {
-      const priceId = priceIdFromInvoiceLine(line);
-      return priceId === normalPrice || priceId === flashPrice;
-    })) {
+    if (lines.some((line: any) => priceIdFromInvoiceLine(line) === normalPrice)) {
       return true;
     }
   }
@@ -148,9 +136,6 @@ async function getFlashLedgerRow(userUid: string) {
 }
 
 async function createFlashLedgerRow(userUid: string, workspaceId: string) {
-  // recommendation_events already acts as Scoutly's durable credit ledger. Using
-  // a dedicated sentinel keeps the 12-hour window server-side without trusting
-  // localStorage and without widening the legacy event_type DB constraint.
   await appDataRequest('recommendation_events', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
@@ -208,9 +193,6 @@ export async function getFlashPromoStatus(userUid: string, workspaceId: string) 
   const existing = await getFlashLedgerRow(userUid);
   if (existing?.created_at) return statusFromStart(existing.created_at);
 
-  // This campaign is intentionally tied to the user's first five lifetime Free
-  // business opens. Users already beyond that exact milestone do not receive a
-  // retroactive offer when this feature ships.
   if (access.monthlyUsed < 5) return inactiveStatus('waiting_for_first_five');
   if (access.monthlyUsed > 5) return inactiveStatus('missed_first_five');
 
@@ -223,24 +205,20 @@ export async function getFlashPromoStatus(userUid: string, workspaceId: string) 
   return statusFromStart(created.created_at);
 }
 
-async function ensureFlashCoupon(normalPrice: any, flashPrice: any) {
+async function ensureFlashCoupon(normalPrice: any) {
   const normalAmount = Number(normalPrice?.unit_amount);
-  const offerAmount = Number(flashPrice?.unit_amount);
   const currency = String(normalPrice?.currency || '').toLowerCase();
 
   if (!Number.isInteger(normalAmount) || normalAmount <= FLASH_PROMO_PRICE_CENTS) {
     httpError('O preço padrão do Pro não permite aplicar esta promoção.', 409, 'FLASH_PROMO_PRICE_INVALID');
   }
-  if (offerAmount !== FLASH_PROMO_PRICE_CENTS) {
-    httpError('O preço de referência da Flash Promo não corresponde a R$ 35,99.', 409, 'FLASH_PROMO_REFERENCE_INVALID');
-  }
-  if (!currency || currency !== String(flashPrice?.currency || '').toLowerCase()) {
-    httpError('Os preços da Flash Promo usam moedas diferentes.', 409, 'FLASH_PROMO_CURRENCY_MISMATCH');
+  if (currency !== 'brl') {
+    httpError('A Flash Promo exige o preço do Pro em BRL.', 409, 'FLASH_PROMO_CURRENCY_MISMATCH');
   }
 
-  const amountOff = normalAmount - offerAmount;
+  const amountOff = normalAmount - FLASH_PROMO_PRICE_CENTS;
   const safeNormalSuffix = String(normalPrice?.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-14);
-  const couponId = `scoutly_flash_${safeNormalSuffix}_${FLASH_PROMO_PRICE_CENTS}_v1`;
+  const couponId = `scoutly_flash_${safeNormalSuffix}_${FLASH_PROMO_PRICE_CENTS}_v2`;
 
   const existing = await stripeJson<any>(`coupons/${encodeURIComponent(couponId)}`, {}, { allow404: true });
   if (existing?.valid !== false && existing?.id) return existing;
@@ -251,8 +229,9 @@ async function ensureFlashCoupon(normalPrice: any, flashPrice: any) {
   params.set('amount_off', String(amountOff));
   params.set('currency', currency);
   params.set('name', 'Scoutly Flash Promo — Pro primeiro mês');
-  params.set('metadata[scoutly_campaign]', 'flash_promo_v1');
+  params.set('metadata[scoutly_campaign]', 'flash_promo_v2');
   params.set('metadata[target_first_month_cents]', String(FLASH_PROMO_PRICE_CENTS));
+  params.set('metadata[base_pro_price]', String(normalPrice?.id || ''));
 
   try {
     return await stripeJson<any>('coupons', {
@@ -261,8 +240,6 @@ async function ensureFlashCoupon(normalPrice: any, flashPrice: any) {
       body: params.toString(),
     });
   } catch (error: any) {
-    // Two simultaneous tabs can race to create the deterministic coupon. If the
-    // other request won, retrieve and reuse the same coupon.
     const raced = await stripeJson<any>(`coupons/${encodeURIComponent(couponId)}`, {}, { allow404: true });
     if (raced?.id) return raced;
     throw error;
@@ -285,25 +262,19 @@ export async function createFlashPromoCheckout(options: {
   }
 
   const normalPriceId = normalProPriceId();
-  const referencePriceId = flashReferencePriceId();
-  if (!referencePriceId.startsWith('price_')) {
-    httpError('Preço de referência da Flash Promo inválido.', 503, 'FLASH_PROMO_REFERENCE_NOT_CONFIGURED');
-  }
-
-  const [normalPrice, flashPrice, subscription] = await Promise.all([
+  const [normalPrice, subscription] = await Promise.all([
     stripeJson<any>(`prices/${encodeURIComponent(normalPriceId)}`),
-    stripeJson<any>(`prices/${encodeURIComponent(referencePriceId)}`),
     getSubscriptionRow(options.userUid),
   ]);
 
-  if (normalPrice?.active === false || flashPrice?.active === false) {
+  if (normalPrice?.active === false) {
     httpError('A Flash Promo está temporariamente indisponível.', 409, 'FLASH_PROMO_PRICE_INACTIVE');
   }
   if (normalPrice?.recurring?.interval !== 'month') {
     httpError('O Scoutly Pro precisa estar configurado como plano mensal.', 409, 'PRO_PRICE_INTERVAL_INVALID');
   }
 
-  const coupon = await ensureFlashCoupon(normalPrice, flashPrice);
+  const coupon = await ensureFlashCoupon(normalPrice);
   if (!coupon?.id) httpError('Não foi possível preparar o desconto da Flash Promo.', 502, 'FLASH_PROMO_COUPON_FAILED');
 
   const params = new URLSearchParams();
@@ -318,19 +289,16 @@ export async function createFlashPromoCheckout(options: {
   params.set('metadata[plan]', 'pro');
   params.set('metadata[flash_promo]', 'true');
   params.set('metadata[flash_promo_expires_at]', promo.expiresAt);
-  params.set('metadata[flash_reference_price]', referencePriceId);
+  params.set('metadata[flash_target_first_month_cents]', String(FLASH_PROMO_PRICE_CENTS));
   params.set('subscription_data[metadata][firebase_uid]', options.userUid);
   params.set('subscription_data[metadata][plan]', 'pro');
   params.set('subscription_data[metadata][flash_promo]', 'true');
-  params.set('subscription_data[metadata][flash_reference_price]', referencePriceId);
+  params.set('subscription_data[metadata][flash_target_first_month_cents]', String(FLASH_PROMO_PRICE_CENTS));
 
   const customerId = String(subscription?.provider_customer_id || '').trim();
   if (customerId.startsWith('cus_')) params.set('customer', customerId);
   else if (options.email) params.set('customer_email', options.email);
 
-  // Stripe permits Checkout Session expiry between 30 minutes and 24 hours.
-  // When enough campaign time remains, align the Checkout expiry with the
-  // actual 12-hour server deadline as an extra guardrail.
   const expiresMs = new Date(promo.expiresAt).getTime();
   if (expiresMs - Date.now() >= 31 * 60 * 1000) {
     params.set('expires_at', String(Math.floor(expiresMs / 1000)));
