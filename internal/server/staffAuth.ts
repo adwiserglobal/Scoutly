@@ -11,6 +11,12 @@ export interface InternalStaff {
   is_active: boolean;
 }
 
+// Explicit product developers who must never receive access to Scoutly Internal,
+// even if they are accidentally added to an admin environment allowlist or DB row.
+const INTERNAL_ACCESS_DENYLIST = new Set([
+  'rossivictor638@gmail.com',
+]);
+
 function bootstrapEmails() {
   return String(process.env.SCOUTLY_INTERNAL_ADMIN_EMAILS || '')
     .split(',')
@@ -20,6 +26,13 @@ function bootstrapEmails() {
 
 export async function requireInternalStaff(req: { headers: any }) {
   const identity = await requireFirebaseIdentity(req);
+  const normalizedEmail = String(identity.email || '').trim().toLowerCase();
+
+  if (normalizedEmail && INTERNAL_ACCESS_DENYLIST.has(normalizedEmail)) {
+    throw Object.assign(new Error('Esta conta não possui acesso ao Scoutly Internal.'), {
+      statusCode: 403,
+    });
+  }
 
   const rows = await appDataRequest<InternalStaff[]>(
     `internal_staff?firebase_uid=eq.${dbValue(identity.uid)}&select=firebase_uid,email,display_name,role,is_active&limit=1`
@@ -27,7 +40,7 @@ export async function requireInternalStaff(req: { headers: any }) {
 
   let staff = rows[0] || null;
 
-  if (!staff && identity.email && bootstrapEmails().includes(identity.email.toLowerCase())) {
+  if (!staff && normalizedEmail && bootstrapEmails().includes(normalizedEmail)) {
     const created = await appDataRequest<InternalStaff[]>('internal_staff?select=firebase_uid,email,display_name,role,is_active', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
