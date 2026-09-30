@@ -7,12 +7,14 @@ import OnboardingGate from './components/OnboardingGate';
 import DeveloperWelcomeGate from './components/DeveloperWelcomeGate';
 import FlashPromoGate from './components/FlashPromoGate';
 import { installAuthenticatedFetchPatch } from './lib/authenticatedFetchPatch';
+import { installExternalLinkGuard } from './lib/externalLinkGuard';
 import './index.css';
 import './marketing-overrides.css';
 import './ai-icon.css';
 import './business-details-dark.css';
 
 installAuthenticatedFetchPatch();
+installExternalLinkGuard();
 
 const SHAREABLE_PROMOTION_CODE = 'scoutlypro10';
 const promoFromUrl = new URLSearchParams(window.location.search)
