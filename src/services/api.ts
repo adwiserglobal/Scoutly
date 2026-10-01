@@ -52,10 +52,21 @@ export async function fetchPlacesFromOverture(
   return { places, cached: !!data.cached, durationMs: data.durationMs || 0 };
 }
 
-export async function enrichBusinessData(url: string, force = false, businessId?: string | null) {
-  const params = new URLSearchParams({ url });
+export async function enrichBusinessData(
+  url: string | null,
+  force = false,
+  businessId?: string | null,
+  businessContext?: Pick<Business, 'name' | 'address' | 'phone' | 'latitude' | 'longitude'> | null
+) {
+  const params = new URLSearchParams();
+  if (url) params.set('url', url);
   if (force) params.set('force', '1');
   if (businessId) params.set('businessId', businessId);
+  if (businessContext?.name) params.set('name', businessContext.name);
+  if (businessContext?.address) params.set('address', businessContext.address);
+  if (businessContext?.phone) params.set('phone', businessContext.phone);
+  if (Number.isFinite(businessContext?.latitude)) params.set('lat', String(businessContext!.latitude));
+  if (Number.isFinite(businessContext?.longitude)) params.set('lng', String(businessContext!.longitude));
   const res = await authenticatedFetch(`/api/enrich?${params.toString()}`, {
     headers: { Accept: 'application/json' },
   });
