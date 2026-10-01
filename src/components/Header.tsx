@@ -6,6 +6,7 @@ import RecommendedDropdown from './RecommendedDropdown';
 interface HeaderProps {
   currentRegionName: string;
   onSearch: (query: string) => void;
+  onSuggestBusinesses: (query: string) => Promise<Business[]>;
   businesses: Business[];
   onSelectBusiness: (business: Business) => void;
   onUseCurrentLocation: () => void;
@@ -82,6 +83,7 @@ function kindLabel(kind: string): string {
 function Header({
   currentRegionName,
   onSearch,
+  onSuggestBusinesses,
   businesses,
   onSelectBusiness,
   onUseCurrentLocation,
@@ -100,39 +102,39 @@ function Header({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const suggestionsAbortRef = useRef<AbortController | null>(null);
-  const businessSuggestions = useMemo(() => {
+  const [remoteBusinessSuggestions, setRemoteBusinessSuggestions] = useState<Business[]>([]);
+
+  const localBusinessSuggestions = useMemo(() => {
     const query = normalizeBusinessSearch(searchInput);
     if (query.length < 2) return [];
-
-    const queryTokens = query.split(' ').filter((token) => token.length >= 2);
 
     return businesses
       .map((business) => {
         const name = normalizeBusinessSearch(business.name);
-        const category = normalizeBusinessSearch(business.category);
-        const address = normalizeBusinessSearch(business.address);
-        const legalName = normalizeBusinessSearch(business.razaoSocial || '');
         const tradeName = normalizeBusinessSearch(business.nomeFantasia || '');
+        const legalName = normalizeBusinessSearch(business.razaoSocial || '');
 
         let score = 0;
-        if (name === query || tradeName === query) score += 200;
-        if (name.startsWith(query) || tradeName.startsWith(query)) score += 120;
-        if (name.includes(query) || tradeName.includes(query) || legalName.includes(query)) score += 90;
-        if (category.includes(query)) score += 70;
-
-        for (const token of queryTokens) {
-          if (name.includes(token) || tradeName.includes(token)) score += 18;
-          if (category.includes(token)) score += 12;
-          if (address.includes(token)) score += 3;
-        }
+        if (name === query || tradeName === query || legalName === query) score += 300;
+        if (name.startsWith(query) || tradeName.startsWith(query) || legalName.startsWith(query)) score += 220;
+        if (name.includes(query) || tradeName.includes(query) || legalName.includes(query)) score += 160;
 
         return { business, score };
       })
       .filter(({ score }) => score > 0)
       .sort((a, b) => b.score - a.score || (b.business.confidence || 0) - (a.business.confidence || 0))
-      .slice(0, 6)
+      .slice(0, 10)
       .map(({ business }) => business);
   }, [businesses, searchInput]);
+
+  const businessSuggestions = useMemo(() => {
+    const merged = new Map<string, Business>();
+    for (const business of remoteBusinessSuggestions) merged.set(business.id, business);
+    for (const business of localBusinessSuggestions) {
+      if (!merged.has(business.id)) merged.set(business.id, business);
+    }
+    return Array.from(merged.values()).slice(0, 10);
+  }, [remoteBusinessSuggestions, localBusinessSuggestions]);
 
 
   useEffect(() => {
@@ -151,6 +153,7 @@ function Header({
     if (query.length < 2) {
       suggestionsAbortRef.current?.abort();
       setSuggestions([]);
+      setRemoteBusinessSuggestions([]);
       setSuggestionsOpen(false);
       setIsSuggesting(false);
       return;
@@ -161,26 +164,39 @@ function Header({
       const controller = new AbortController();
       suggestionsAbortRef.current = controller;
       setIsSuggesting(true);
+      setSuggestionsOpen(true);
 
       try {
         const params = new URLSearchParams({ q: query, currentRegionName });
-        const response = await fetch(`/api/location-suggestions?${params.toString()}`, {
-          signal: controller.signal,
-        });
 
-        if (!response.ok) {
-          setSuggestions([]);
-          return;
-        }
+        const [businessResult, locationResult] = await Promise.allSettled([
+          onSuggestBusinesses(query),
+          fetch(`/api/location-suggestions?${params.toString()}`, {
+            signal: controller.signal,
+          }).then(async (response) => {
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data?.suggestions) ? data.suggestions : [];
+          }),
+        ]);
 
-        const data = await response.json();
-        const next = Array.isArray(data?.suggestions) ? data.suggestions : [];
-        setSuggestions(next);
-        setSuggestionsOpen(next.length > 0 || businessSuggestions.length > 0);
+        if (controller.signal.aborted) return;
+
+        setRemoteBusinessSuggestions(
+          businessResult.status === 'fulfilled' && Array.isArray(businessResult.value)
+            ? businessResult.value
+            : []
+        );
+        setSuggestions(
+          locationResult.status === 'fulfilled' && Array.isArray(locationResult.value)
+            ? locationResult.value
+            : []
+        );
         setActiveSuggestion(-1);
       } catch (error: any) {
         if (error?.name !== 'AbortError') {
-          console.warn('[Scoutly Autocomplete] Falha ao buscar locais:', error);
+          console.warn('[Scoutly Autocomplete] Falha ao buscar sugestões:', error);
+          setRemoteBusinessSuggestions([]);
           setSuggestions([]);
         }
       } finally {
@@ -188,14 +204,16 @@ function Header({
           setIsSuggesting(false);
         }
       }
-    }, 280);
+    }, 220);
 
     return () => window.clearTimeout(timer);
-  }, [searchInput, currentRegionName, businessSuggestions.length]);
+  }, [searchInput, currentRegionName, onSuggestBusinesses]);
+
 
   const chooseBusiness = (business: Business) => {
     suggestionsAbortRef.current?.abort();
     setSearchInput(business.name);
+    setRemoteBusinessSuggestions([]);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
     onSelectBusiness(business);
@@ -205,6 +223,7 @@ function Header({
     const query = searchInput.trim();
     if (!query) return;
     suggestionsAbortRef.current?.abort();
+    setRemoteBusinessSuggestions([]);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
     onSearch(query);
