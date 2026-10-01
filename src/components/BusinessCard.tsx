@@ -13,10 +13,12 @@ import {
   Star,
 } from 'lucide-react';
 import { Business } from '../types';
-import { getGoogleBusinessLink, getTrustIcon, getWhatsAppLink } from '../services/api';
+import { fetchAccessStatus, getGoogleBusinessLink, getTrustIcon, getWhatsAppLink, unlockBusinessContact } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
+import { isBusinessUnlockedInSession, markBusinessUnlockedInSession } from '../utils/businessUnlockSession';
+import BrandIcon from './BrandIcon';
 
 interface BusinessCardProps {
   business: Business;
@@ -48,6 +50,7 @@ function BusinessCard({
   onToggleFavorite,
 }: BusinessCardProps) {
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [isUnlockingShortcut, setIsUnlockingShortcut] = useState(false);
   const websiteUrl = normalizeExternalUrl(business.website);
   const hasWebsite = Boolean(websiteUrl);
   const hasPhone = Boolean(business.phone || business.phones?.length);
@@ -61,12 +64,65 @@ function BusinessCard({
   // Search/list results are protected until the server accepts the business-open
   // request. This prevents the Site/Google/Phone/WhatsApp shortcuts from
   // bypassing the prospecting credit gate.
-  const requiresCreditGate = business.contactLocked !== false;
+  const requiresCreditGate = business.contactLocked !== false && !isBusinessUnlockedInSession(business.id);
 
-  const openThroughCreditGate = (event: React.MouseEvent) => {
+  const ensureShortcutAccess = async () => {
+    if (!requiresCreditGate) return true;
+    if (isUnlockingShortcut) return false;
+
+    setIsUnlockingShortcut(true);
+    try {
+      const result = await unlockBusinessContact(business);
+      markBusinessUnlockedInSession(business.id);
+      window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
+      return true;
+    } catch (error: any) {
+      const code = String(error?.code || '');
+
+      // Free consumes the credit successfully, while paid e-mail remains gated.
+      if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
+        markBusinessUnlockedInSession(business.id);
+        try {
+          const access = await fetchAccessStatus();
+          window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: access }));
+        } catch {
+          window.dispatchEvent(new CustomEvent('scoutly-access-updated'));
+        }
+        return true;
+      }
+
+      if (code === 'DAILY_CREDIT_LIMIT' || code === 'MONTHLY_CREDIT_LIMIT') {
+        window.dispatchEvent(new CustomEvent('scoutly-request-credits-exhausted'));
+        return false;
+      }
+
+      onOpenDetails(business);
+      return false;
+    } finally {
+      setIsUnlockingShortcut(false);
+    }
+  };
+
+  const openExternalShortcut = async (event: React.MouseEvent, url: string) => {
     event.preventDefault();
     event.stopPropagation();
-    onOpenDetails(business);
+
+    if (!requiresCreditGate) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const pendingWindow = window.open('about:blank', '_blank');
+    if (pendingWindow) pendingWindow.opener = null;
+
+    const allowed = await ensureShortcutAccess();
+    if (!allowed) {
+      pendingWindow?.close();
+      return;
+    }
+
+    if (pendingWindow) pendingWindow.location.replace(url);
+    else window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const showCreditsExhausted = (event: React.MouseEvent) => {
@@ -80,8 +136,8 @@ function BusinessCard({
 
     if (requiresCreditGate) {
       event.preventDefault();
-      onOpenDetails(business);
-      return;
+      const allowed = await ensureShortcutAccess();
+      if (!allowed) return;
     }
 
     if (!business.phone) return;
@@ -130,7 +186,7 @@ function BusinessCard({
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition ${
                 isFavorited
                   ? 'bg-[#FF5A12]/12 text-[#FF6A26]'
-                  : 'text-stone-500 hover:bg-white/[0.06] hover:text-white'
+                  : 'text-stone-400 hover:bg-white/[0.06] hover:text-white'
               }`}
               title={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
@@ -160,7 +216,7 @@ function BusinessCard({
               </span>
             )}
 
-            <span className="flex min-w-0 items-center gap-1 text-[10px] text-stone-500">
+            <span className="flex min-w-0 items-center gap-1 text-[10px] text-stone-400">
               <MapPin className="h-3 w-3 shrink-0" />
               <span className="truncate">{shortLocation(business)}</span>
             </span>
@@ -170,7 +226,7 @@ function BusinessCard({
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
           <div className="text-right">
             <div className="text-[13px] font-semibold text-stone-200">{confidencePercent}%</div>
-            <div className="mt-0.5 text-[8px] font-medium uppercase tracking-[0.1em] text-stone-600">confiança</div>
+            <div className="mt-0.5 text-[8px] font-medium uppercase tracking-[0.1em] text-stone-400">confiança</div>
           </div>
           <img
             src={getTrustIcon(confidence)}
@@ -182,7 +238,7 @@ function BusinessCard({
       </div>
 
       <div className="mt-3 flex items-center gap-2 border-t border-white/[0.07] pt-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[9px] font-semibold uppercase tracking-[0.08em] text-stone-600">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[9px] font-semibold uppercase tracking-[0.08em] text-stone-400">
           {hasWebsite && (
             <span className="flex items-center gap-1">
               <Globe2 className="h-3 w-3" />
@@ -217,12 +273,13 @@ function BusinessCard({
           {requiresCreditGate ? (
             <button
               type="button"
-              onClick={openThroughCreditGate}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
-              title="Abra os dados do negócio para usar este atalho"
+              onClick={(event) => openExternalShortcut(event, googleBusinessUrl)}
+              disabled={isUnlockingShortcut}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[9.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-60"
+              title="Abrir no Google Maps"
             >
-              <ExternalLink className="h-3 w-3" />
-              <span className="hidden md:inline">Google</span>
+              <BrandIcon brand="googleMaps" className="h-3.5 w-3.5" alt="Google Maps" />
+              <span className="hidden md:inline">Google Maps</span>
             </button>
           ) : (
             <a
@@ -233,8 +290,8 @@ function BusinessCard({
               className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
               title="Abrir no Google"
             >
-              <ExternalLink className="h-3 w-3" />
-              <span className="hidden md:inline">Google</span>
+              <BrandIcon brand="googleMaps" className="h-3.5 w-3.5" alt="Google Maps" />
+              <span className="hidden md:inline">Google Maps</span>
             </a>
           )}
 
@@ -254,10 +311,12 @@ function BusinessCard({
             requiresCreditGate ? (
               <button
                 type="button"
-                onClick={openThroughCreditGate}
-                className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
-                title="Abra os dados do negócio para acessar o site"
+                onClick={(event) => openExternalShortcut(event, websiteUrl!)}
+                disabled={isUnlockingShortcut}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[9.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-60"
+                title="Abrir site"
               >
+                <Globe2 className="h-3.5 w-3.5" />
                 Site
               </button>
             ) : (
@@ -277,11 +336,12 @@ function BusinessCard({
             requiresCreditGate ? (
               <button
                 type="button"
-                onClick={openThroughCreditGate}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
-                title="Abra os dados do negócio para acessar o WhatsApp"
+                onClick={(event) => openExternalShortcut(event, whatsappUrl)}
+                disabled={isUnlockingShortcut}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.10] px-2.5 text-[9.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/[0.16] disabled:opacity-60"
+                title="Abrir WhatsApp"
               >
-                <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
                 <span className="hidden md:inline">WhatsApp</span>
               </button>
             ) : (
@@ -295,7 +355,7 @@ function BusinessCard({
                 }}
                 className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
               >
-                <img src="/whatsapp_icone.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
                 <span className="hidden md:inline">WhatsApp</span>
               </a>
             )
