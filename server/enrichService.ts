@@ -189,6 +189,55 @@ function addWhatsApp(result: EnrichmentResult, value: string, sourceUrl: string,
   addPhone(result, digits, sourceUrl, verifiedAt);
 }
 
+function extractWhatsappSignalsFromString(
+  rawValue: string,
+  sourceUrl: string,
+  result: EnrichmentResult,
+  verifiedAt: string,
+) {
+  if (!rawValue) return;
+
+  let value = rawValue
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\u003d/gi, '=')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/gi, '&')
+    .replace(/%2f/gi, '/')
+    .replace(/%3a/gi, ':')
+    .replace(/%3f/gi, '?')
+    .replace(/%3d/gi, '=')
+    .replace(/%26/gi, '&');
+
+  try {
+    value = decodeURIComponent(value);
+  } catch {
+    // Keep the partially decoded value.
+  }
+
+  const urlPatterns = [
+    /(?:https?:\/\/)?wa\.me\/([0-9+().\s-]{8,20})/gi,
+    /(?:https?:\/\/)?(?:api\.)?whatsapp\.com\/(?:send|message)[^"'<>\s]*?[?&](?:phone|to)=([0-9+().\s-]{8,20})/gi,
+    /whatsapp:\/\/send[^"'<>\s]*?[?&](?:phone|to)=([0-9+().\s-]{8,20})/gi,
+  ];
+
+  for (const pattern of urlPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(value)) !== null) {
+      if (match[1]) addWhatsApp(result, match[1], sourceUrl, verifiedAt);
+    }
+  }
+
+  // Many business sites render the number as text beside "WhatsApp" instead of
+  // putting the phone directly in the href. Treat this only as website evidence
+  // when the keyword and the number occur close together.
+  const contextualRegex =
+    /(?:whats\s*app|whatsapp|zap|fale\s+(?:conosco\s+)?(?:pelo|no)\s+whatsapp|chame\s+(?:no|pelo)\s+whatsapp)[^0-9+]{0,80}(\+?\d[\d().\s-]{8,20})/gi;
+  let contextualMatch: RegExpExecArray | null;
+  while ((contextualMatch = contextualRegex.exec(value)) !== null) {
+    if (contextualMatch[1]) addWhatsApp(result, contextualMatch[1], sourceUrl, verifiedAt);
+  }
+}
+
 function addEmail(result: EnrichmentResult, value: string, sourceUrl: string, verifiedAt: string) {
   const email = normalizeEmail(value);
   if (!email || !email.includes('@')) return;
@@ -230,6 +279,9 @@ function extractDataFromPage(
   const html = $.html();
   const text = $('body').text();
 
+  extractWhatsappSignalsFromString(html, sourceUrl, result, verifiedAt);
+  extractWhatsappSignalsFromString(text, sourceUrl, result, verifiedAt);
+
   // Explicit WhatsApp links are treated as high-confidence current evidence.
   $('a[href]').each((_, element) => {
     const href = ($(element).attr('href') || '').trim();
@@ -241,6 +293,33 @@ function extractDataFromPage(
     if (waMatch?.[1]) {
       addWhatsApp(result, waMatch[1], sourceUrl, verifiedAt);
     }
+
+    const elementText = $(element).text();
+    const extraAttributes = [
+      $(element).attr('onclick'),
+      $(element).attr('data-href'),
+      $(element).attr('data-url'),
+      $(element).attr('data-link'),
+      $(element).attr('data-phone'),
+      $(element).attr('data-whatsapp'),
+      $(element).attr('aria-label'),
+      $(element).attr('title'),
+      elementText,
+    ].filter(Boolean).join(' ');
+    extractWhatsappSignalsFromString(extraAttributes, sourceUrl, result, verifiedAt);
+  });
+
+  $('[onclick], [data-href], [data-url], [data-link], [data-phone], [data-whatsapp]').each((_, element) => {
+    const values = [
+      $(element).attr('onclick'),
+      $(element).attr('data-href'),
+      $(element).attr('data-url'),
+      $(element).attr('data-link'),
+      $(element).attr('data-phone'),
+      $(element).attr('data-whatsapp'),
+      $(element).text(),
+    ].filter(Boolean).join(' ');
+    extractWhatsappSignalsFromString(values, sourceUrl, result, verifiedAt);
   });
 
   // Fallback for raw WhatsApp URLs embedded in scripts/markup.
@@ -304,6 +383,35 @@ function extractDataFromPage(
       walkJsonLd(parsed, (item) => {
         if (typeof item.telephone === 'string') {
           addPhone(result, item.telephone, sourceUrl, verifiedAt);
+          if (/whats\s*app|whatsapp/i.test(String(item.contactType || item.description || ''))) {
+            addWhatsApp(result, item.telephone, sourceUrl, verifiedAt);
+          }
+        }
+
+        const sameAsValues = Array.isArray(item.sameAs) ? item.sameAs : item.sameAs ? [item.sameAs] : [];
+        for (const sameAs of sameAsValues) {
+          if (typeof sameAs === 'string') {
+            extractWhatsappSignalsFromString(sameAs, sourceUrl, result, verifiedAt);
+          }
+        }
+
+        if (item.contactPoint) {
+          const contactPoints = Array.isArray(item.contactPoint) ? item.contactPoint : [item.contactPoint];
+          for (const contact of contactPoints) {
+            if (!contact || typeof contact !== 'object') continue;
+            const contactPhone = typeof contact.telephone === 'string' ? contact.telephone : '';
+            const contactType = String(contact.contactType || contact.description || '');
+            if (contactPhone) addPhone(result, contactPhone, sourceUrl, verifiedAt);
+            if (contactPhone && /whats\s*app|whatsapp/i.test(contactType)) {
+              addWhatsApp(result, contactPhone, sourceUrl, verifiedAt);
+            }
+            for (const key of ['url', 'sameAs']) {
+              const candidate = contact[key];
+              if (typeof candidate === 'string') {
+                extractWhatsappSignalsFromString(candidate, sourceUrl, result, verifiedAt);
+              }
+            }
+          }
         }
 
         const emails = Array.isArray(item.email) ? item.email : item.email ? [item.email] : [];
@@ -427,7 +535,7 @@ export async function enrichBusinessWebsite(
   const baseHost = new URL(finalHomepageUrl).hostname.replace(/^www\./, '');
 
   $home('a[href]').each((_, element) => {
-    if (discoveredSubpages.length >= 4) return;
+    if (discoveredSubpages.length >= 8) return;
 
     const href = $home(element).attr('href')?.trim();
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
@@ -439,7 +547,7 @@ export async function enrichBusinessWebsite(
 
       const path = fullUrl.pathname.toLowerCase();
       if (
-        /contato|contact|fale-conosco|atendimento|support|suporte|sobre|about|quem-somos|localizacao|location/.test(
+        /contato|contact|fale-conosco|fale|atendimento|whatsapp|orcamento|orçamento|support|suporte|sobre|about|quem-somos|localizacao|location/.test(
           path,
         ) &&
         fullUrl.toString() !== finalHomepageUrl &&
