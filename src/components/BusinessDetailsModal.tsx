@@ -3,6 +3,7 @@ import { Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import BusinessDetailsModalBase from './BusinessDetailsModalBase';
 import { fetchAccessStatus, unlockBusinessContact } from '../services/api';
+import { isBusinessUnlockedInSession, markBusinessUnlockedInSession } from '../utils/businessUnlockSession';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -158,7 +159,8 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
 
     const raw = business as any;
     setResolvedBusiness(normalizeUnlockedBusiness(business));
-    if (!raw.contactLocked) {
+    if (!raw.contactLocked || isBusinessUnlockedInSession(business.id)) {
+      setResolvedBusiness(normalizeUnlockedBusiness({ ...business, contactLocked: false } as Business));
       setStatus('ready');
       return;
     }
@@ -175,6 +177,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
 
     unlockOnce(raw)
       .then((result) => {
+        markBusinessUnlockedInSession(business.id);
         setResolvedBusiness(normalizeUnlockedBusiness({ ...business, ...result.business, contactLocked: false } as Business));
         setStatus('ready');
         window.dispatchEvent(new CustomEvent('scoutly-access-updated', { detail: result.access }));
@@ -183,6 +186,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
         const code = String(error?.code || '');
 
         if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
+          markBusinessUnlockedInSession(business.id);
           setResolvedBusiness(normalizeUnlockedBusiness({
             ...business,
             contactLocked: false,
