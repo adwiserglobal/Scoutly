@@ -16,6 +16,7 @@ import { Business } from '../types';
 import { getGoogleBusinessLink, getTrustIcon, getWhatsAppLink } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
+import { normalizeExternalUrl } from '../utils/externalUrl';
 
 interface BusinessCardProps {
   business: Business;
@@ -47,7 +48,8 @@ function BusinessCard({
   onToggleFavorite,
 }: BusinessCardProps) {
   const [copiedPhone, setCopiedPhone] = useState(false);
-  const hasWebsite = Boolean(business.website);
+  const websiteUrl = normalizeExternalUrl(business.website);
+  const hasWebsite = Boolean(websiteUrl);
   const hasPhone = Boolean(business.phone || business.phones?.length);
   const hasEmail = Boolean(business.email || business.emails?.length);
   const confidence = business.confidence || 0.8;
@@ -260,7 +262,7 @@ function BusinessCard({
               </button>
             ) : (
               <a
-                href={business.website!}
+                href={websiteUrl!}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
