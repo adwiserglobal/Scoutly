@@ -866,7 +866,7 @@ export default function App() {
     try {
       const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, bounds, 'name');
       const items = Array.isArray(result?.businesses) ? result.businesses : [];
-      return items.slice(0, 10);
+      return items.slice(0, 30);
     } catch (error) {
       console.warn('[Scoutly Search] Live business suggestions failed:', error);
       return [];
