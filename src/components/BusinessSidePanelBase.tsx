@@ -33,6 +33,7 @@ import { usePageSpeed } from '../hooks/usePageSpeed';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
+import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -71,9 +72,9 @@ function SignalRow({ icon, label, value, detected, loading, title, action, value
   return (
     <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-3 last:border-b-0" title={title}>
       <div className="flex min-w-0 items-center gap-3">
-        <span className="text-stone-400">{icon}</span>
+        <span className="text-stone-300">{icon}</span>
         <div className="min-w-0">
-          <span className="block text-[10px] font-medium text-stone-400">{label}</span>
+          <span className="block text-[10px] font-medium text-stone-300">{label}</span>
           <span className={`mt-0.5 block truncate text-[11px] font-semibold text-stone-100 ${valueClassName}`}>
             {loading ? 'Verificando' : value}
           </span>
@@ -90,7 +91,7 @@ function SignalRow({ icon, label, value, detected, loading, title, action, value
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] py-2.5 last:border-b-0">
-      <span className="text-[10px] text-stone-400">{label}</span>
+      <span className="text-[10px] text-stone-300">{label}</span>
       <span className="max-w-[64%] text-right text-[10px] font-medium text-stone-200">{value}</span>
     </div>
   );
@@ -109,53 +110,23 @@ function SectionTitle({ icon, children }: { icon: React.ReactNode; children: Rea
   return (
     <div className="mb-3 flex items-center gap-2">
       <span className="text-[#FF6A26]">{icon}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">{children}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">{children}</span>
     </div>
   );
 }
 
-function InstagramLogo() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0">
-      <defs>
-        <linearGradient id="ig-panel-gradient" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#FEDA75" />
-          <stop offset="34%" stopColor="#FA7E1E" />
-          <stop offset="60%" stopColor="#D62976" />
-          <stop offset="82%" stopColor="#962FBF" />
-          <stop offset="100%" stopColor="#4F5BD5" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#ig-panel-gradient)" />
-      <circle cx="12" cy="12" r="4.1" fill="none" stroke="white" strokeWidth="1.8" />
-      <circle cx="17.25" cy="6.8" r="1.15" fill="white" />
-    </svg>
-  );
-}
-
-function FacebookLogo() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0">
-      <circle cx="12" cy="12" r="10" fill="#1877F2" />
-      <path fill="white" d="M13.3 20v-7h2.35l.35-2.7h-2.7V8.58c0-.78.22-1.31 1.35-1.31H16V4.85c-.24-.03-1.07-.1-2.03-.1-2 0-3.37 1.22-3.37 3.46v2.09H8.34V13h2.26v7h2.7Z" />
-    </svg>
-  );
-}
-
-function WhatsAppLogo() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0">
-      <circle cx="12" cy="12" r="10" fill="#25D366" />
-      <path fill="white" d="M16.75 14.5c-.25-.13-1.48-.73-1.71-.81-.23-.09-.4-.13-.57.12-.17.26-.65.82-.8.99-.15.17-.29.19-.54.06-1.48-.73-2.45-1.31-3.43-2.97-.26-.45.26-.42.74-1.39.08-.17.04-.32-.02-.45-.06-.13-.57-1.37-.78-1.88-.21-.49-.42-.42-.57-.43h-.49c-.17 0-.45.06-.68.32-.23.25-.89.87-.89 2.12s.91 2.46 1.04 2.63c.13.17 1.79 2.73 4.34 3.83.61.26 1.08.42 1.45.54.61.19 1.16.17 1.6.1.49-.07 1.48-.61 1.69-1.19.21-.59.21-1.09.15-1.2-.06-.1-.23-.16-.48-.29Z" />
-    </svg>
-  );
-}
-
-function SocialLogo({ network }: { network: string }) {
+function SocialLogo({ network, url }: { network: string; url?: string }) {
   const normalized = network.toLowerCase();
-  if (normalized.includes('instagram')) return <InstagramLogo />;
-  if (normalized.includes('facebook')) return <FacebookLogo />;
-  if (normalized.includes('whatsapp')) return <WhatsAppLogo />;
+  let brand: BrandName | null = url ? brandFromUrl(url) : null;
+  if (!brand) {
+    if (normalized.includes('instagram')) brand = 'instagram';
+    else if (normalized.includes('facebook')) brand = 'facebook';
+    else if (normalized.includes('whatsapp')) brand = 'whatsapp';
+    else if (normalized.includes('youtube')) brand = 'youtube';
+    else if (normalized.includes('tiktok')) brand = 'tiktok';
+    else if (normalized.includes('linkedin')) brand = 'linkedin';
+  }
+  if (brand) return <BrandIcon brand={brand} className="h-4 w-4" alt={network} />;
   return <Globe2 className="h-4 w-4 text-stone-300" />;
 }
 
@@ -227,7 +198,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     setIsEnrichmentLoading(true);
     setIsTrackingLoading(true);
 
-    enrichBusinessData(websiteUrl)
+    enrichBusinessData(websiteUrl, false, business.id)
       .then((data) => {
         if (cancelled) return;
         setEnrichment(data);
@@ -267,7 +238,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     if (current.length > 0) return current.slice(0, 4);
 
     return (business.socials || []).filter(Boolean).slice(0, 4).map((url) => ({
-      network: url.includes('instagram') ? 'Instagram' : url.includes('facebook') ? 'Facebook' : url.includes('linkedin') ? 'LinkedIn' : 'Rede social',
+      network: url.includes('instagram') ? 'Instagram'
+        : url.includes('facebook') ? 'Facebook'
+        : url.includes('youtube') || url.includes('youtu.be') ? 'YouTube'
+        : url.includes('tiktok') ? 'TikTok'
+        : url.includes('linkedin') ? 'LinkedIn'
+        : url.includes('wa.me') || url.includes('whatsapp') ? 'WhatsApp'
+        : 'Rede social',
       url,
     }));
   }, [enrichment, business.socials]);
@@ -375,13 +352,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="truncate text-[18px] font-semibold tracking-tight text-white">{business.name}</h2>
-                <button type="button" onClick={() => onToggleFavorite?.(business)} className="shrink-0 rounded-lg p-1 text-stone-400 transition hover:bg-white/[0.06] hover:text-white" title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}>
+                <button type="button" onClick={() => onToggleFavorite?.(business)} className="shrink-0 rounded-lg p-1 text-stone-300 transition hover:bg-white/[0.06] hover:text-white" title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}>
                   <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF6A26] text-[#FF6A26]' : ''}`} />
                 </button>
               </div>
               <p className="mt-1 text-[11px] font-medium text-stone-300">{translateCategory(business.category)}</p>
             </div>
-            <button type="button" onClick={onClose} className="shrink-0 rounded-xl p-2 text-stone-400 transition hover:bg-white/[0.06] hover:text-white" title="Fechar">
+            <button type="button" onClick={onClose} className="shrink-0 rounded-xl p-2 text-stone-300 transition hover:bg-white/[0.06] hover:text-white" title="Fechar">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -395,7 +372,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
 
           <div className="mt-4 flex flex-wrap gap-2">
             <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
-              <MapPin className="h-3.5 w-3.5 text-[#FF6A26]" /> Ver no Google
+              <BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps
             </a>
             {hasWebsite && (
               <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
@@ -409,14 +386,14 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
             )}
             {whatsappUrl && (
               <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecommendationWhatsApp(business)} className="inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-100 transition hover:border-emerald-500/35 hover:bg-emerald-500/[0.08]" title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'}>
-                <WhatsAppLogo /> WhatsApp
+                <BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" /> WhatsApp
                 {verifiedWhatsapp ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
               </a>
             )}
           </div>
 
           {isAnythingLoading && (
-            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-400"><LoaderRing /> Atualizando sinais do negócio</div>
+            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-300"><LoaderRing /> Atualizando sinais do negócio</div>
           )}
         </div>
 
@@ -427,17 +404,17 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
               {hasWebsite && (
                 <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
                   <Globe2 className="h-4 w-4 text-[#FF6A26]" /> Site
-                  <ChevronRight className="h-3.5 w-3.5 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
+                  <ChevronRight className="h-3.5 w-3.5 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
                 </a>
               )}
               {socialLinks.map((item) => (
                 <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
-                  <SocialLogo network={item.network} /> {item.network}
-                  <ChevronRight className="h-3.5 w-3.5 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
+                  <SocialLogo network={item.network} url={item.url} /> {item.network}
+                  <ChevronRight className="h-3.5 w-3.5 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
                 </a>
               ))}
               {!hasWebsite && socialLinks.length === 0 && (
-                <div className="rounded-xl border border-white/[0.08] bg-[#111418] px-3 py-2.5 text-[10px] text-stone-400">Nenhum canal digital identificado</div>
+                <div className="rounded-xl border border-white/[0.08] bg-[#111418] px-3 py-2.5 text-[10px] text-stone-300">Nenhum canal digital identificado</div>
               )}
             </div>
           </section>
@@ -457,7 +434,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
 
           <section className="mt-6">
             <SectionTitle icon={<Activity className="h-4 w-4" />}>Anúncios públicos</SectionTitle>
-            <p className="mb-3 text-[9px] leading-relaxed text-stone-400">
+            <p className="mb-3 text-[9px] leading-relaxed text-stone-300">
               Verifique nas bibliotecas oficiais se encontramos anúncios associados a este negócio.
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -468,9 +445,9 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
                 className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#1877F2]/40 hover:bg-[#1877F2]/[0.06]"
                 title={`Pesquisar ${business.name} na Biblioteca de Anúncios da Meta`}
               >
-                <img src="/meta-ads-logo.png" alt="Meta" className="h-6 w-6 shrink-0 object-contain" />
+                <BrandIcon brand="meta" className="h-6 w-6" alt="Meta" />
                 <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Meta Ads</span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#1877F2]" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#1877F2]" />
               </a>
 
               {googleAdsTransparencyUrl ? (
@@ -481,17 +458,17 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
                   className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#4285F4]/40 hover:bg-[#4285F4]/[0.06]"
                   title={`Pesquisar ${websiteDomain} no Google Ads Transparency Center`}
                 >
-                  <img src="/google-ads-logo.png" alt="Google Ads" className="h-6 w-6 shrink-0 rounded-md bg-white object-contain" />
+                  <BrandIcon brand="googleAds" className="h-6 w-6 rounded-md bg-white" alt="Google Ads" />
                   <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Google Ads</span>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#4285F4]" />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#4285F4]" />
                 </a>
               ) : (
                 <div
                   className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-[#111418] px-3 py-2.5 opacity-55"
                   title="A busca direta do Google fica disponível quando o negócio possui um site identificado"
                 >
-                  <img src="/google-ads-logo.png" alt="Google Ads" className="h-6 w-6 shrink-0 rounded-md bg-white object-contain grayscale-[0.2]" />
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-400">Google Ads</span>
+                  <BrandIcon brand="googleAds" className="h-6 w-6 rounded-md bg-white grayscale-[0.2]" alt="Google Ads" />
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-300">Google Ads</span>
                 </div>
               )}
             </div>
@@ -501,7 +478,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
             <SectionTitle icon={<Activity className="h-4 w-4" />}>Visão rápida</SectionTitle>
             <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
               <SignalRow icon={<Globe2 className="h-4 w-4" />} label="Site" value={hasWebsite ? 'Identificado' : 'Não identificado'} detected={hasWebsite} />
-              <SignalRow icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} />
+              <SignalRow icon={<BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} />
               <SignalRow icon={<Activity className="h-4 w-4" />} label="Tracking" value={trackingDetected ? 'Detectado' : 'Não confirmado'} detected={trackingDetected} loading={hasWebsite && isTrackingLoading} />
               <SignalRow icon={<Gauge className="h-4 w-4" />} label="PageSpeed mobile" value={pageSpeedDetected && pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'} detected={pageSpeedDetected} loading={hasWebsite && isPageSpeedLoading} />
             </div>
@@ -511,7 +488,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
             <SectionTitle icon={<Phone className="h-4 w-4" />}>Contato atual</SectionTitle>
             <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
               <SignalRow icon={<Phone className="h-4 w-4" />} label="Telefone" value={phoneToCopy || 'Não identificado'} detected={Boolean(phoneToCopy)} loading={hasWebsite && isEnrichmentLoading} action={phoneToCopy ? (
-                <button type="button" onClick={handleCopyPhone} className="rounded-md p-1.5 text-stone-400 transition hover:bg-white/[0.06] hover:text-[#FF6A26]" title={copiedPhone ? 'Número copiado' : 'Copiar número'}>
+                <button type="button" onClick={handleCopyPhone} className="rounded-md p-1.5 text-stone-300 transition hover:bg-white/[0.06] hover:text-[#FF6A26]" title={copiedPhone ? 'Número copiado' : 'Copiar número'}>
                   {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               ) : undefined} />
@@ -532,7 +509,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
                   </button>
                 ) : undefined}
               />
-              <SignalRow icon={<WhatsAppLogo />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} action={whatsappUrl ? (
+              <SignalRow icon={<BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} action={whatsappUrl ? (
                 <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecommendationWhatsApp(business)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-emerald-500/35 hover:text-white">
                   Abrir {verifiedWhatsapp ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
                 </a>
@@ -544,13 +521,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
           <section className="mt-6">
             <SectionTitle icon={<Sparkles className="h-4 w-4" />}>Gerar abordagem</SectionTitle>
             <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
-              {!generatedMessage && !messageError && <p className="text-[10px] leading-relaxed text-stone-400">Crie uma primeira mensagem usando os sinais encontrados para este negócio.</p>}
+              {!generatedMessage && !messageError && <p className="text-[10px] leading-relaxed text-stone-300">Crie uma primeira mensagem usando os sinais encontrados para este negócio.</p>}
               {messageError && <p className="rounded-lg bg-rose-500/[0.08] px-3 py-2 text-[10px] text-rose-400">{messageError}</p>}
               {generatedMessage && (
                 <div className="rounded-xl border border-[#FF4D00]/15 bg-[#FFF8F4] p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-[#D94400]" title={messageModel || undefined}>{messageSource === 'template' ? 'Fallback local' : 'Abordagem com IA'}</span>
-                    <button type="button" onClick={handleCopyMessage} className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-500 transition hover:bg-white hover:text-[#FF6A26]">
+                    <button type="button" onClick={handleCopyMessage} className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-400 transition hover:bg-white hover:text-[#FF6A26]">
                       {isMessageCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}{isMessageCopied ? 'Copiado' : 'Copiar'}
                     </button>
                   </div>
@@ -585,13 +562,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
               <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
                 <div className="grid grid-cols-4 gap-2">
                   {[[ 'FCP', pageSpeed.fcp || '-' ], [ 'LCP', pageSpeed.lcp || '-' ], [ 'TBT', pageSpeed.tbt || '-' ], [ 'CLS', pageSpeed.cls || '-' ]].map(([label, value]) => (
-                    <div key={label} className="text-center"><span className="block text-[8px] font-semibold text-stone-400">{label}</span><span className="mt-1 block text-[10px] font-semibold text-stone-200">{value}</span></div>
+                    <div key={label} className="text-center"><span className="block text-[8px] font-semibold text-stone-300">{label}</span><span className="mt-1 block text-[10px] font-semibold text-stone-200">{value}</span></div>
                   ))}
                 </div>
                 {pageSpeed.opportunityTitle && (
                   <div className="mt-3 border-t border-white/[0.07] pt-3">
                     <span className="text-[10px] font-semibold text-stone-100">{pageSpeed.opportunityTitle}</span>
-                    {pageSpeed.opportunityDescription && <p className="mt-1 text-[9px] leading-relaxed text-stone-400">{pageSpeed.opportunityDescription}</p>}
+                    {pageSpeed.opportunityDescription && <p className="mt-1 text-[9px] leading-relaxed text-stone-300">{pageSpeed.opportunityDescription}</p>}
                   </div>
                 )}
               </div>
