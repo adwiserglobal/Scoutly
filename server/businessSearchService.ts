@@ -231,22 +231,50 @@ export async function searchBusinessesInBounds(
     }
 
     try {
-      const byName = await queryBrazilPlacesByName(
-        phrase,
-        bbox.west,
-        bbox.south,
-        bbox.east,
-        bbox.north,
-        profile ? 100 : 220
+      const nameTerms = Array.from(new Set(
+        (profile
+          ? [phrase, profile.label, ...profile.aliases, ...profile.nameTerms]
+          : [phrase]
+        )
+          .map(normalizeText)
+          .filter((term) => term.length >= 3)
+      )).slice(0, 6);
+
+      const nameLookups = await Promise.all(
+        nameTerms.map((term) =>
+          queryBrazilPlacesByName(
+            term,
+            bbox.west,
+            bbox.south,
+            bbox.east,
+            bbox.north,
+            profile ? 140 : 220
+          ).catch(() => null)
+        )
       );
-      for (const place of byName.places) {
-        const normalizedName = normalizeText(place.name || '');
-        const normalizedPhrase = normalizeText(phrase);
-        let score = byName.relevanceById.get(place.id) || 90;
-        if (normalizedName === normalizedPhrase) score += 40;
-        else if (normalizedName.startsWith(normalizedPhrase)) score += 24;
-        else if (normalizedName.includes(normalizedPhrase)) score += 12;
-        addPlace(place, score);
+
+      for (let index = 0; index < nameLookups.length; index += 1) {
+        const byName = nameLookups[index];
+        if (!byName) continue;
+
+        const normalizedTerm = nameTerms[index];
+        for (const place of byName.places) {
+          const normalizedName = normalizeText(place.name || '');
+          let score = byName.relevanceById.get(place.id) || 90;
+
+          // Generic segment behavior: exact/prefix name matches always rise first.
+          // "despachante" -> "Despachante Beltrão", "Despachante São José", etc.
+          if (normalizedName === normalizedTerm) score += 90;
+          else if (normalizedName.startsWith(`${normalizedTerm} `) || normalizedName.startsWith(normalizedTerm)) score += 70;
+          else if (normalizedName.includes(` ${normalizedTerm} `) || normalizedName.includes(normalizedTerm)) score += 30;
+
+          if (profile) {
+            const profileScore = scoreAgainstProfile(place, profile);
+            score += Math.max(0, profileScore);
+          }
+
+          addPlace(place, score);
+        }
       }
     } catch (error: any) {
       console.warn('[Viewport Search] Name lookup failed:', error?.message || error);
