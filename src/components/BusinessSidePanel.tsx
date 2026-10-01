@@ -3,6 +3,7 @@ import { ExternalLink, Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
 import { Business } from '../types';
 import BusinessSidePanelBase from './BusinessSidePanelBase';
 import { fetchAccessStatus, getGoogleBusinessLink, unlockBusinessContact } from '../services/api';
+import { isBusinessUnlockedInSession, markBusinessUnlockedInSession } from '../utils/businessUnlockSession';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -147,7 +148,8 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
     const raw = business as any;
     setResolvedBusiness(business);
 
-    if (!raw.contactLocked) {
+    if (!raw.contactLocked || isBusinessUnlockedInSession(business.id)) {
+      setResolvedBusiness({ ...business, contactLocked: false } as Business);
       setStatus('ready');
       return;
     }
@@ -165,6 +167,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
 
     unlockOnce(raw)
       .then((result) => {
+        markBusinessUnlockedInSession(business.id);
         const next = { ...business, ...result.business, contactLocked: false } as Business;
         setResolvedBusiness(next);
         setStatus('ready');
@@ -177,6 +180,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
         // the paid email never leaves the server. Continue with the already-safe
         // business payload (phone/website/etc. visible, email masked).
         if (code === 'CONTACTS_REQUIRE_PAID_PLAN') {
+          markBusinessUnlockedInSession(business.id);
           const next = {
             ...business,
             contactLocked: false,
