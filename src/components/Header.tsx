@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent, memo, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { Business } from '../types';
 import RecommendedDropdown from './RecommendedDropdown';
@@ -6,6 +6,8 @@ import RecommendedDropdown from './RecommendedDropdown';
 interface HeaderProps {
   currentRegionName: string;
   onSearch: (query: string) => void;
+  businesses: Business[];
+  onSelectBusiness: (business: Business) => void;
   onUseCurrentLocation: () => void;
   onSelectPreset?: (region: { name: string; lat: number; lng: number }) => void;
   isLocating: boolean;
@@ -50,6 +52,16 @@ function replaceLocationTail(query: string, label: string): string {
   return label;
 }
 
+function normalizeBusinessSearch(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function kindLabel(kind: string): string {
   const labels: Record<string, string> = {
     suburb: 'Bairro',
@@ -70,6 +82,8 @@ function kindLabel(kind: string): string {
 function Header({
   currentRegionName,
   onSearch,
+  businesses,
+  onSelectBusiness,
   onUseCurrentLocation,
   isLocating,
   totalBusinessesCount,
@@ -86,6 +100,40 @@ function Header({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const suggestionsAbortRef = useRef<AbortController | null>(null);
+  const businessSuggestions = useMemo(() => {
+    const query = normalizeBusinessSearch(searchInput);
+    if (query.length < 2) return [];
+
+    const queryTokens = query.split(' ').filter((token) => token.length >= 2);
+
+    return businesses
+      .map((business) => {
+        const name = normalizeBusinessSearch(business.name);
+        const category = normalizeBusinessSearch(business.category);
+        const address = normalizeBusinessSearch(business.address);
+        const legalName = normalizeBusinessSearch(business.razaoSocial || '');
+        const tradeName = normalizeBusinessSearch(business.nomeFantasia || '');
+
+        let score = 0;
+        if (name === query || tradeName === query) score += 200;
+        if (name.startsWith(query) || tradeName.startsWith(query)) score += 120;
+        if (name.includes(query) || tradeName.includes(query) || legalName.includes(query)) score += 90;
+        if (category.includes(query)) score += 70;
+
+        for (const token of queryTokens) {
+          if (name.includes(token) || tradeName.includes(token)) score += 18;
+          if (category.includes(token)) score += 12;
+          if (address.includes(token)) score += 3;
+        }
+
+        return { business, score };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || (b.business.confidence || 0) - (a.business.confidence || 0))
+      .slice(0, 6)
+      .map(({ business }) => business);
+  }, [businesses, searchInput]);
+
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -128,7 +176,7 @@ function Header({
         const data = await response.json();
         const next = Array.isArray(data?.suggestions) ? data.suggestions : [];
         setSuggestions(next);
-        setSuggestionsOpen(next.length > 0);
+        setSuggestionsOpen(next.length > 0 || businessSuggestions.length > 0);
         setActiveSuggestion(-1);
       } catch (error: any) {
         if (error?.name !== 'AbortError') {
@@ -143,7 +191,24 @@ function Header({
     }, 280);
 
     return () => window.clearTimeout(timer);
-  }, [searchInput, currentRegionName]);
+  }, [searchInput, currentRegionName, businessSuggestions.length]);
+
+  const chooseBusiness = (business: Business) => {
+    suggestionsAbortRef.current?.abort();
+    setSearchInput(business.name);
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
+    onSelectBusiness(business);
+  };
+
+  const searchCurrentArea = () => {
+    const query = searchInput.trim();
+    if (!query) return;
+    suggestionsAbortRef.current?.abort();
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
+    onSearch(query);
+  };
 
   const chooseSuggestion = (suggestion: LocationSuggestion) => {
     const nextQuery = replaceLocationTail(searchInput, suggestion.label);
@@ -204,9 +269,17 @@ function Header({
             <input
               type="text"
               value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setSearchInput(next);
+                if (next.trim().length >= 2) setSuggestionsOpen(true);
+              }}
               onKeyDown={handleInputKeyDown}
-              onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
+              onFocus={() => {
+                if (suggestions.length > 0 || businessSuggestions.length > 0 || searchInput.trim().length >= 2) {
+                  setSuggestionsOpen(true);
+                }
+              }}
               placeholder="Busque empresas, categorias ou bairros"
               autoComplete="off"
               aria-autocomplete="list"
@@ -226,40 +299,94 @@ function Header({
             </button>
           </div>
 
-          {suggestionsOpen && suggestions.length > 0 && (
+          {suggestionsOpen && searchInput.trim().length >= 2 && (
             <div
               role="listbox"
-              className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#121519]/[0.96] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.46)] backdrop-blur-2xl"
+              className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] max-h-[430px] overflow-y-auto rounded-2xl border border-white/10 bg-[#121519]/[0.97] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.46)] backdrop-blur-2xl custom-scrollbar"
             >
-              <div className="px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
-                Locais
-              </div>
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={suggestion.id}
-                  type="button"
-                  role="option"
-                  aria-selected={activeSuggestion === index}
-                  onMouseEnter={() => setActiveSuggestion(index)}
-                  onClick={() => chooseSuggestion(suggestion)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                    activeSuggestion === index ? 'bg-[#FF5A12]/12' : 'hover:bg-white/[0.05]'
-                  }`}
-                >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                    activeSuggestion === index ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.05] text-[#FF6A26]'
-                  }`}>
-                    <MapPin className="h-3.5 w-3.5" />
+              <button
+                type="button"
+                onClick={searchCurrentArea}
+                className="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-[#FF5A12]/10"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#FF5A12]/12 text-[#FF6A26]">
+                  <Search className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-semibold text-white">
+                    Buscar “{searchInput.trim()}” nesta área
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-white">{suggestion.primary}</div>
-                    <div className="truncate text-[10px] text-stone-500">{suggestion.secondary || suggestion.label}</div>
+                  <div className="text-[10px] text-stone-500">
+                    {businessSuggestions.length > 0
+                      ? `${businessSuggestions.length}+ correspondências já carregadas`
+                      : 'Pesquisar empresas por nome ou segmento'}
                   </div>
-                  <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-stone-600">
-                    {kindLabel(suggestion.kind)}
-                  </span>
-                </button>
-              ))}
+                </div>
+              </button>
+
+              {businessSuggestions.length > 0 && (
+                <>
+                  <div className="px-3 pb-1 pt-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Empresas
+                  </div>
+                  {businessSuggestions.map((business) => (
+                    <button
+                      key={business.id}
+                      type="button"
+                      role="option"
+                      onClick={() => chooseBusiness(business)}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-[#FF6A26]">
+                        <MapPin className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium text-white">{business.name}</div>
+                        <div className="truncate text-[10px] text-stone-500">
+                          {business.category || 'Empresa'}{business.address ? ` · ${business.address}` : ''}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-[9px] font-semibold text-[#FF6A26]">
+                        Ver
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {suggestions.length > 0 && (
+                <>
+                  <div className="px-3 pb-1 pt-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Locais
+                  </div>
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      role="option"
+                      aria-selected={activeSuggestion === index}
+                      onMouseEnter={() => setActiveSuggestion(index)}
+                      onClick={() => chooseSuggestion(suggestion)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                        activeSuggestion === index ? 'bg-[#FF5A12]/12' : 'hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                        activeSuggestion === index ? 'bg-[#FF5A12] text-white' : 'bg-white/[0.05] text-[#FF6A26]'
+                      }`}>
+                        <MapPin className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium text-white">{suggestion.primary}</div>
+                        <div className="truncate text-[10px] text-stone-500">{suggestion.secondary || suggestion.label}</div>
+                      </div>
+                      <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-stone-600">
+                        {kindLabel(suggestion.kind)}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </form>
