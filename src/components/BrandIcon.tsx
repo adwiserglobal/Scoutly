@@ -7,7 +7,8 @@ export type BrandName =
   | 'facebook'
   | 'instagram'
   | 'youtube'
-  | 'tiktok';
+  | 'tiktok'
+  | 'linkedin';
 
 const BRAND_SOURCES: Record<BrandName, string> = {
   google: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
@@ -19,6 +20,7 @@ const BRAND_SOURCES: Record<BrandName, string> = {
   instagram: 'https://cdn.simpleicons.org/instagram/E4405F',
   youtube: 'https://cdn.simpleicons.org/youtube/FF0000',
   tiktok: 'https://cdn.simpleicons.org/tiktok/111111',
+  linkedin: 'https://cdn.simpleicons.org/linkedin/0A66C2',
 };
 
 export function brandFromUrl(value?: string | null): BrandName | null {
@@ -27,6 +29,7 @@ export function brandFromUrl(value?: string | null): BrandName | null {
   if (url.includes('facebook.com') || url.includes('fb.com')) return 'facebook';
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
   if (url.includes('tiktok.com')) return 'tiktok';
+  if (url.includes('linkedin.com')) return 'linkedin';
   if (url.includes('wa.me') || url.includes('whatsapp.com')) return 'whatsapp';
   if (url.includes('google.com/maps') || url.includes('maps.google')) return 'googleMaps';
   return null;
