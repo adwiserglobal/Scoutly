@@ -243,6 +243,35 @@ export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
   };
 }
 
+export async function hasBusinessUnlockAccess(
+  userUid: string,
+  businessId: string,
+): Promise<boolean> {
+  const access = await getSubscriptionAccess(userUid);
+  const plan = normalizePlan(access.plan);
+
+  if (plan === 'pro' || plan === 'agency') return true;
+
+  const now = new Date();
+  const day = utcDayWindow(now);
+  const month = plan === 'go'
+    ? validPeriod(access.current_period_start, access.current_period_end) || utcMonthWindow(now)
+    : utcMonthWindow(now);
+  const window = plan === 'free' ? day : month;
+
+  const rows = await appDataRequest<Array<{ id: string }>>(
+    `recommendation_events?user_uid=eq.${dbValue(userUid)}` +
+      `&event_type=eq.${dbValue(LEDGER_EVENT_TYPE)}` +
+      `&query=eq.${dbValue(BUSINESS_UNLOCK_LEDGER_QUERY)}` +
+      `&business_id=eq.${dbValue(businessId)}` +
+      `&created_at=gte.${dbValue(window.start.toISOString())}` +
+      `&created_at=lt.${dbValue(window.end.toISOString())}` +
+      '&select=id&limit=1'
+  );
+
+  return rows.length > 0;
+}
+
 export async function consumeBusinessCredit(
   userUid: string,
   workspaceId: string,
