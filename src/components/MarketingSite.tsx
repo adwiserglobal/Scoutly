@@ -6,6 +6,7 @@ import {
   Globe2,
   Layers3,
   MessageSquareText,
+  Radar,
   Route,
   Search,
   Sparkles,
