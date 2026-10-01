@@ -123,7 +123,7 @@ function Header({
       })
       .filter(({ score }) => score > 0)
       .sort((a, b) => b.score - a.score || (b.business.confidence || 0) - (a.business.confidence || 0))
-      .slice(0, 10)
+      .slice(0, 30)
       .map(({ business }) => business);
   }, [businesses, searchInput]);
 
@@ -133,7 +133,7 @@ function Header({
     for (const business of localBusinessSuggestions) {
       if (!merged.has(business.id)) merged.set(business.id, business);
     }
-    return Array.from(merged.values()).slice(0, 10);
+    return Array.from(merged.values()).slice(0, 30);
   }, [remoteBusinessSuggestions, localBusinessSuggestions]);
 
 
