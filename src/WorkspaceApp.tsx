@@ -136,6 +136,7 @@ export default function App() {
   const routeHydratedRef = useRef(false);
   const routeSyncTimerRef = useRef<number | null>(null);
   const suppressNextBoundsFetchRef = useRef(false);
+  const currentMapBoundsRef = useRef<MapBounds | null>(null);
   const [recommendationRevision, setRecommendationRevision] = useState(0);
   const [recommendationHistoryBusinesses, setRecommendationHistoryBusinesses] = useState<Business[]>([]);
   
@@ -618,6 +619,7 @@ export default function App() {
   const handleBoundsChange = useCallback(
     (bounds: MapBounds | null, zoom: number) => {
       setCurrentZoom(zoom);
+      currentMapBoundsRef.current = bounds;
 
       if (suppressNextBoundsFetchRef.current) {
         suppressNextBoundsFetchRef.current = false;
@@ -703,8 +705,9 @@ export default function App() {
     []
   );
 
-  // Search understands both pure locations ("Pinheiros") and business + region
-  // ("despachantes em Pinheiros", "clínicas na Mooca").
+  // Business-first search. The current map viewport is searched first so generic
+  // segments and company names behave like a real places finder. Geocoding is only
+  // used as a fallback when no business matches the query.
   const handleSearch = async (query: string) => {
     const cleanQuery = query.trim();
     if (!cleanQuery) return;
@@ -712,21 +715,20 @@ export default function App() {
     setIsLocating(true);
     setBusinessesError(null);
 
-    const hasBusinessKeyword =
-      /\b(despachant|restaurant|cl[ií]nic|dentist|mec[aâ]nic|oficina|ag[eê]ncia|marketing|farm[aá]ci|drogaria|hotel|pousada|academia|padaria|advogad|contabil|imobili|pet|veterin|sal[aã]o|barbear|loja|mercado|supermercado)\w*/i.test(cleanQuery);
-    const hasExplicitRegion =
-      /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de)\b/i.test(cleanQuery);
+    try {
+      const viewportBounds = currentMapBoundsRef.current;
+      const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, viewportBounds);
+      const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
+      const region = result?.region;
+      const isViewportSearch = result?.searchMode === 'viewport';
 
-    const hasBusinessAndRegionShape =
-      hasBusinessKeyword || (hasExplicitRegion && cleanQuery.split(/\s+/).length >= 3);
-
-    if (hasBusinessAndRegionShape) {
-      try {
-        const result = await searchBusinessesByQuery(cleanQuery, currentRegionName);
-        const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
-        const region = result?.region;
-
-        if (region?.center && Number.isFinite(region.center.lat) && Number.isFinite(region.center.lng)) {
+      if (nextBusinesses.length > 0) {
+        if (
+          !isViewportSearch &&
+          region?.center &&
+          Number.isFinite(region.center.lat) &&
+          Number.isFinite(region.center.lng)
+        ) {
           suppressNextBoundsFetchRef.current = true;
           setCenterCoordinates({ lat: region.center.lat, lng: region.center.lng });
           setCurrentRegionName(region.name || cleanQuery);
@@ -746,27 +748,30 @@ export default function App() {
 
         setBusinesses(merged);
         setIsListOpen(true);
+        setIsFiltersOpen(false);
         setSelectedBusiness(null);
         setModalBusiness(null);
         recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
         setIsLocating(false);
         return;
-      } catch (error: any) {
-        console.warn('[Scoutly Search] Composite search failed; falling back to geocoding:', error);
       }
+    } catch (error: any) {
+      console.warn('[Scoutly Search] Business search failed; trying location search:', error);
     }
 
-    const result = await searchAddressOrCity(cleanQuery);
+    const locationResult = await searchAddressOrCity(cleanQuery);
 
-    if (result) {
-      recordRecommendationSearch(cleanQuery, result.name);
-      setCenterCoordinates({ lat: result.lat, lng: result.lng });
-      setCurrentRegionName(result.name);
+    if (locationResult) {
+      recordRecommendationSearch(cleanQuery, locationResult.name);
+      setCenterCoordinates({ lat: locationResult.lat, lng: locationResult.lng });
+      setCurrentRegionName(locationResult.name);
+      setIsListOpen(false);
     } else {
       recordRecommendationSearch(cleanQuery, currentRegionName);
-      setBusinessesError(`Não encontramos "${cleanQuery}". Tente combinar o tipo de negócio com bairro ou cidade.`);
+      setBusinessesError(`Não encontramos "${cleanQuery}" nesta área. Tente outro nome, segmento, bairro ou cidade.`);
       setIsListOpen(true);
     }
+
     setIsLocating(false);
   };
 
@@ -1388,6 +1393,8 @@ export default function App() {
                 <Header
                   currentRegionName={currentRegionName}
                   onSearch={handleSearch}
+                  businesses={businesses}
+                  onSelectBusiness={handleMapBusinessSelect}
                   onUseCurrentLocation={handleUseCurrentLocation}
                   onSelectPreset={handleSelectPreset}
                   isLocating={isLocating}
