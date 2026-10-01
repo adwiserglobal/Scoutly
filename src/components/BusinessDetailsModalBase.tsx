@@ -63,7 +63,11 @@ export default function BusinessDetailsModal({
     markBusinessRecentlyViewed(business.id, business);
   }, [business]);
 
-  const websiteUrl = normalizeExternalUrl(business.website);
+  const baseWebsiteUrl = normalizeExternalUrl(business.website);
+  const discoveredWebsiteUrl = normalizeExternalUrl(
+    enrichmentData?.discoveredWebsite || enrichmentData?.placeSignal?.website
+  );
+  const websiteUrl = baseWebsiteUrl || discoveredWebsiteUrl;
   const hasWebsite = Boolean(websiteUrl);
   const websiteDomain = (() => {
     if (!websiteUrl) return null;
@@ -123,11 +127,17 @@ export default function BusinessDetailsModal({
   useEffect(() => {
     let cancelled = false;
 
-    if (!websiteUrl || !autoEnrichEnabled) return () => {
+    if (!autoEnrichEnabled) return () => {
       cancelled = true;
     };
 
-    enrichBusinessData(websiteUrl, false, business.id)
+    enrichBusinessData(baseWebsiteUrl, false, business.id, {
+      name: business.name,
+      address: business.address,
+      phone: business.phone || business.phones?.[0] || null,
+      latitude: business.latitude,
+      longitude: business.longitude,
+    })
       .then((data) => {
         if (cancelled) return;
         setEnrichmentData(data);
@@ -137,14 +147,13 @@ export default function BusinessDetailsModal({
         }
       })
       .catch((error) => {
-        // Automatic freshness check is best-effort. Manual refresh below surfaces errors.
         console.warn('[Scoutly Contact Freshness] Falha:', error);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [business.id, websiteUrl, autoEnrichEnabled]);
+  }, [business.id, baseWebsiteUrl, autoEnrichEnabled]);
 
   const handleToggleFavorite = () => {
     onToggleFavorite?.(business);
@@ -160,11 +169,16 @@ export default function BusinessDetailsModal({
   };
 
   const handleEnrich = async () => {
-    if (!websiteUrl) return;
     setIsEnriching(true);
     setEnrichError(null);
     try {
-      const data = await enrichBusinessData(websiteUrl, true, business.id);
+      const data = await enrichBusinessData(websiteUrl, true, business.id, {
+        name: business.name,
+        address: business.address,
+        phone: business.phone || business.phones?.[0] || null,
+        latitude: business.latitude,
+        longitude: business.longitude,
+      });
       setEnrichmentData(data);
       if (data?.trackingAudit) {
         setTrackingAudit(data.trackingAudit);
@@ -226,11 +240,19 @@ export default function BusinessDetailsModal({
   const normalizePhone = (value: string) => String(value || '').replace(/\D/g, '');
   const normalizeEmail = (value: string) => String(value || '').trim().toLowerCase();
 
-  const datasetPhones = Array.isArray(business.phones)
-    ? [...business.phones]
-    : business.phone
-      ? [business.phone]
+  const placeSignalPhones = Array.isArray(enrichmentData?.placeSignal?.phones)
+    ? enrichmentData.placeSignal.phones.filter(Boolean)
+    : enrichmentData?.placeSignal?.phone
+      ? [enrichmentData.placeSignal.phone]
       : [];
+  const datasetPhones = Array.from(new Set([
+    ...placeSignalPhones,
+    ...(Array.isArray(business.phones)
+      ? business.phones
+      : business.phone
+        ? [business.phone]
+        : []),
+  ].filter(Boolean)));
   const datasetEmails = Array.isArray(business.emails) ? [...business.emails] : [];
 
   const verifiedPhoneItems = Array.isArray(enrichmentData?.phones) ? enrichmentData.phones : [];
@@ -703,7 +725,7 @@ export default function BusinessDetailsModal({
                       className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-800 hover:text-[#FF4D00] min-w-0"
                     >
                       <Globe2 className="w-3.5 h-3.5 shrink-0 text-stone-600" />
-                      <span className="truncate">{business.website}</span>
+                      <span className="truncate">{enrichmentData?.discoveredWebsite || business.website}</span>
                       <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-stone-600" />
                     </a>
                   ) : (
