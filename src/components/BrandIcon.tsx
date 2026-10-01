@@ -48,7 +48,7 @@ export function BrandIcon({
     <img
       src={BRAND_SOURCES[brand]}
       alt={alt ?? brand}
-      className={`${className} shrink-0 object-contain`}
+      className={`${className} shrink-0 object-contain ${brand === 'tiktok' ? 'rounded-sm bg-white p-[1px]' : ''}`}
       loading="lazy"
       referrerPolicy="no-referrer"
     />
