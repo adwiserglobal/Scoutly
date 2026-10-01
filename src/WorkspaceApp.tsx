@@ -730,8 +730,6 @@ export default function App() {
         business.name,
         business.nomeFantasia,
         business.razaoSocial,
-        business.category,
-        business.address,
       ].filter(Boolean).join(' '));
       return normalizedQuery.length >= 2 && haystack.includes(normalizedQuery);
     });
@@ -748,6 +746,45 @@ export default function App() {
       const hasExplicitLocation =
         /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de|regi[aã]o\s+do|regi[aã]o\s+da)\b/i.test(cleanQuery);
       const viewportBounds = hasExplicitLocation ? null : currentMapBoundsRef.current;
+
+      // PinDrop-like behavior: for a plain term, literal business-name matches win.
+      if (viewportBounds) {
+        const nameResult = await searchBusinessesByQuery(
+          cleanQuery,
+          currentRegionName,
+          viewportBounds,
+          'name'
+        );
+        const nameBusinesses = Array.isArray(nameResult?.businesses) ? nameResult.businesses : [];
+
+        if (nameBusinesses.length > 0) {
+          const currentLeads = leadsMapRef.current;
+          const currentFavorites = favoritesMapRef.current;
+          const merged = nameBusinesses.map((business: Business) => {
+            const saved = currentLeads[business.id];
+            return {
+              ...business,
+              isFavorite: Boolean(currentFavorites[business.id]),
+              leadStatus: saved ? (saved.status as LeadStatus) : business.leadStatus || 'NOVO',
+              notes: saved ? saved.notes : business.notes || '',
+            };
+          });
+
+          setBusinesses(merged);
+          setListSearchQuery('');
+          setListCategoryFilter('TODAS');
+          setListWebsiteFilter('TODOS');
+          setListContactFilter('TODOS');
+          setIsListOpen(true);
+          setIsFiltersOpen(false);
+          setSelectedBusiness(null);
+          setModalBusiness(null);
+          recordRecommendationSearch(cleanQuery, currentRegionName);
+          setIsLocating(false);
+          return;
+        }
+      }
+
       const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, viewportBounds);
       const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
       const region = result?.region;
@@ -820,6 +857,21 @@ export default function App() {
 
     setIsLocating(false);
   };
+
+  const handleBusinessSuggestions = useCallback(async (query: string): Promise<Business[]> => {
+    const cleanQuery = query.trim();
+    const bounds = currentMapBoundsRef.current;
+    if (cleanQuery.length < 2 || !bounds) return [];
+
+    try {
+      const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, bounds, 'name');
+      const items = Array.isArray(result?.businesses) ? result.businesses : [];
+      return items.slice(0, 10);
+    } catch (error) {
+      console.warn('[Scoutly Search] Live business suggestions failed:', error);
+      return [];
+    }
+  }, [currentRegionName]);
 
   // Browser Geolocation
   const handleUseCurrentLocation = () => {
@@ -1439,6 +1491,7 @@ export default function App() {
                 <Header
                   currentRegionName={currentRegionName}
                   onSearch={handleSearch}
+                  onSuggestBusinesses={handleBusinessSuggestions}
                   businesses={businesses}
                   onSelectBusiness={handleMapBusinessSelect}
                   onUseCurrentLocation={handleUseCurrentLocation}
