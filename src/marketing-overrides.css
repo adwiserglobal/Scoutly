@@ -203,10 +203,11 @@ html {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.055);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.018);
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: transform 180ms ease;
 }
 
 .trusted-logo-image {
@@ -221,8 +222,7 @@ html {
 }
 
 .trusted-logo:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   transform: translateY(-1px);
 }
 
