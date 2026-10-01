@@ -10,7 +10,7 @@ import {
   getCNAEsForBusinessType,
 } from './cnpjService.js';
 import { fetchBusinessesFromSerper } from './serperService.js';
-import { hasBrazilPlacesDatabase, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
+import { hasBrazilPlacesDatabase, queryBrazilPlacesByName, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
 import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
 import { resolveSearchGeography, extractBusinessPhraseFromQuery } from './geographyService.js';
 
@@ -180,6 +180,115 @@ function resolveCnaes(businessType: string, keywords: string[]): string[] {
   const text = normalizeText(`${businessType} ${keywords.join(' ')}`);
   if (/despachante|documentalista/.test(text)) return ['8299799'];
   return getCNAEsForBusinessType(businessType, keywords);
+}
+
+export async function searchBusinessesInBounds(
+  query: string,
+  bbox: { west: number; south: number; east: number; north: number },
+  currentRegionName = 'Área atual'
+): Promise<BusinessSearchResult & { searchMode: 'viewport' }> {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) throw new Error('Consulta de busca vazia.');
+
+  const phrase = extractBusinessPhraseFromQuery(cleanQuery).trim() || cleanQuery;
+  const profile = resolveSearchProfile(phrase, cleanQuery);
+  const center = {
+    lat: (bbox.south + bbox.north) / 2,
+    lng: (bbox.west + bbox.east) / 2,
+  };
+
+  const results = new Map<string, BusinessSummary>();
+  const relevance = new Map<string, number>();
+
+  const addPlace = (place: OverturePlace, score: number) => {
+    const summary = placeToSummary(place);
+    if (!isWithinBounds(summary, bbox)) return;
+    const existingScore = relevance.get(place.id) || 0;
+    if (!results.has(place.id) || score > existingScore) {
+      results.set(place.id, summary);
+      relevance.set(place.id, score);
+    }
+  };
+
+  if (hasBrazilPlacesDatabase()) {
+    if (profile) {
+      try {
+        const precise = await queryBrazilPlacesPrecise(
+          profile,
+          bbox.west,
+          bbox.south,
+          bbox.east,
+          bbox.north,
+          300,
+          phrase
+        );
+        for (const place of precise.places) {
+          addPlace(place, precise.relevanceById.get(place.id) || scoreAgainstProfile(place, profile));
+        }
+      } catch (error: any) {
+        console.warn('[Viewport Search] Segment lookup failed:', error?.message || error);
+      }
+    }
+
+    try {
+      const byName = await queryBrazilPlacesByName(
+        phrase,
+        bbox.west,
+        bbox.south,
+        bbox.east,
+        bbox.north,
+        profile ? 100 : 220
+      );
+      for (const place of byName.places) {
+        const normalizedName = normalizeText(place.name || '');
+        const normalizedPhrase = normalizeText(phrase);
+        let score = byName.relevanceById.get(place.id) || 90;
+        if (normalizedName === normalizedPhrase) score += 40;
+        else if (normalizedName.startsWith(normalizedPhrase)) score += 24;
+        else if (normalizedName.includes(normalizedPhrase)) score += 12;
+        addPlace(place, score);
+      }
+    } catch (error: any) {
+      console.warn('[Viewport Search] Name lookup failed:', error?.message || error);
+    }
+  }
+
+  // Overture is a network fallback only when the indexed result is sparse.
+  if (results.size < 12) {
+    const terms = getSearchTerms(cleanQuery, profile?.label || phrase, [], profile);
+    try {
+      const overture = await searchOvertureByTerms(terms, bbox, 220);
+      for (const place of overture) {
+        const score = profile ? scoreAgainstProfile(place, profile) : scorePlace(place, terms);
+        if (score > 0) addPlace(place, score);
+      }
+    } catch (error: any) {
+      console.warn('[Viewport Search] Overture fallback failed:', error?.message || error);
+    }
+  }
+
+  const businesses = Array.from(results.values())
+    .sort((a, b) => {
+      const scoreDiff = (relevance.get(b.id) || 0) - (relevance.get(a.id) || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const confidenceDiff = (b.confidence || 0) - (a.confidence || 0);
+      if (confidenceDiff !== 0) return confidenceDiff;
+      return distanceScore(a, center) - distanceScore(b, center);
+    })
+    .slice(0, 300);
+
+  return {
+    query: cleanQuery,
+    businessType: profile?.label || phrase,
+    precisionMode: Boolean(profile),
+    searchMode: 'viewport',
+    region: {
+      name: currentRegionName,
+      center,
+      bbox,
+    },
+    businesses,
+  };
 }
 
 export async function searchBusinesses(query: string, currentRegionName = 'São Paulo - SP'): Promise<BusinessSearchResult> {
