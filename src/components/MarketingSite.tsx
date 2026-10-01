@@ -24,7 +24,7 @@ type Language = 'en' | 'pt';
 
 const TRUSTED_BRANDS = [
   { name: 'Ternus', src: '/trusted/ternus.png', monochrome: true },
-  { name: 'VibeCheck', src: '/trusted/vibecheck.png', monochrome: true },
+  { name: 'VibeCheck', src: '/trusted/vibecheck.svg', monochrome: true },
   { name: 'Wallcloud', src: '/trusted/wallcloud.png', monochrome: true },
   { name: 'Adwiser', src: '/trusted/adwiser.png' },
   { name: 'Planna', src: '/trusted/planna.png' },
