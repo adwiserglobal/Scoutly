@@ -182,6 +182,115 @@ function resolveCnaes(businessType: string, keywords: string[]): string[] {
   return getCNAEsForBusinessType(businessType, keywords);
 }
 
+export async function searchBusinessesByNameInBounds(
+  query: string,
+  bbox: { west: number; south: number; east: number; north: number },
+  currentRegionName = 'Área atual'
+): Promise<BusinessSearchResult & { searchMode: 'name' }> {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) throw new Error('Consulta de busca vazia.');
+
+  const phrase = extractBusinessPhraseFromQuery(cleanQuery).trim() || cleanQuery;
+  const profile = resolveSearchProfile(phrase, cleanQuery);
+  const center = {
+    lat: (bbox.south + bbox.north) / 2,
+    lng: (bbox.west + bbox.east) / 2,
+  };
+
+  const normalizedPhrase = normalizeText(phrase);
+  const lookupTerms = Array.from(new Set([
+    normalizedPhrase,
+    ...(profile ? [normalizeText(profile.label)] : []),
+  ].filter((term) => term.length >= 2)));
+
+  const results = new Map<string, BusinessSummary>();
+  const relevance = new Map<string, number>();
+
+  if (hasBrazilPlacesDatabase()) {
+    const lookups = await Promise.all(
+      lookupTerms.map((term) =>
+        queryBrazilPlacesByName(
+          term,
+          bbox.west,
+          bbox.south,
+          bbox.east,
+          bbox.north,
+          300
+        ).catch(() => null)
+      )
+    );
+
+    for (let index = 0; index < lookups.length; index += 1) {
+      const lookup = lookups[index];
+      if (!lookup) continue;
+      const term = lookupTerms[index];
+
+      for (const place of lookup.places) {
+        const summary = placeToSummary(place);
+        if (!isWithinBounds(summary, bbox)) continue;
+
+        const normalizedName = normalizeText(place.name || '');
+        if (!normalizedName.includes(term)) continue;
+
+        let score = lookup.relevanceById.get(place.id) || 90;
+        if (normalizedName === normalizedPhrase) score += 220;
+        else if (normalizedName.startsWith(`${normalizedPhrase} `) || normalizedName.startsWith(normalizedPhrase)) score += 180;
+        else if (normalizedName.includes(normalizedPhrase)) score += 150;
+        else if (normalizedName.startsWith(`${term} `) || normalizedName.startsWith(term)) score += 110;
+        else score += 70;
+
+        const previous = relevance.get(place.id) || 0;
+        if (!results.has(place.id) || score > previous) {
+          results.set(place.id, summary);
+          relevance.set(place.id, score);
+        }
+      }
+    }
+  }
+
+  // Only if the local index is unavailable do we fall back to Overture name scoring.
+  if (results.size === 0) {
+    try {
+      const overture = await searchOvertureByTerms([normalizedPhrase], bbox, 300);
+      for (const place of overture) {
+        const normalizedName = normalizeText(place.name || '');
+        if (!normalizedName.includes(normalizedPhrase)) continue;
+        let score = 90;
+        if (normalizedName === normalizedPhrase) score += 220;
+        else if (normalizedName.startsWith(normalizedPhrase)) score += 180;
+        else score += 150;
+        results.set(place.id, placeToSummary(place));
+        relevance.set(place.id, score);
+      }
+    } catch (error: any) {
+      console.warn('[Name Search] Overture fallback failed:', error?.message || error);
+    }
+  }
+
+  const businesses = Array.from(results.values())
+    .sort((a, b) => {
+      const scoreDiff = (relevance.get(b.id) || 0) - (relevance.get(a.id) || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const confidenceDiff = (b.confidence || 0) - (a.confidence || 0);
+      if (confidenceDiff !== 0) return confidenceDiff;
+      return distanceScore(a, center) - distanceScore(b, center);
+    })
+    .slice(0, 300);
+
+  return {
+    query: cleanQuery,
+    businessType: profile?.label || phrase,
+    precisionMode: Boolean(profile),
+    searchMode: 'name',
+    region: {
+      name: currentRegionName,
+      center,
+      bbox,
+    },
+    businesses,
+  };
+}
+
 export async function searchBusinessesInBounds(
   query: string,
   bbox: { west: number; south: number; east: number; north: number },
