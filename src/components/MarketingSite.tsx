@@ -6,9 +6,7 @@ import {
   Globe2,
   Layers3,
   MessageSquareText,
-  Radar,
   Route,
-  Search,
   Sparkles,
   Target,
 } from 'lucide-react';
@@ -23,15 +21,55 @@ interface MarketingSiteProps {
 type Language = 'en' | 'pt';
 
 const TRUSTED_BRANDS = [
-  { name: 'Ternus', src: '/trusted/ternus.png', monochrome: true },
-  { name: 'VibeCheck', src: '/trusted/vibecheck.svg', monochrome: true },
-  { name: 'Wallcloud', src: '/trusted/wallcloud.png', monochrome: true },
-  { name: 'Adwiser', src: '/trusted/adwiser.png' },
-  { name: 'Planna', src: '/trusted/planna.png' },
-  { name: 'Altora', src: '/trusted/altora.png' },
-  { name: 'Feedmetrics', src: '/trusted/feedmetrics.png' },
-  { name: 'ListerUp', src: '/trusted/listerup.svg' },
+  {
+    name: 'Ternus',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/ff0a4adce21cac854bb4cd285b244e202367293bbdd11a7fab9055dec23994c4.png',
+    scale: 1.08,
+  },
+  {
+    name: 'Adwiser',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/5c9c86cf5d205635e397683a7751d6433868aeec129d06a9b19469a6d6e882cb.png',
+    scale: 1.08,
+  },
+  {
+    name: 'Wallcloud',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/a8e3cf3afa8f80761115ea5f1426c6d758d33b748f9028056257b337b5527494.png',
+    scale: 1.02,
+  },
+  {
+    name: 'OZ AI',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/3f92635adcd3ec0f2cf64cb772a5d5f93d0be1f612d83ca2929aa69bfa40fe14.png',
+    scale: 0.95,
+  },
+  {
+    name: 'Feedmetrics',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/30e01e98b39cfdde89721c5f660cbe59759530785d0e0555ada1347bc4e904dd.png',
+    scale: 1.58,
+  },
+  {
+    name: 'ListerUp',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/a95637362ecc1e034163b7542a3dde572a7f59dee91d20932dd30f3a0cf52586.png',
+    scale: 1.72,
+  },
+  {
+    name: 'Armory',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/8c5a02cb56b71dcd952f92d58f414dca62213d930f3bb637f15228350b9369da.png',
+    scale: 1.5,
+  },
+  {
+    name: 'Altora',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/720f24c090e6494d3693e50cb37cd27002df242e7d39247858eb4a1ced0ee5e2.png',
+    scale: 1.2,
+  },
+  {
+    name: 'Planna',
+    src: 'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/fb892a16180476a1705b52680e230580f75d29276a8d5ac0c0a8bcc1ffbf6fee.png',
+    scale: 1.4,
+  },
 ];
+
+const HERO_DEMO_VIDEO =
+  'https://cdn.openart.ai/openart-uploads/production/attachment-transfers/b7108a7bd151c1f7c0e7ffb02ab195b9f7b8379e39631d3025207c8d6d5e3c0c.mp4';
 
 function TrustedMarquee({ label }: { label: string }) {
   const brands = [...TRUSTED_BRANDS, ...TRUSTED_BRANDS];
@@ -55,7 +93,8 @@ function TrustedMarquee({ label }: { label: string }) {
               <img
                 src={brand.src}
                 alt={index < TRUSTED_BRANDS.length ? brand.name : ''}
-                className={`trusted-logo-image ${brand.monochrome ? 'trusted-logo-monochrome' : ''}`}
+                className="trusted-logo-image"
+                style={{ transform: `scale(${brand.scale})` }}
                 loading="lazy"
               />
             </div>
@@ -305,26 +344,32 @@ export default function MarketingSite({
               </div>
             </div>
 
-            <div className="relative hidden min-h-[540px] lg:block">
-              <div className="hero-product-card absolute left-0 top-10 w-[86%] rounded-[28px] border border-white/[0.10] bg-[#101319]/90 p-4 shadow-[0_40px_100px_rgba(0,0,0,.48)] backdrop-blur-xl">
-                <div className="mb-4 flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2"><Radar className="h-4 w-4 text-[#ff6a2a]" /><span className="text-[11px] font-semibold text-stone-200">Scoutly Map</span></div>
-                  <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-[9px] font-semibold text-emerald-400">LIVE</span>
-                </div>
-                <div className="relative h-[330px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#0a0d12]">
-                  <div className="absolute inset-0 opacity-80" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,90,18,.22), transparent 24%), linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px)', backgroundSize: 'auto, 34px 34px, 34px 34px' }} />
-                  {[['16%','24%'],['65%','18%'],['42%','48%'],['76%','66%'],['24%','72%'],['54%','80%']].map(([left, top], index) => (
-                    <span key={index} className="absolute h-4 w-4 rounded-full border-2 border-white bg-[#ff5a12] shadow-[0_0_22px_rgba(255,90,18,.8)]" style={{ left, top }} />
-                  ))}
-                  <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/[0.09] bg-[#0d1015]/90 p-3 backdrop-blur-xl">
-                    <div className="flex items-center gap-2 text-[10px] text-stone-400"><Search className="h-3.5 w-3.5" /><span>{isEnglish ? 'Marketing agencies near Pinheiros' : 'Agências de marketing em Pinheiros'}</span></div>
+            <div className="hero-demo-stage relative w-full">
+              <div className="hero-demo-glow" aria-hidden="true" />
+              <div className="hero-mac-window relative overflow-hidden rounded-[26px] border border-white/[0.10] bg-[#0d1015] shadow-[0_40px_100px_rgba(0,0,0,.52)]">
+                <div className="hero-mac-titlebar flex h-11 items-center border-b border-white/[0.07] bg-[#111419]/95 px-4">
+                  <div className="flex items-center gap-2" aria-hidden="true">
+                    <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                    <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+                    <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                  </div>
+                  <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] font-medium tracking-[0.02em] text-stone-500">
+                    scoutly.pro
                   </div>
                 </div>
-              </div>
-              <div className="hero-float-card absolute bottom-10 right-0 w-[250px] rounded-[22px] border border-[#ff6a2a]/20 bg-[#15110e]/95 p-4 shadow-[0_30px_80px_rgba(0,0,0,.44)] backdrop-blur-xl">
-                <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ff8a55]"><Sparkles className="h-3.5 w-3.5" /> Scoutly AI</div>
-                <p className="text-[12px] leading-5 text-stone-300">{isEnglish ? '12 companies match your current prospecting pattern.' : '12 empresas combinam com o seu padrão atual de prospecção.'}</p>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full w-[76%] rounded-full bg-gradient-to-r from-[#ff8a32] to-[#ff4d00]" /></div>
+                <div className="hero-demo-video-frame bg-black">
+                  <video
+                    className="block h-full w-full object-cover"
+                    src={HERO_DEMO_VIDEO}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    disablePictureInPicture
+                    aria-label={isEnglish ? 'Scoutly product demo' : 'Demonstração do produto Scoutly'}
+                  />
+                </div>
               </div>
             </div>
           </div>
