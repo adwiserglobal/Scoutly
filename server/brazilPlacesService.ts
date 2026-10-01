@@ -107,6 +107,51 @@ export async function queryBrazilPlaces(
  *    `scoutly_place_segments` index (e.g. despachante).
  * 3. No table-wide LIKE scan is executed during a user request.
  */
+export async function queryBrazilPlacesByName(
+  nameTerm: string,
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  limit = 120
+): Promise<PreciseSearchResult> {
+  const startedAt = Date.now();
+  const cleanName = String(nameTerm || '').trim();
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 450));
+
+  if (cleanName.length < 2) {
+    return {
+      places: [],
+      relevanceById: new Map(),
+      cached: true,
+      durationMs: Date.now() - startedAt,
+      source: 'supabase',
+    };
+  }
+
+  const rows = await postRpc('search_scoutly_places_name_precise', {
+    p_west: west,
+    p_south: south,
+    p_east: east,
+    p_north: north,
+    p_name_term: cleanName,
+    p_limit: safeLimit,
+  }, 4000);
+
+  const relevanceById = new Map<string, number>();
+  for (const row of rows) {
+    relevanceById.set(String(row.id), Number(row.relevance) || 90);
+  }
+
+  return {
+    places: rows.map(rowToPlace),
+    relevanceById,
+    cached: true,
+    durationMs: Date.now() - startedAt,
+    source: 'supabase',
+  };
+}
+
 export async function queryBrazilPlacesPrecise(
   profile: SearchProfile,
   west: number,
