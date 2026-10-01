@@ -7,6 +7,7 @@ import {
   Layers3,
   MessageSquareText,
   Route,
+  Search,
   Sparkles,
   Target,
 } from 'lucide-react';
