@@ -437,16 +437,16 @@ export default function MarketingSite({
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-white/[0.10] bg-[#0d1015]/88 p-4 shadow-[0_40px_100px_rgba(0,0,0,.44)] backdrop-blur-xl sm:p-6">
-              <div className="mb-5 flex items-center justify-between border-b border-white/[0.07] pb-4">
-                <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#ff6a2a]" /><span className="text-[12px] font-semibold text-white">Scoutly AI</span></div>
-                <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-400">{isEnglish ? 'ACTIVE' : 'ATIVA'}</span>
+            <div className="scoutly-agentic-demo relative overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#0d1015] shadow-[0_40px_100px_rgba(0,0,0,.44)]">
+              <div className="scoutly-agentic-demo-inner relative overflow-hidden">
+                <img
+                  src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/be1ac80b953790c4376b48875c144d7a350175db4b14fc1e86f3be837cb593f7.png"
+                  alt={isEnglish ? 'Scoutly Agentic demo' : 'Demonstração do Scoutly Agentic'}
+                  className="block h-auto w-full select-none"
+                  draggable={false}
+                />
+                <div className="scoutly-agentic-demo-bottom-mask pointer-events-none absolute inset-x-0 bottom-0" />
               </div>
-              <div className="space-y-4">
-                <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-md bg-white/[0.07] px-4 py-3 text-[12px] leading-6 text-stone-200">{t.aiPrompt}</div>
-                <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-[#ff6a2a]/15 bg-[#ff5a12]/[0.07] px-4 py-3 text-[12px] leading-6 text-stone-300">{t.aiResponse}</div>
-              </div>
-              <div className="mt-5 flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3 text-[10px] text-stone-500"><MessageSquareText className="h-4 w-4" />{isEnglish ? 'Ask about your territory, pipeline or next opportunities' : 'Pergunte sobre seu território, pipeline ou próximas oportunidades'}</div>
             </div>
           </div>
         </section>
