@@ -439,11 +439,16 @@ export default function MarketingSite({
 
             <div className="scoutly-agentic-demo relative overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#0d1015] shadow-[0_40px_100px_rgba(0,0,0,.44)]">
               <div className="scoutly-agentic-demo-inner relative overflow-hidden">
-                <img
-                  src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/be1ac80b953790c4376b48875c144d7a350175db4b14fc1e86f3be837cb593f7.png"
-                  alt={isEnglish ? 'Scoutly Agentic demo' : 'Demonstração do Scoutly Agentic'}
-                  className="block h-auto w-full select-none"
-                  draggable={false}
+                <video
+                  src="https://cdn.openart.ai/openart-uploads/production/attachment-transfers/91ea4cc95788de512eaefcfa1518036333d2dbb4fe1d5e29f55e2fe2906395c3.mp4"
+                  className="block h-full w-full select-none"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  disablePictureInPicture
+                  aria-label={isEnglish ? 'Scoutly Agentic demo' : 'Demonstração do Scoutly Agentic'}
                 />
                 <div className="scoutly-agentic-demo-bottom-mask pointer-events-none absolute inset-x-0 bottom-0" />
               </div>
