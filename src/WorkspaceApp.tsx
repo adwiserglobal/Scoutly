@@ -715,8 +715,39 @@ export default function App() {
     setIsLocating(true);
     setBusinessesError(null);
 
+    const normalizeLocalQuery = (value: string) =>
+      String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const normalizedQuery = normalizeLocalQuery(cleanQuery);
+    const localMatches = businesses.filter((business) => {
+      const haystack = normalizeLocalQuery([
+        business.name,
+        business.nomeFantasia,
+        business.razaoSocial,
+        business.category,
+        business.address,
+      ].filter(Boolean).join(' '));
+      return normalizedQuery.length >= 2 && haystack.includes(normalizedQuery);
+    });
+
+    if (localMatches.length > 0) {
+      setBusinesses(localMatches);
+      setIsListOpen(true);
+      setIsFiltersOpen(false);
+      setSelectedBusiness(null);
+      setModalBusiness(null);
+    }
+
     try {
-      const viewportBounds = currentMapBoundsRef.current;
+      const hasExplicitLocation =
+        /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de|regi[aã]o\s+do|regi[aã]o\s+da)\b/i.test(cleanQuery);
+      const viewportBounds = hasExplicitLocation ? null : currentMapBoundsRef.current;
       const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, viewportBounds);
       const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
       const region = result?.region;
@@ -747,6 +778,10 @@ export default function App() {
         });
 
         setBusinesses(merged);
+        setListSearchQuery('');
+        setListCategoryFilter('TODAS');
+        setListWebsiteFilter('TODOS');
+        setListContactFilter('TODOS');
         setIsListOpen(true);
         setIsFiltersOpen(false);
         setSelectedBusiness(null);
@@ -755,8 +790,19 @@ export default function App() {
         setIsLocating(false);
         return;
       }
+
+      if (localMatches.length > 0) {
+        recordRecommendationSearch(cleanQuery, currentRegionName);
+        setIsLocating(false);
+        return;
+      }
     } catch (error: any) {
       console.warn('[Scoutly Search] Business search failed; trying location search:', error);
+      if (localMatches.length > 0) {
+        recordRecommendationSearch(cleanQuery, currentRegionName);
+        setIsLocating(false);
+        return;
+      }
     }
 
     const locationResult = await searchAddressOrCity(cleanQuery);
