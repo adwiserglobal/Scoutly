@@ -198,9 +198,11 @@ export async function saveUserLead(
 export async function searchBusinessesByQuery(
   query: string,
   currentRegionName: string,
-  bounds?: { west: number; south: number; east: number; north: number } | null
+  bounds?: { west: number; south: number; east: number; north: number } | null,
+  mode?: 'name'
 ) {
   const params = new URLSearchParams({ q: query, currentRegionName });
+  if (mode) params.set('mode', mode);
   if (bounds) {
     params.set('west', String(bounds.west));
     params.set('south', String(bounds.south));
