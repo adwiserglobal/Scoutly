@@ -166,7 +166,12 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const websiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
+  const baseWebsiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
+  const discoveredWebsiteUrl = useMemo(
+    () => normalizeExternalUrl(enrichment?.discoveredWebsite || enrichment?.placeSignal?.website),
+    [enrichment?.discoveredWebsite, enrichment?.placeSignal?.website]
+  );
+  const websiteUrl = baseWebsiteUrl || discoveredWebsiteUrl;
   const hasWebsite = Boolean(websiteUrl);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const { data: pageSpeed, isLoading: isPageSpeedLoading } = usePageSpeed(autoEnrichEnabled ? websiteUrl : null);
@@ -189,7 +194,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     setEnrichment(null);
     setTrackingAudit(null);
 
-    if (!websiteUrl || !autoEnrichEnabled) {
+    if (!autoEnrichEnabled) {
       setIsEnrichmentLoading(false);
       setIsTrackingLoading(false);
       return () => { cancelled = true; };
@@ -198,22 +203,28 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     setIsEnrichmentLoading(true);
     setIsTrackingLoading(true);
 
-    enrichBusinessData(websiteUrl, false, business.id)
+    enrichBusinessData(baseWebsiteUrl, false, business.id, {
+      name: business.name,
+      address: business.address,
+      phone: business.phone || business.phones?.[0] || null,
+      latitude: business.latitude,
+      longitude: business.longitude,
+    })
       .then((data) => {
         if (cancelled) return;
         setEnrichment(data);
-        if (data?.trackingAudit) setTrackingAudit(data.trackingAudit);
+        setTrackingAudit(data?.trackingAudit || null);
       })
       .catch((error) => console.warn('[Scoutly Side Panel Enrichment]:', error))
-      .finally(() => { if (!cancelled) setIsEnrichmentLoading(false); });
-
-    fetchTrackingAudit(websiteUrl)
-      .then((audit) => { if (!cancelled) setTrackingAudit(audit); })
-      .catch((error) => console.warn('[Scoutly Side Panel Tracking]:', error))
-      .finally(() => { if (!cancelled) setIsTrackingLoading(false); });
+      .finally(() => {
+        if (!cancelled) {
+          setIsEnrichmentLoading(false);
+          setIsTrackingLoading(false);
+        }
+      });
 
     return () => { cancelled = true; };
-  }, [business.id, websiteUrl, autoEnrichEnabled]);
+  }, [business.id, baseWebsiteUrl, autoEnrichEnabled]);
 
   const verifiedWhatsapp = useMemo(() => {
     const items = Array.isArray(enrichment?.whatsapp) ? enrichment.whatsapp : [];
@@ -249,14 +260,15 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     }));
   }, [enrichment, business.socials]);
 
-  const phoneToCopy = verifiedPhone || business.phone || business.phones?.[0] || null;
+  const placeSignalPhone = enrichment?.placeSignal?.phone || enrichment?.placeSignal?.phones?.[0] || null;
+  const phoneToCopy = verifiedPhone || placeSignalPhone || business.phone || business.phones?.[0] || null;
   const whatsappNumber = verifiedWhatsapp || phoneToCopy;
   const whatsappUrl = getWhatsAppLink(whatsappNumber);
   const rawEmailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
   const emailLocked = isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked);
   const emailAddress = emailLocked ? null : rawEmailAddress;
   const googleBusinessUrl = getGoogleBusinessLink(business);
-  const websiteDomain = useMemo(() => normalizeWebsiteDomain(business.website), [business.website]);
+  const websiteDomain = useMemo(() => normalizeWebsiteDomain(websiteUrl), [websiteUrl]);
   const googleAdsTransparencyUrl = websiteDomain
     ? `https://adstransparency.google.com/?domain=${encodeURIComponent(websiteDomain)}&region=anywhere`
     : null;
