@@ -274,14 +274,14 @@ export default function MarketingSite({
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between rounded-2xl border border-white/[0.09] bg-[#0a0c10]/80 px-4 shadow-[0_14px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-5">
           <button type="button" onClick={() => scrollTo('top')} className="flex items-center" aria-label="Scoutly">
-            <img src="/logo_white.png" alt="Scoutly" className="h-8 w-auto object-contain" />
+            <img src="/logo_white.png" alt="Scoutly" className="h-10 w-auto object-contain sm:h-11" />
           </button>
 
           <nav className="hidden items-center gap-6 lg:flex">
-            <button onClick={() => scrollTo('product')} className="text-[12px] font-medium text-stone-400 transition hover:text-white">{t.nav.product}</button>
-            <button onClick={() => scrollTo('workflow')} className="text-[12px] font-medium text-stone-400 transition hover:text-white">{t.nav.workflow}</button>
-            <button onClick={() => scrollTo('ai')} className="text-[12px] font-medium text-stone-400 transition hover:text-white">{t.nav.ai}</button>
-            <button onClick={() => scrollTo('customers')} className="text-[12px] font-medium text-stone-400 transition hover:text-white">{t.nav.customers}</button>
+            <button onClick={() => scrollTo('product')} className="text-[14px] font-medium text-stone-300 transition hover:text-white">{t.nav.product}</button>
+            <button onClick={() => scrollTo('workflow')} className="text-[14px] font-medium text-stone-300 transition hover:text-white">{t.nav.workflow}</button>
+            <button onClick={() => scrollTo('ai')} className="text-[14px] font-medium text-stone-300 transition hover:text-white">{t.nav.ai}</button>
+            <button onClick={() => scrollTo('customers')} className="text-[14px] font-medium text-stone-300 transition hover:text-white">{t.nav.customers}</button>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -316,10 +316,6 @@ export default function MarketingSite({
 
           <div className="relative mx-auto grid w-full max-w-7xl items-center gap-14 px-5 pb-20 pt-16 sm:px-8 lg:grid-cols-[1.04fr_.96fr] lg:px-10 lg:pb-28 lg:pt-20">
             <div className="max-w-3xl">
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#ff6a2a]/20 bg-[#ff5a12]/[0.08] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#ff8a55]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#ff6a2a] shadow-[0_0_14px_rgba(255,90,18,.9)]" />
-                {t.heroKicker}
-              </div>
               <h1 className="max-w-[760px] text-[52px] font-semibold leading-[0.98] tracking-[-0.055em] text-white sm:text-[70px] lg:text-[82px]">
                 {t.heroTitleStart}{' '}
                 <span className="site-gradient-text">{t.heroTitleAccent}</span>
