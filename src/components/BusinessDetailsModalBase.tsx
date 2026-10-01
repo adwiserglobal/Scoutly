@@ -8,6 +8,7 @@ import TrackingAuditPanel from './TrackingAuditPanel';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
+import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -64,6 +65,18 @@ export default function BusinessDetailsModal({
 
   const websiteUrl = normalizeExternalUrl(business.website);
   const hasWebsite = Boolean(websiteUrl);
+  const websiteDomain = (() => {
+    if (!websiteUrl) return null;
+    try {
+      return new URL(websiteUrl).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      return null;
+    }
+  })();
+  const metaAdsLibraryUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&q=${encodeURIComponent(business.name)}&media_type=all`;
+  const googleAdsTransparencyUrl = websiteDomain
+    ? `https://adstransparency.google.com/?domain=${encodeURIComponent(websiteDomain)}&region=anywhere`
+    : null;
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const isFavorited = Boolean(business.isFavorite);
@@ -114,7 +127,7 @@ export default function BusinessDetailsModal({
       cancelled = true;
     };
 
-    enrichBusinessData(websiteUrl)
+    enrichBusinessData(websiteUrl, false, business.id)
       .then((data) => {
         if (cancelled) return;
         setEnrichmentData(data);
@@ -151,7 +164,7 @@ export default function BusinessDetailsModal({
     setIsEnriching(true);
     setEnrichError(null);
     try {
-      const data = await enrichBusinessData(websiteUrl, true);
+      const data = await enrichBusinessData(websiteUrl, true, business.id);
       setEnrichmentData(data);
       if (data?.trackingAudit) {
         setTrackingAudit(data.trackingAudit);
@@ -251,12 +264,15 @@ export default function BusinessDetailsModal({
     team.push(item);
   });
 
-  // WhatsApp CTA is only shown when the current official website exposes an explicit WhatsApp link.
   const verifiedWhatsappTarget = whatsapps[0] || null;
-  let whatsappUrl = getWhatsAppLink(verifiedWhatsappTarget);
+  const datasetPhoneCandidate = business.phone || business.phones?.[0] || null;
+  const whatsappCandidate = verifiedWhatsappTarget || datasetPhoneCandidate || verifiedPhones[0] || null;
+  const whatsappVerified = Boolean(verifiedWhatsappTarget);
+  let whatsappUrl = getWhatsAppLink(whatsappCandidate);
 
   if (whatsappUrl && generatedMessage) {
-    whatsappUrl = `${whatsappUrl}?text=${encodeURIComponent(generatedMessage)}`;
+    const separator = whatsappUrl.includes('?') ? '&' : '?';
+    whatsappUrl = `${whatsappUrl}${separator}text=${encodeURIComponent(generatedMessage)}`;
   }
 
   const primaryVerifiedPhone = verifiedPhones.find(
@@ -283,7 +299,7 @@ export default function BusinessDetailsModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-xl transition cursor-pointer z-20"
+          className="absolute top-5 right-5 p-2 text-stone-600 hover:text-stone-700 hover:bg-stone-100 rounded-xl transition cursor-pointer z-20"
           title="Fechar"
         >
           <X className="w-5 h-5" />
@@ -306,7 +322,7 @@ export default function BusinessDetailsModal({
                   Carregando
                 </span>
               </div>
-              <p className="text-[11px] text-stone-500 font-medium mt-1">
+              <p className="text-[11px] text-stone-700 font-medium mt-1">
                 Consultando dados do site...
               </p>
             </div>
@@ -323,19 +339,19 @@ export default function BusinessDetailsModal({
               <button
                 type="button"
                 onClick={handleToggleFavorite}
-                className="p-1.5 hover:bg-stone-100 rounded-xl transition cursor-pointer text-stone-400 hover:text-amber-500 shrink-0"
+                className="p-1.5 hover:bg-stone-100 rounded-xl transition cursor-pointer text-stone-600 hover:text-amber-500 shrink-0"
                 title={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               >
                 <Star
                   className={`w-5 h-5 ${
                     isFavorited
                       ? 'fill-amber-500 text-amber-500'
-                      : 'text-stone-300 hover:text-stone-400'
+                      : 'text-stone-300 hover:text-stone-600'
                   }`}
                 />
               </button>
             </div>
-            <p className="text-xs text-stone-500 font-medium mt-1">
+            <p className="text-xs text-stone-700 font-medium mt-1">
               {translateCategory(business.category)}
             </p>
 
@@ -348,8 +364,8 @@ export default function BusinessDetailsModal({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
                 title="Abrir este negócio no Google Maps"
               >
-                <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                <span>Ver no Google</span>
+                <BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" />
+                <span>Google Maps</span>
               </a>
 
               {hasWebsite && (
@@ -357,10 +373,34 @@ export default function BusinessDetailsModal({
                   href={websiteUrl!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-stone-300 transition"
                 >
-                  <Globe2 className="w-3.5 h-3.5 text-stone-400" />
+                  <Globe2 className="w-3.5 h-3.5 text-stone-600" />
                   <span>Ver site</span>
+                </a>
+              )}
+
+              <a
+                href={metaAdsLibraryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-stone-300 transition"
+                title="Pesquisar na Biblioteca de Anúncios da Meta"
+              >
+                <BrandIcon brand="meta" className="h-4 w-4" alt="Meta" />
+                <span>Meta Ads</span>
+              </a>
+
+              {googleAdsTransparencyUrl && (
+                <a
+                  href={googleAdsTransparencyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-stone-300 transition"
+                  title="Pesquisar no Google Ads Transparency Center"
+                >
+                  <BrandIcon brand="googleAds" className="h-4 w-4 rounded bg-white" alt="Google Ads" />
+                  <span>Google Ads</span>
                 </a>
               )}
 
@@ -371,10 +411,10 @@ export default function BusinessDetailsModal({
                   rel="noopener noreferrer"
                   onClick={() => recordRecommendationWhatsApp(business)}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 transition shadow-2xs"
-                  title="WhatsApp confirmado no site oficial"
+                  title={whatsappVerified ? 'WhatsApp confirmado no site oficial' : 'Possível WhatsApp baseado no telefone disponível'}
                 >
-                  <img src="/whatsapp_icone.png" alt="WhatsApp" className="w-4 h-4 object-contain" />
-                  <span>Conversar no WhatsApp</span>
+                  <BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />
+                  <span>{whatsappVerified ? 'WhatsApp' : 'Testar WhatsApp'}</span>
                 </a>
               )}
 
@@ -384,7 +424,7 @@ export default function BusinessDetailsModal({
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
                   title="Telefone confirmado no site oficial"
                 >
-                  <Phone className="w-3.5 h-3.5 text-stone-400" />
+                  <Phone className="w-3.5 h-3.5 text-stone-600" />
                   <span>Ligar</span>
                 </a>
               )}
@@ -420,13 +460,13 @@ export default function BusinessDetailsModal({
                     </span>
 
                     {messageSource === 'template' ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-700">
                         <AlertCircle className="w-3 h-3" />
                         Fallback local
                       </span>
                     ) : messageSource ? (
                       <span
-                        className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500"
+                        className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-700"
                         title={messageModel || undefined}
                       >
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -468,7 +508,7 @@ export default function BusinessDetailsModal({
         {/* Resumo rápido */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-5">
           <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
-            <div className="flex items-center gap-2 text-stone-400">
+            <div className="flex items-center gap-2 text-stone-600">
               <Globe2 className="w-3.5 h-3.5" />
               <span className="text-[9px] font-semibold uppercase tracking-wider">Site</span>
             </div>
@@ -476,7 +516,7 @@ export default function BusinessDetailsModal({
               {hasWebsite ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+                <AlertCircle className="w-3.5 h-3.5 text-stone-600" />
               )}
               <span className="text-[11px] font-semibold text-stone-700">
                 {hasWebsite ? 'Identificado' : 'Não identificado'}
@@ -485,7 +525,7 @@ export default function BusinessDetailsModal({
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
-            <div className="flex items-center gap-2 text-stone-400">
+            <div className="flex items-center gap-2 text-stone-600">
               <Phone className="w-3.5 h-3.5" />
               <span className="text-[9px] font-semibold uppercase tracking-wider">Contatos</span>
             </div>
@@ -493,7 +533,7 @@ export default function BusinessDetailsModal({
               {whatsapps.length > 0 || verifiedPhones.length > 0 || verifiedEmails.length > 0 ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+                <AlertCircle className="w-3.5 h-3.5 text-stone-600" />
               )}
               <span className="text-[11px] font-semibold text-stone-700">
                 {whatsapps.length > 0
@@ -506,7 +546,7 @@ export default function BusinessDetailsModal({
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
-            <div className="flex items-center gap-2 text-stone-400">
+            <div className="flex items-center gap-2 text-stone-600">
               <Activity className="w-3.5 h-3.5" />
               <span className="text-[9px] font-semibold uppercase tracking-wider">Tracking</span>
             </div>
@@ -514,7 +554,7 @@ export default function BusinessDetailsModal({
               {trackingAudit?.hasTracking ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+                <AlertCircle className="w-3.5 h-3.5 text-stone-600" />
               )}
               <span className="text-[11px] font-semibold text-stone-700">
                 {isTrackingAuditLoading
@@ -527,7 +567,7 @@ export default function BusinessDetailsModal({
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-3">
-            <div className="flex items-center gap-2 text-stone-400">
+            <div className="flex items-center gap-2 text-stone-600">
               <Activity className="w-3.5 h-3.5" />
               <span className="text-[9px] font-semibold uppercase tracking-wider">Performance</span>
             </div>
@@ -535,7 +575,7 @@ export default function BusinessDetailsModal({
               {pageSpeed ? (
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+                <AlertCircle className="w-3.5 h-3.5 text-stone-600" />
               )}
               <span className="text-[11px] font-semibold text-stone-700">
                 {isSpeedLoading ? 'Medindo' : pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'}
@@ -553,7 +593,7 @@ export default function BusinessDetailsModal({
             </h3>
             
             <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+              <span className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider">
                 Endereço Completo
               </span>
               <span className="text-xs font-semibold text-stone-800 mt-1 block">
@@ -563,7 +603,7 @@ export default function BusinessDetailsModal({
 
             <div className="grid grid-cols-2 gap-3.5">
               <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                <span className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider">
                   Confiabilidade
                 </span>
                 <div className="flex items-center gap-2 mt-1">
@@ -579,14 +619,14 @@ export default function BusinessDetailsModal({
                 </div>
               </div>
               <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-                <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                <span className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider">
                   Horário de Funcionamento
                 </span>
                 <span className="text-xs font-bold text-stone-900 mt-1 block">
                   {business.openStatusText || 'Horário não identificado'}
                 </span>
                 {business.openingHoursRaw && (
-                  <span className="text-[10px] text-stone-500 block mt-0.5 font-mono">
+                  <span className="text-[10px] text-stone-700 block mt-0.5 font-mono">
                     {business.openingHoursRaw}
                   </span>
                 )}
@@ -595,7 +635,7 @@ export default function BusinessDetailsModal({
 
             {/* Redes Sociais */}
             <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EDE8E0]">
-              <span className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">
+              <span className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-2">
                 Redes Sociais
               </span>
               <div>
@@ -609,13 +649,14 @@ export default function BusinessDetailsModal({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-[#EDE8E0] hover:border-stone-400 transition shadow-2xs group max-w-full truncate"
                       >
+                        {brandFromUrl(soc) ? <BrandIcon brand={brandFromUrl(soc)!} className="h-4 w-4" alt="" /> : <Globe2 className="h-4 w-4 text-stone-600" />}
                         <span className="truncate">{soc.replace(/^https?:\/\/(www\.)?/, '')}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-900 shrink-0" />
+                        <ArrowUpRight className="w-3.5 h-3.5 text-stone-600 group-hover:text-stone-900 shrink-0" />
                       </a>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-xs font-medium text-stone-500 italic">
+                  <span className="text-xs font-medium text-stone-700 italic">
                     Nenhuma rede social registrada
                   </span>
                 )}
@@ -628,7 +669,7 @@ export default function BusinessDetailsModal({
             <div className="flex items-center justify-between border-b border-stone-100 pb-2">
               <div>
                 <h3 className="text-sm font-semibold text-stone-900">Enriquecimento Digital</h3>
-                <p className="text-[10px] text-stone-400 mt-0.5">Sinais atuais encontrados no site e nas fontes do negócio</p>
+                <p className="text-[10px] text-stone-600 mt-0.5">Sinais atuais encontrados no site e nas fontes do negócio</p>
               </div>
               {hasWebsite && (
                 <button
@@ -651,7 +692,7 @@ export default function BusinessDetailsModal({
             <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                  <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider">
                     Site oficial
                   </span>
                   {hasWebsite ? (
@@ -661,17 +702,17 @@ export default function BusinessDetailsModal({
                       rel="noopener noreferrer"
                       className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-800 hover:text-[#FF4D00] min-w-0"
                     >
-                      <Globe2 className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                      <Globe2 className="w-3.5 h-3.5 shrink-0 text-stone-600" />
                       <span className="truncate">{business.website}</span>
-                      <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-stone-400" />
+                      <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-stone-600" />
                     </a>
                   ) : (
-                    <span className="text-xs text-stone-500 mt-1.5 block">Site não identificado</span>
+                    <span className="text-xs text-stone-700 mt-1.5 block">Site não identificado</span>
                   )}
                 </div>
 
                 {enrichmentData?.siteStatus === 'verified' && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500 shrink-0">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-700 shrink-0">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     Online
                   </span>
@@ -682,17 +723,17 @@ export default function BusinessDetailsModal({
             <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
-                  <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                  <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider">
                     Contatos
                   </span>
-                  <span className="block text-[10px] text-stone-400 mt-0.5">
+                  <span className="block text-[10px] text-stone-600 mt-0.5">
                     Contatos atuais têm prioridade sobre dados antigos da base
                   </span>
                 </div>
 
                 {hasFreshContactEvidence && contactCheckedAt && (
                   <span
-                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-500 shrink-0"
+                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-stone-700 shrink-0"
                     title={`Verificado em ${contactCheckedAt.toLocaleString('pt-BR')}`}
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -703,7 +744,7 @@ export default function BusinessDetailsModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
-                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-700">
                     <Phone className="w-3.5 h-3.5" />
                     Telefone
                   </div>
@@ -722,7 +763,7 @@ export default function BusinessDetailsModal({
                             <button
                               type="button"
                               onClick={() => handleCopyPhone(phone)}
-                              className="rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
+                              className="rounded-md p-1 text-stone-600 transition hover:bg-white hover:text-[#FF4D00]"
                               title={copiedPhone === phone ? 'Número copiado' : 'Copiar número'}
                             >
                               {copiedPhone === phone ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -740,24 +781,24 @@ export default function BusinessDetailsModal({
                           <button
                             type="button"
                             onClick={() => handleCopyPhone(datasetPhones[0])}
-                            className="rounded-md p-1 text-stone-400 transition hover:bg-white hover:text-[#FF4D00]"
+                            className="rounded-md p-1 text-stone-600 transition hover:bg-white hover:text-[#FF4D00]"
                             title={copiedPhone === datasetPhones[0] ? 'Número copiado' : 'Copiar número'}
                           >
                             {copiedPhone === datasetPhones[0] ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
-                          <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          <AlertCircle className="w-3.5 h-3.5 text-stone-600 shrink-0" />
                         </div>
                       </div>
-                      <span className="text-[9px] text-stone-400 mt-1 block">Não confirmado no site atual</span>
+                      <span className="text-[9px] text-stone-600 mt-1 block">Não confirmado no site atual</span>
                     </div>
                   ) : (
-                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                    <span className="text-[10px] text-stone-600 mt-2 block">Não identificado</span>
                   )}
                 </div>
 
                 <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
-                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
-                    <MessageCircle className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-700">
+                    <BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />
                     WhatsApp
                   </div>
 
@@ -778,18 +819,33 @@ export default function BusinessDetailsModal({
                         Abrir WhatsApp
                       </a>
                     </div>
+                  ) : whatsappUrl ? (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold text-amber-700">Possível WhatsApp</span>
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      </div>
+                      <span className="mt-1 block truncate text-[10px] text-stone-700">{whatsappCandidate}</span>
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => recordRecommendationWhatsApp(business)}
+                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-600 px-2.5 py-1.5 text-[10px] font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
+                        Testar no WhatsApp
+                      </a>
+                    </div>
                   ) : (
                     <div className="mt-2">
-                      <span className="text-[10px] text-stone-500 block">Não confirmado</span>
-                      <span className="text-[9px] text-stone-400 mt-1 block">
-                        Um telefone comum não é tratado como WhatsApp sem evidência no site.
-                      </span>
+                      <span className="text-[10px] text-stone-700 block">Não identificado</span>
                     </div>
                   )}
                 </div>
 
                 <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
-                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-500">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-stone-700">
                     <Mail className="w-3.5 h-3.5" />
                     Email
                   </div>
@@ -803,43 +859,43 @@ export default function BusinessDetailsModal({
                       {verifiedEmailKeys.has(normalizeEmail(emails[0])) ? (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       ) : (
-                        <AlertCircle className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                        <AlertCircle className="w-3.5 h-3.5 text-stone-600 shrink-0" />
                       )}
                     </a>
                   ) : (
-                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                    <span className="text-[10px] text-stone-600 mt-2 block">Não identificado</span>
                   )}
                 </div>
 
                 <div className="rounded-xl border border-stone-200 bg-[#FCFBF9] p-3">
-                  <div className="text-[10px] font-semibold text-stone-500">CNPJ</div>
+                  <div className="text-[10px] font-semibold text-stone-700">CNPJ</div>
                   {cnpj.length > 0 ? (
                     <span className="mt-2 block truncate font-mono text-[10px] text-stone-700">{cnpj[0]}</span>
                   ) : (
-                    <span className="text-[10px] text-stone-400 mt-2 block">Não identificado</span>
+                    <span className="text-[10px] text-stone-600 mt-2 block">Não identificado</span>
                   )}
                 </div>
               </div>
 
               {(unverifiedDatasetPhones.length > 0 || unverifiedDatasetEmails.length > 0) && (
                 <details className="mt-3 border-t border-stone-100 pt-2.5">
-                  <summary className="cursor-pointer text-[9px] font-medium text-stone-400 hover:text-stone-600">
+                  <summary className="cursor-pointer text-[9px] font-medium text-stone-600 hover:text-stone-600">
                     Ver dados antigos ou ainda não confirmados da base
                   </summary>
                   <div className="mt-2 space-y-1.5">
                     {unverifiedDatasetPhones.slice(0, 3).map((phone: string, idx: number) => (
-                      <div key={`old-phone-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-500">
+                      <div key={`old-phone-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-700">
                         <span className="truncate">{phone}</span>
-                        <span className="inline-flex items-center gap-1 text-stone-400">
+                        <span className="inline-flex items-center gap-1 text-stone-600">
                           <AlertCircle className="w-3 h-3" />
                           Não confirmado
                         </span>
                       </div>
                     ))}
                     {unverifiedDatasetEmails.slice(0, 3).map((email: string, idx: number) => (
-                      <div key={`old-email-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-500">
+                      <div key={`old-email-${idx}`} className="flex items-center justify-between gap-2 text-[10px] text-stone-700">
                         <span className="truncate">{email}</span>
-                        <span className="inline-flex items-center gap-1 text-stone-400">
+                        <span className="inline-flex items-center gap-1 text-stone-600">
                           <AlertCircle className="w-3 h-3" />
                           Não confirmado
                         </span>
@@ -857,10 +913,10 @@ export default function BusinessDetailsModal({
                     <div className="flex items-center gap-2.5">
                       <div className="w-4 h-4 border-2 border-[#FF4D00] border-t-transparent rounded-full animate-spin shrink-0" />
                       <div>
-                        <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                        <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider">
                           Tracking e privacidade
                         </span>
-                        <span className="block text-[10px] text-stone-500 mt-0.5">
+                        <span className="block text-[10px] text-stone-700 mt-0.5">
                           Analisando GA4, GTM, Meta Pixel e cookies
                         </span>
                       </div>
@@ -872,10 +928,10 @@ export default function BusinessDetailsModal({
 
                 {trackingAuditError && !trackingAudit && !isTrackingAuditLoading && (
                   <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
-                    <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider">
+                    <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider">
                       Tracking e privacidade
                     </span>
-                    <span className="block text-[10px] text-stone-500 mt-1">
+                    <span className="block text-[10px] text-stone-700 mt-1">
                       Não foi possível concluir a análise automática deste site.
                     </span>
                   </div>
@@ -885,7 +941,7 @@ export default function BusinessDetailsModal({
 
             {enrichmentData && Object.keys(enrichmentData.socials || {}).length > 0 && (
               <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
-                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider mb-2">
                   Redes sociais confirmadas no site
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -897,8 +953,9 @@ export default function BusinessDetailsModal({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-stone-700 bg-[#FCFBF9] hover:bg-stone-50 border border-stone-200 transition"
                     >
+                      {brandFromUrl(item.value) ? <BrandIcon brand={brandFromUrl(item.value)!} className="h-4 w-4" alt={String(net)} /> : null}
                       <span className="capitalize">{net}</span>
-                      <ArrowUpRight className="w-3 h-3 text-stone-400" />
+                      <ArrowUpRight className="w-3 h-3 text-stone-600" />
                     </a>
                   ))}
                 </div>
@@ -907,14 +964,14 @@ export default function BusinessDetailsModal({
 
             {team.length > 0 && (
               <div className="rounded-2xl border border-stone-200 bg-white p-3.5">
-                <span className="block text-[9px] font-semibold text-stone-400 uppercase tracking-wider mb-2">
+                <span className="block text-[9px] font-semibold text-stone-600 uppercase tracking-wider mb-2">
                   Equipe pública
                 </span>
                 <div className="space-y-1.5">
                   {team.slice(0, 4).map((member: any, idx: number) => (
                     <div key={idx} className="text-[10px] text-stone-600">
                       <span className="font-semibold text-stone-800">{member.name}</span>
-                      {member.role && <span className="ml-1 text-stone-400">{member.role}</span>}
+                      {member.role && <span className="ml-1 text-stone-600">{member.role}</span>}
                     </div>
                   ))}
                 </div>
@@ -934,7 +991,7 @@ export default function BusinessDetailsModal({
                   <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
                     Google PageSpeed Insights
                   </h4>
-                  <p className="text-[11px] text-stone-500">
+                  <p className="text-[11px] text-stone-700">
                     Métricas reais de velocidade mobile e Core Web Vitals
                   </p>
                 </div>
@@ -990,19 +1047,19 @@ export default function BusinessDetailsModal({
             {pageSpeed && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
                 <div className="p-2 bg-white rounded-xl border border-stone-200">
-                  <span className="block text-[10px] text-stone-400 font-bold uppercase">FCP (1ª Pintura)</span>
+                  <span className="block text-[10px] text-stone-600 font-bold uppercase">FCP (1ª Pintura)</span>
                   <span className="text-xs font-black text-stone-800">{pageSpeed.fcp || '-'}</span>
                 </div>
                 <div className="p-2 bg-white rounded-xl border border-stone-200">
-                  <span className="block text-[10px] text-stone-400 font-bold uppercase">LCP (Maior Conteúdo)</span>
+                  <span className="block text-[10px] text-stone-600 font-bold uppercase">LCP (Maior Conteúdo)</span>
                   <span className="text-xs font-black text-stone-800">{pageSpeed.lcp || '-'}</span>
                 </div>
                 <div className="p-2 bg-white rounded-xl border border-stone-200">
-                  <span className="block text-[10px] text-stone-400 font-bold uppercase">TBT (Bloqueio)</span>
+                  <span className="block text-[10px] text-stone-600 font-bold uppercase">TBT (Bloqueio)</span>
                   <span className="text-xs font-black text-stone-800">{pageSpeed.tbt || '-'}</span>
                 </div>
                 <div className="p-2 bg-white rounded-xl border border-stone-200">
-                  <span className="block text-[10px] text-stone-400 font-bold uppercase">CLS (Estabilidade)</span>
+                  <span className="block text-[10px] text-stone-600 font-bold uppercase">CLS (Estabilidade)</span>
                   <span className="text-xs font-black text-stone-800">{pageSpeed.cls || '-'}</span>
                 </div>
               </div>
@@ -1028,7 +1085,7 @@ export default function BusinessDetailsModal({
                 {/* Diagnostics list */}
                 {pageSpeed.diagnostics && pageSpeed.diagnostics.length > 0 && (
                   <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-stone-700 uppercase tracking-wider block">
                       Diagnósticos Técnicos Recomendados
                     </span>
                     <div className="space-y-1">
@@ -1066,7 +1123,7 @@ export default function BusinessDetailsModal({
               <span className="text-xs font-bold text-stone-900 uppercase tracking-wider block">
                 Funil de Vendas (CRM)
               </span>
-              <span className="text-[11px] text-stone-500">
+              <span className="text-[11px] text-stone-700">
                 Selecione a etapa deste lead no seu processo comercial:
               </span>
             </div>
