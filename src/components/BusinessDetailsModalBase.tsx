@@ -7,6 +7,7 @@ import { usePageSpeed } from '../hooks/usePageSpeed';
 import TrackingAuditPanel from './TrackingAuditPanel';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
+import { normalizeExternalUrl } from '../utils/externalUrl';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -61,14 +62,15 @@ export default function BusinessDetailsModal({
     markBusinessRecentlyViewed(business.id, business);
   }, [business]);
 
-  const hasWebsite = Boolean(business.website);
+  const websiteUrl = normalizeExternalUrl(business.website);
+  const hasWebsite = Boolean(websiteUrl);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
   const confidencePercent = Math.round((business.confidence || 0.8) * 100);
   const isFavorited = Boolean(business.isFavorite);
   const googleBusinessUrl = getGoogleBusinessLink(business);
 
   const { data: pageSpeed, isLoading: isSpeedLoading } = usePageSpeed(
-    autoEnrichEnabled && hasWebsite ? business.website : null
+    autoEnrichEnabled ? websiteUrl : null
   );
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function BusinessDetailsModal({
     setTrackingAudit(null);
     setTrackingAuditError(null);
 
-    if (!business.website || !autoEnrichEnabled) {
+    if (!websiteUrl || !autoEnrichEnabled) {
       setIsTrackingAuditLoading(false);
       return () => {
         cancelled = true;
@@ -86,7 +88,7 @@ export default function BusinessDetailsModal({
 
     setIsTrackingAuditLoading(true);
 
-    fetchTrackingAudit(business.website)
+    fetchTrackingAudit(websiteUrl)
       .then((audit) => {
         if (!cancelled) setTrackingAudit(audit);
       })
@@ -103,16 +105,16 @@ export default function BusinessDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [business.id, business.website, autoEnrichEnabled]);
+  }, [business.id, websiteUrl, autoEnrichEnabled]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!business.website || !autoEnrichEnabled) return () => {
+    if (!websiteUrl || !autoEnrichEnabled) return () => {
       cancelled = true;
     };
 
-    enrichBusinessData(business.website)
+    enrichBusinessData(websiteUrl)
       .then((data) => {
         if (cancelled) return;
         setEnrichmentData(data);
@@ -129,7 +131,7 @@ export default function BusinessDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [business.id, business.website, autoEnrichEnabled]);
+  }, [business.id, websiteUrl, autoEnrichEnabled]);
 
   const handleToggleFavorite = () => {
     onToggleFavorite?.(business);
@@ -145,11 +147,11 @@ export default function BusinessDetailsModal({
   };
 
   const handleEnrich = async () => {
-    if (!business.website) return;
+    if (!websiteUrl) return;
     setIsEnriching(true);
     setEnrichError(null);
     try {
-      const data = await enrichBusinessData(business.website, true);
+      const data = await enrichBusinessData(websiteUrl, true);
       setEnrichmentData(data);
       if (data?.trackingAudit) {
         setTrackingAudit(data.trackingAudit);
@@ -352,7 +354,7 @@ export default function BusinessDetailsModal({
 
               {hasWebsite && (
                 <a
-                  href={business.website!}
+                  href={websiteUrl!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 transition"
@@ -654,7 +656,7 @@ export default function BusinessDetailsModal({
                   </span>
                   {hasWebsite ? (
                     <a
-                      href={business.website!}
+                      href={websiteUrl!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-800 hover:text-[#FF4D00] min-w-0"
