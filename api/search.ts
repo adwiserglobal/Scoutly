@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runScoutlyBusinessSearch } from '../server/searchFacade.js';
-import { searchBusinessesInBounds } from '../server/businessSearchService.js';
+import { searchBusinessesByNameInBounds, searchBusinessesInBounds } from '../server/businessSearchService.js';
 import { protectBusinessListForClient } from '../server/businessSealService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -28,8 +28,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       west < east &&
       south < north;
 
+    const mode = typeof req.query.mode === 'string' ? req.query.mode : '';
     const result = hasViewport
-      ? await searchBusinessesInBounds(query, { west, south, east, north }, currentRegionName)
+      ? mode === 'name'
+        ? await searchBusinessesByNameInBounds(query, { west, south, east, north }, currentRegionName)
+        : await searchBusinessesInBounds(query, { west, south, east, north }, currentRegionName)
       : await runScoutlyBusinessSearch(query, currentRegionName);
 
     const businesses = protectBusinessListForClient(Array.isArray(result?.businesses) ? result.businesses : []);
