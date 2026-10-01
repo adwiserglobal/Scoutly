@@ -52,13 +52,19 @@ export async function fetchPlacesFromOverture(
   return { places, cached: !!data.cached, durationMs: data.durationMs || 0 };
 }
 
-export async function enrichBusinessData(url: string, force = false) {
+export async function enrichBusinessData(url: string, force = false, businessId?: string | null) {
   const params = new URLSearchParams({ url });
   if (force) params.set('force', '1');
-  const res = await fetch(`/api/enrich?${params.toString()}`);
+  if (businessId) params.set('businessId', businessId);
+  const res = await authenticatedFetch(`/api/enrich?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao enriquecer dados.');
+    const error: any = new Error(data.error || 'Erro ao enriquecer dados.');
+    error.code = data.code;
+    error.status = res.status;
+    throw error;
   }
   const data = await res.json();
   void recordUsage('analyses');
