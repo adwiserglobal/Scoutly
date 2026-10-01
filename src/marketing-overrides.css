@@ -148,7 +148,7 @@ html {
 
 .trusted-logo {
   width: 190px;
-  height: 62px;
+  height: 70px;
   flex: 0 0 190px;
   display: flex;
   align-items: center;
@@ -156,28 +156,30 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.018);
-  color: rgba(255, 255, 255, 0.56);
-  filter: grayscale(1);
-  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
-.trusted-logo span {
+.trusted-logo-image {
   display: block;
-  max-width: 158px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-  font-size: 14px;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  width: 142px;
+  height: 34px;
+  object-fit: contain;
+  object-position: center;
+  filter: grayscale(1) brightness(0) invert(1);
+  opacity: 0.62;
+  mix-blend-mode: screen;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .trusted-logo:hover {
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.82);
+  transform: translateY(-1px);
+}
+
+.trusted-logo:hover .trusted-logo-image {
+  opacity: 0.88;
+  transform: scale(1.025);
 }
 
 /* The hidden anchor is replaced by the language-aware overview video portal. */
@@ -298,13 +300,13 @@ html {
 @media (max-width: 640px) {
   .trusted-logo {
     width: 154px;
-    height: 56px;
+    height: 60px;
     flex-basis: 154px;
   }
 
-  .trusted-logo span {
-    max-width: 132px;
-    font-size: 12px;
+  .trusted-logo-image {
+    width: 118px;
+    height: 30px;
   }
 
   .site-product-video-layer {
