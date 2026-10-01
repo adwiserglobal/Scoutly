@@ -23,15 +23,14 @@ interface MarketingSiteProps {
 type Language = 'en' | 'pt';
 
 const TRUSTED_BRANDS = [
-  'Ternus',
-  'VibeCheck',
-  'Wallcloud IPS',
-  'Adwiser',
-  'NeoSenses',
-  'Planna',
-  'Altora',
-  'Wide MS',
-  'Despachante Pastor',
+  { name: 'Ternus', src: '/trusted/ternus.png', monochrome: true },
+  { name: 'VibeCheck', src: '/trusted/vibecheck.png', monochrome: true },
+  { name: 'Wallcloud', src: '/trusted/wallcloud.png', monochrome: true },
+  { name: 'Adwiser', src: '/trusted/adwiser.png' },
+  { name: 'Planna', src: '/trusted/planna.png' },
+  { name: 'Altora', src: '/trusted/altora.png' },
+  { name: 'Feedmetrics', src: '/trusted/feedmetrics.png' },
+  { name: 'ListerUp', src: '/trusted/listerup.svg' },
 ];
 
 function TrustedMarquee({ label }: { label: string }) {
@@ -47,8 +46,18 @@ function TrustedMarquee({ label }: { label: string }) {
       <div className="trusted-marquee" aria-label={label}>
         <div className="trusted-track">
           {brands.map((brand, index) => (
-            <div className="trusted-logo" key={`${brand}-${index}`} aria-hidden={index >= TRUSTED_BRANDS.length}>
-              <span>{brand}</span>
+            <div
+              className="trusted-logo"
+              key={`${brand.name}-${index}`}
+              aria-hidden={index >= TRUSTED_BRANDS.length}
+              title={brand.name}
+            >
+              <img
+                src={brand.src}
+                alt={index < TRUSTED_BRANDS.length ? brand.name : ''}
+                className={`trusted-logo-image ${brand.monochrome ? 'trusted-logo-monochrome' : ''}`}
+                loading="lazy"
+              />
             </div>
           ))}
         </div>
