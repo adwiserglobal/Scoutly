@@ -195,8 +195,18 @@ export async function saveUserLead(
   }
 }
 
-export async function searchBusinessesByQuery(query: string, currentRegionName: string) {
+export async function searchBusinessesByQuery(
+  query: string,
+  currentRegionName: string,
+  bounds?: { west: number; south: number; east: number; north: number } | null
+) {
   const params = new URLSearchParams({ q: query, currentRegionName });
+  if (bounds) {
+    params.set('west', String(bounds.west));
+    params.set('south', String(bounds.south));
+    params.set('east', String(bounds.east));
+    params.set('north', String(bounds.north));
+  }
   const res = await fetch(`/api/search?${params.toString()}`, { headers: { Accept: 'application/json' } });
   const data = await readJsonResponse<any>(res, 'Não foi possível concluir a busca.');
   if (!res.ok) throw new Error(data?.error || 'Não foi possível concluir a busca.');
