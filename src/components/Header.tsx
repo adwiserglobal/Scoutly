@@ -318,7 +318,7 @@ function Header({
                   </div>
                   <div className="text-[10px] text-stone-500">
                     {businessSuggestions.length > 0
-                      ? `${businessSuggestions.length}+ correspondências já carregadas`
+                      ? 'Resultados instantâneos já encontrados nesta área'
                       : 'Pesquisar empresas por nome ou segmento'}
                   </div>
                 </div>
