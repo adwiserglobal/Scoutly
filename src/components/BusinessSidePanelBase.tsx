@@ -32,6 +32,7 @@ import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
+import { normalizeExternalUrl } from '../utils/externalUrl';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -194,9 +195,10 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const hasWebsite = Boolean(business.website);
+  const websiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
+  const hasWebsite = Boolean(websiteUrl);
   const autoEnrichEnabled = localStorage.getItem('scoutly_auto_enrich') !== 'false';
-  const { data: pageSpeed, isLoading: isPageSpeedLoading } = usePageSpeed(autoEnrichEnabled && hasWebsite ? business.website : null);
+  const { data: pageSpeed, isLoading: isPageSpeedLoading } = usePageSpeed(autoEnrichEnabled ? websiteUrl : null);
 
   useEffect(() => {
     markBusinessRecentlyViewed(business.id, business);
@@ -216,7 +218,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     setEnrichment(null);
     setTrackingAudit(null);
 
-    if (!business.website || !autoEnrichEnabled) {
+    if (!websiteUrl || !autoEnrichEnabled) {
       setIsEnrichmentLoading(false);
       setIsTrackingLoading(false);
       return () => { cancelled = true; };
@@ -225,7 +227,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     setIsEnrichmentLoading(true);
     setIsTrackingLoading(true);
 
-    enrichBusinessData(business.website)
+    enrichBusinessData(websiteUrl)
       .then((data) => {
         if (cancelled) return;
         setEnrichment(data);
@@ -234,13 +236,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
       .catch((error) => console.warn('[Scoutly Side Panel Enrichment]:', error))
       .finally(() => { if (!cancelled) setIsEnrichmentLoading(false); });
 
-    fetchTrackingAudit(business.website)
+    fetchTrackingAudit(websiteUrl)
       .then((audit) => { if (!cancelled) setTrackingAudit(audit); })
       .catch((error) => console.warn('[Scoutly Side Panel Tracking]:', error))
       .finally(() => { if (!cancelled) setIsTrackingLoading(false); });
 
     return () => { cancelled = true; };
-  }, [business.id, business.website, autoEnrichEnabled]);
+  }, [business.id, websiteUrl, autoEnrichEnabled]);
 
   const verifiedWhatsapp = useMemo(() => {
     const items = Array.isArray(enrichment?.whatsapp) ? enrichment.whatsapp : [];
@@ -396,7 +398,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
               <MapPin className="h-3.5 w-3.5 text-[#FF6A26]" /> Ver no Google
             </a>
             {hasWebsite && (
-              <a href={business.website!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
+              <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
                 <Globe2 className="h-3.5 w-3.5 text-[#FF6A26]" /> Ver site
               </a>
             )}
@@ -423,7 +425,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
             <SectionTitle icon={<Globe2 className="h-4 w-4" />}>Presença digital</SectionTitle>
             <div className="flex flex-wrap gap-2">
               {hasWebsite && (
-                <a href={business.website!} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
+                <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
                   <Globe2 className="h-4 w-4 text-[#FF6A26]" /> Site
                   <ChevronRight className="h-3.5 w-3.5 text-stone-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
                 </a>
