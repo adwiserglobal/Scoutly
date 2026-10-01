@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" role="img" aria-labelledby="title">
+  <title>ListerUp</title>
+  <g fill="none" fill-rule="evenodd">
+    <g transform="translate(8 12)" stroke="#FF5A12" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 14h48v48H30z"/>
+      <path d="M18 26h48v48H18z" opacity=".72"/>
+      <path d="M42 50h48v34H42z" opacity=".9"/>
+      <path d="M66 62h25"/>
+      <path d="M82 48l14 14-14 14"/>
+    </g>
+    <text x="124" y="77" fill="#111111" font-family="Inter, Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="-2">lister</text>
+    <text x="273" y="77" fill="#FF5A12" font-family="Inter, Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="-2">up</text>
+  </g>
+</svg>
