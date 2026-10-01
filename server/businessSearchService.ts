@@ -198,10 +198,15 @@ export async function searchBusinessesByNameInBounds(
   };
 
   const normalizedPhrase = normalizeText(phrase);
-  const lookupTerms = Array.from(new Set([
-    normalizedPhrase,
-    ...(profile ? [normalizeText(profile.label)] : []),
-  ].filter((term) => term.length >= 2)));
+  const lookupTerms = Array.from(new Map(
+    [
+      phrase,
+      ...(profile ? [profile.label] : []),
+    ]
+      .map((term) => String(term || '').trim())
+      .filter((term) => term.length >= 2)
+      .map((term) => [term.toLocaleLowerCase('pt-BR'), term])
+  ).values());
 
   const results = new Map<string, BusinessSummary>();
   const relevance = new Map<string, number>();
@@ -224,19 +229,20 @@ export async function searchBusinessesByNameInBounds(
       const lookup = lookups[index];
       if (!lookup) continue;
       const term = lookupTerms[index];
+      const normalizedTerm = normalizeText(term);
 
       for (const place of lookup.places) {
         const summary = placeToSummary(place);
         if (!isWithinBounds(summary, bbox)) continue;
 
         const normalizedName = normalizeText(place.name || '');
-        if (!normalizedName.includes(term)) continue;
+        if (!normalizedName.includes(normalizedTerm)) continue;
 
         let score = lookup.relevanceById.get(place.id) || 90;
         if (normalizedName === normalizedPhrase) score += 220;
         else if (normalizedName.startsWith(`${normalizedPhrase} `) || normalizedName.startsWith(normalizedPhrase)) score += 180;
         else if (normalizedName.includes(normalizedPhrase)) score += 150;
-        else if (normalizedName.startsWith(`${term} `) || normalizedName.startsWith(term)) score += 110;
+        else if (normalizedName.startsWith(`${normalizedTerm} `) || normalizedName.startsWith(normalizedTerm)) score += 110;
         else score += 70;
 
         const previous = relevance.get(place.id) || 0;
