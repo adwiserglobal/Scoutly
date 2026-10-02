@@ -8,10 +8,6 @@ import {
   EyeOff,
   LockKeyhole,
   Mail,
-  MapPin,
-  Search,
-  ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import '../login.css';
@@ -21,20 +17,10 @@ type Language = 'pt' | 'en';
 const COPY = {
   pt: {
     back: 'Voltar ao site',
-    eyebrow: 'O próximo passo da sua prospecção',
     heroStart: 'Encontre empresas.',
     heroAccent: 'Descubra oportunidades.',
     heroEnd: 'Transforme dados em ação.',
     heroBody: 'Do primeiro negócio encontrado à próxima conversa, tudo acontece no mesmo lugar.',
-    previewTitle: 'Scoutly Workspace',
-    previewSearch: 'Agências em Pinheiros',
-    previewCategory: 'Explorar território',
-    previewResult: 'Oportunidades na região',
-    previewCount: '12 empresas',
-    previewSignal: 'Sinais digitais',
-    previewReady: 'Prontas para analisar',
-    previewFooter: 'Mapa, contatos e pipeline em um só fluxo',
-    copyright: 'Scoutly. Inteligência para prospecção local.',
     signInEyebrow: 'Bem-vindo de volta',
     signUpEyebrow: 'Comece com a Scoutly',
     resetEyebrow: 'Recuperação de acesso',
@@ -71,24 +57,13 @@ const COPY = {
     networkError: 'Não foi possível conectar. Confira sua internet e tente novamente.',
     popupClosed: 'O login com Google foi cancelado.',
     generalError: 'Não foi possível concluir a autenticação. Tente novamente.',
-    termsNote: 'Seus dados de acesso são protegidos pela autenticação da Scoutly.',
   },
   en: {
     back: 'Back to website',
-    eyebrow: 'Your next move in prospecting',
     heroStart: 'Find businesses.',
     heroAccent: 'Discover opportunities.',
     heroEnd: 'Turn insight into action.',
     heroBody: 'From the first business you find to your next conversation, it all happens in one place.',
-    previewTitle: 'Scoutly Workspace',
-    previewSearch: 'Agencies in Pinheiros',
-    previewCategory: 'Explore territory',
-    previewResult: 'Opportunities in this area',
-    previewCount: '12 businesses',
-    previewSignal: 'Digital signals',
-    previewReady: 'Ready to analyze',
-    previewFooter: 'Map, contacts and pipeline in one workflow',
-    copyright: 'Scoutly. Local prospecting intelligence.',
     signInEyebrow: 'Welcome back',
     signUpEyebrow: 'Get started with Scoutly',
     resetEyebrow: 'Account recovery',
@@ -125,7 +100,6 @@ const COPY = {
     networkError: 'Could not connect. Check your internet and try again.',
     popupClosed: 'Google sign-in was canceled.',
     generalError: 'Authentication failed. Please try again.',
-    termsNote: 'Your account is protected by Scoutly authentication.',
   },
 };
 
@@ -159,84 +133,6 @@ function ScoutlyIdentity({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function WorkspacePreview({ t }: { t: (typeof COPY)[Language] }) {
-  return (
-    <div className="scoutly-auth-preview relative mx-auto w-full max-w-[660px]" aria-hidden="true">
-      <div className="scoutly-auth-window overflow-hidden rounded-[22px] border border-white/[0.14] bg-[#0d1116] shadow-[0_40px_110px_rgba(0,0,0,0.52)]">
-        <div className="flex h-[46px] items-center justify-between border-b border-white/[0.08] bg-[#11151a] px-4">
-          <div className="flex items-center gap-2">
-            <img src="/scoutly-mark.png" alt="" className="h-[18px] w-[18px] object-contain" />
-            <span className="text-[11px] font-semibold text-white/90">{t.previewTitle}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-[5px] w-[5px] rounded-full bg-white/20" />
-            <span className="h-[5px] w-[5px] rounded-full bg-white/20" />
-            <span className="h-[5px] w-[5px] rounded-full bg-[#ff5a12]" />
-          </div>
-        </div>
-
-        <div className="relative h-[285px] overflow-hidden bg-[#0b1015]">
-          <div className="scoutly-auth-map absolute inset-0">
-            <svg viewBox="0 0 600 290" preserveAspectRatio="xMidYMid slice" className="h-full w-full" fill="none">
-              <g stroke="#27313d" strokeWidth="14" opacity=".9">
-                <path d="M-30 35 620 265M-40 220 610 -35M175 -35 350 330M475 -35 185 325" />
-              </g>
-              <g stroke="#131c25" strokeWidth="9">
-                <path d="M-30 35 620 265M-40 220 610 -35M175 -35 350 330M475 -35 185 325" />
-              </g>
-              <g stroke="#2c3540" strokeWidth="3" opacity=".65">
-                <path d="M-15 105 600 80M0 164 650 141M0 266 600 225M85 -20 135 320M350 -20 400 320M560 -20 540 320M60 -30 600 190M-30 286 540 20" />
-              </g>
-              <g stroke="#1b242d" strokeWidth="1" opacity=".85">
-                <path d="M-15 105 600 80M0 164 650 141M0 266 600 225M85 -20 135 320M350 -20 400 320M560 -20 540 320M60 -30 600 190M-30 286 540 20" />
-              </g>
-            </svg>
-          </div>
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_55%_58%,transparent_22%,rgba(6,9,13,0.55)_100%)]" />
-
-          <div className="absolute left-4 top-4 flex h-9 w-[67%] items-center gap-2.5 rounded-xl border border-white/[0.12] bg-[#151a20]/95 px-3.5 shadow-xl backdrop-blur">
-            <Search className="h-3.5 w-3.5 text-[#ff7335]" />
-            <span className="truncate text-[11px] text-white/80">{t.previewSearch}</span>
-          </div>
-
-          <span className="scoutly-auth-pin left-[21%] top-[48%] h-3 w-3" />
-          <span className="scoutly-auth-pin left-[35%] top-[73%] h-3 w-3" />
-          <span className="scoutly-auth-pin left-[57%] top-[33%] h-3.5 w-3.5" />
-          <span className="scoutly-auth-pin left-[76%] top-[57%] h-3 w-3" />
-          <span className="scoutly-auth-pin left-[84%] top-[27%] h-2.5 w-2.5" />
-          <span className="scoutly-auth-pin scoutly-auth-pin-active left-[49%] top-[54%] flex h-7 w-7 items-center justify-center text-[11px] font-bold text-white">3</span>
-
-          <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-xl border border-white/[0.1] bg-[#151b20]/95 px-3 py-2 text-[10px] font-medium text-white/75 shadow-lg backdrop-blur">
-            <MapPin className="h-3.5 w-3.5 text-[#ff743b]" />
-            {t.previewCategory}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-white/[0.08] bg-[#11151a] px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-[9px] font-medium text-white/50">{t.previewResult}</p>
-            <p className="mt-0.5 text-[13px] font-semibold text-white">{t.previewCount}</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border border-[#ff5a12]/20 bg-[#ff5a12]/[0.10] px-2.5 py-2">
-            <Sparkles className="h-3.5 w-3.5 text-[#ff783e]" />
-            <span className="text-[10px] font-medium text-[#ffad84]">{t.previewSignal}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="scoutly-auth-floating absolute -bottom-5 -right-5 flex items-center gap-2.5 rounded-[15px] border border-white/[0.12] bg-[#191d21]/95 px-3.5 py-3 shadow-[0_20px_48px_rgba(0,0,0,0.38)] backdrop-blur-lg xl:-right-8">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/[0.1]">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-        </span>
-        <div>
-          <p className="text-[11px] font-semibold text-white">{t.previewReady}</p>
-          <p className="mt-0.5 text-[9px] text-white/45">{t.previewFooter}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function LoginView() {
   const { signIn, signInWithGoogle, signUp, resetPassword } = useAuth();
   const [language, setLanguage] = useState<Language>(getInitialLanguage);
@@ -254,6 +150,15 @@ export default function LoginView() {
     document.documentElement.lang = language === 'pt' ? 'pt-BR' : 'en';
     window.sessionStorage.setItem('scoutly_language', language);
   }, [language]);
+
+  useEffect(() => {
+    document.documentElement.classList.add('scoutly-auth-active');
+    document.body.classList.add('scoutly-auth-active');
+    return () => {
+      document.documentElement.classList.remove('scoutly-auth-active');
+      document.body.classList.remove('scoutly-auth-active');
+    };
+  }, []);
 
   const changeMode = (signUpMode: boolean) => {
     setIsSignUp(signUpMode);
@@ -321,38 +226,29 @@ export default function LoginView() {
   };
 
   return (
-    <main className="scoutly-auth-page min-h-screen px-0 py-0 text-white lg:p-5 xl:p-6">
-      <div className="scoutly-auth-layout mx-auto grid min-h-screen w-full max-w-[1512px] grid-cols-1 overflow-hidden lg:min-h-[calc(100dvh-40px)] lg:grid-cols-[minmax(0,1.08fr)_minmax(440px,0.92fr)] lg:rounded-[27px] lg:border lg:border-white/[0.085] xl:min-h-[calc(100dvh-48px)]">
-        <section className="scoutly-auth-story relative hidden min-h-[760px] flex-col justify-between overflow-hidden px-[clamp(32px,4.4vw,76px)] py-[42px] lg:flex">
+    <main className="scoutly-auth-page h-[100dvh] overflow-hidden text-white lg:p-4 xl:p-5">
+      <div className="scoutly-auth-layout mx-auto grid h-full w-full max-w-[1512px] grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] lg:rounded-[27px] lg:border lg:border-white/[0.085]">
+        <section className="scoutly-auth-story relative hidden min-h-0 flex-col overflow-hidden px-[clamp(32px,4.4vw,76px)] py-[clamp(24px,3vw,40px)] lg:flex">
           <div className="scoutly-auth-orb scoutly-auth-orb-one" />
           <div className="scoutly-auth-orb scoutly-auth-orb-two" />
           <div className="relative z-10">
             <ScoutlyIdentity />
           </div>
 
-          <div className="relative z-10 mx-auto flex w-full max-w-[680px] flex-1 flex-col justify-center pb-8 pt-12">
-            <div className="mb-9 max-w-[570px] xl:mb-11">
-              <p className="mb-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.19em] text-[#ff935c]">
-                <span className="h-[5px] w-[5px] rounded-full bg-[#ff5a12] shadow-[0_0_12px_rgba(255,90,18,0.7)]" />
-                {t.eyebrow}
-              </p>
-              <h2 className="text-[clamp(35px,3.2vw,55px)] font-semibold leading-[1.13] tracking-[-0.055em] text-white">
-                {t.heroStart}<br />
-                <span className="scoutly-auth-gradient-text">{t.heroAccent}</span><br />
-                {t.heroEnd}
-              </h2>
-              <p className="mt-5 max-w-[480px] text-[13px] leading-[1.85] text-[#a9acb4] xl:text-[14px]">
-                {t.heroBody}
-              </p>
-            </div>
-
-            <WorkspacePreview t={t} />
+          <div className="relative z-10 mx-auto flex w-full max-w-[600px] flex-1 flex-col justify-center py-8">
+            <div className="scoutly-auth-accent mb-9 h-[3px] w-11 rounded-full bg-[#ff5a12]" aria-hidden="true" />
+            <h2 className="max-w-[600px] text-[clamp(38px,3.8vw,64px)] font-semibold leading-[1.105] tracking-[-0.06em] text-white">
+              {t.heroStart}<br />
+              <span className="scoutly-auth-gradient-text">{t.heroAccent}</span><br />
+              {t.heroEnd}
+            </h2>
+            <p className="mt-7 max-w-[455px] text-[clamp(12px,1.03vw,15px)] leading-[1.9] text-[#a9acb4]">
+              {t.heroBody}
+            </p>
           </div>
-
-          <p className="relative z-10 text-[10px] text-white/35">{t.copyright}</p>
         </section>
 
-        <section className="scoutly-auth-form-section relative flex min-h-screen flex-col border-l border-white/[0.055] bg-[#0d0f13] px-5 pb-8 pt-6 sm:px-8 lg:min-h-0 lg:px-[clamp(36px,4.2vw,88px)] lg:pb-9 lg:pt-[42px]">
+        <section className="scoutly-auth-form-section relative flex h-full min-h-0 flex-col overflow-y-auto border-l border-white/[0.055] bg-[#0d0f13] px-5 pb-5 pt-5 sm:px-8 lg:px-[clamp(32px,4.2vw,80px)] lg:pb-6 lg:pt-6">
           <div className="absolute right-[-130px] top-[-190px] h-[350px] w-[350px] rounded-full bg-[#ff5a12]/[0.035] blur-[110px]" aria-hidden="true" />
           <div className="relative z-10 flex items-center justify-between gap-4">
             <div className="lg:hidden"><ScoutlyIdentity compact /></div>
@@ -366,8 +262,8 @@ export default function LoginView() {
             </div>
           </div>
 
-          <div className="relative z-10 mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-10 sm:py-14 lg:py-9">
-            <div className="mb-8">
+          <div className="scoutly-auth-form-content relative z-10 mx-auto flex w-full max-w-[430px] flex-1 flex-col justify-center py-5 lg:py-3">
+            <div className="mb-6">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ff8145]">
                 {isForgotPassword ? t.resetEyebrow : isSignUp ? t.signUpEyebrow : t.signInEyebrow}
               </p>
@@ -392,7 +288,7 @@ export default function LoginView() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="scoutly-auth-email" className="mb-2 block text-[11px] font-semibold text-[#d9dbe0]">{t.email}</label>
                 <div className="scoutly-auth-field relative flex items-center">
@@ -454,7 +350,7 @@ export default function LoginView() {
 
             {!isForgotPassword && (
               <>
-                <div className="my-7 flex items-center gap-3">
+                <div className="my-5 flex items-center gap-3">
                   <span className="h-px flex-1 bg-white/[0.1]" />
                   <span className="shrink-0 text-[10px] text-[#90949e]">{t.or}</span>
                   <span className="h-px flex-1 bg-white/[0.1]" />
@@ -466,7 +362,7 @@ export default function LoginView() {
               </>
             )}
 
-            <div className="mt-8 text-center text-[12px] text-[#a2a5ae]">
+            <div className="mt-6 text-center text-[12px] text-[#a2a5ae]">
               {isForgotPassword ? (
                 <button type="button" onClick={() => { setIsForgotPassword(false); setError(null); setSuccessMessage(null); }} className="inline-flex items-center gap-1.5 font-semibold text-[#ff985e] transition hover:text-[#ffc09b]">
                   <ArrowLeft className="h-3.5 w-3.5" />{t.backToSignIn}
@@ -481,13 +377,10 @@ export default function LoginView() {
               )}
             </div>
 
-            <p className="mt-8 flex items-center justify-center gap-2 text-center text-[10px] text-[#797e88]">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#828893]" />
-              {t.termsNote}
-            </p>
+
           </div>
 
-          <div className="relative z-10 flex items-center justify-between gap-4 border-t border-white/[0.06] pt-5 lg:pt-6">
+          <div className="relative z-10 flex items-center justify-between gap-4 border-t border-white/[0.06] pt-3 lg:pt-4">
             <a href="/" className="inline-flex items-center gap-1.5 text-[10px] text-[#9096a0] transition hover:text-white lg:hidden">
               <ArrowLeft className="h-3 w-3" />{t.back}
             </a>
