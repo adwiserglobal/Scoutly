@@ -1,21 +1,38 @@
-/* Authentication surface – same dark, orange-accented language as the Scoutly marketing site. */
+/* Scoutly authentication: fixed-height companion to the dark marketing site. */
+html.scoutly-auth-active,
+body.scoutly-auth-active {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.scoutly-auth-active #root {
+  height: 100%;
+  min-height: 0;
+}
+
 .scoutly-auth-page {
+  height: 100dvh;
+  overflow: hidden;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(ellipse 50% 65% at -12% 18%, rgba(255, 90, 18, .08), transparent 65%),
+    radial-gradient(ellipse 52% 64% at -12% 18%, rgba(255, 90, 18, .075), transparent 65%),
     #080a0e;
 }
 
 .scoutly-auth-layout {
+  height: 100%;
+  min-height: 0;
   box-shadow: 0 34px 120px rgba(0, 0, 0, .34);
   background: #0d0f13;
 }
 
 .scoutly-auth-story {
   isolation: isolate;
+  min-height: 0;
   background:
-    radial-gradient(circle at 78% 83%, rgba(255, 90, 18, .12), transparent 40%),
-    radial-gradient(circle at 4% 8%, rgba(255, 90, 18, .08), transparent 35%),
+    radial-gradient(ellipse at 76% 62%, rgba(255, 90, 18, .11), transparent 55%),
+    radial-gradient(ellipse at 0% 10%, rgba(255, 90, 18, .065), transparent 45%),
     linear-gradient(145deg, #0b0d11 0%, #0b0d12 48%, #121016 100%);
 }
 
@@ -25,8 +42,8 @@
   z-index: -1;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255, 255, 255, .019) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, .019) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .018) 1px, transparent 1px);
   background-position: center center;
   background-size: 64px 64px;
   mask-image: linear-gradient(120deg, transparent 4%, black 45%, black 85%, transparent 100%);
@@ -68,6 +85,10 @@
   animation-delay: -4s;
 }
 
+.scoutly-auth-accent {
+  box-shadow: 0 0 28px rgba(255, 90, 18, .36);
+}
+
 .scoutly-auth-gradient-text {
   background: linear-gradient(96deg, #ff6a2a 3%, #ff985c 62%, #ffba88 100%);
   -webkit-background-clip: text;
@@ -75,44 +96,19 @@
   -webkit-text-fill-color: transparent;
 }
 
-.scoutly-auth-preview {
-  transform: perspective(1100px) rotateY(-1.3deg) rotateX(1.8deg);
-  transform-origin: 50% 55%;
-  animation: scoutly-auth-intro 900ms cubic-bezier(.16, 1, .3, 1) both;
+.scoutly-auth-form-section {
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
 
-.scoutly-auth-window {
-  transition: transform 500ms cubic-bezier(.16, 1, .3, 1), box-shadow 500ms ease;
+.scoutly-auth-form-section::-webkit-scrollbar {
+  display: none;
 }
 
-.scoutly-auth-preview:hover .scoutly-auth-window {
-  transform: translateY(-4px);
-  box-shadow: 0 50px 120px rgba(0, 0, 0, .6);
-}
-
-.scoutly-auth-map {
-  background:
-    radial-gradient(ellipse 40% 54% at 52% 62%, rgba(255, 90, 18, .12), transparent 78%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, .017) 0, rgba(255, 255, 255, .017) 1px, transparent 1px, transparent 50px),
-    #0b1015;
-}
-
-.scoutly-auth-pin {
-  position: absolute;
-  display: block;
-  border: 2px solid rgba(255, 255, 255, .88);
-  border-radius: 100%;
-  background: #ff5a12;
-  box-shadow: 0 0 0 5px rgba(255, 90, 18, .14), 0 0 20px rgba(255, 90, 18, .26);
-}
-
-.scoutly-auth-pin-active {
-  box-shadow: 0 0 0 9px rgba(255, 90, 18, .12), 0 0 28px rgba(255, 90, 18, .32);
-  animation: scoutly-auth-pin-pulse 3s ease-in-out infinite;
-}
-
-.scoutly-auth-floating {
-  animation: scoutly-auth-floating 6s ease-in-out infinite;
+.scoutly-auth-form-content {
+  flex-shrink: 0;
+  margin-block: auto;
 }
 
 .scoutly-auth-back,
@@ -136,35 +132,32 @@
   outline-offset: 3px;
 }
 
-@keyframes scoutly-auth-intro {
-  from {
-    opacity: 0;
-    transform: perspective(1100px) translateY(28px) rotateY(-2deg) rotateX(2deg);
-  }
-  to {
-    opacity: 1;
-    transform: perspective(1100px) translateY(0) rotateY(-1.3deg) rotateX(1.8deg);
-  }
-}
-
-@keyframes scoutly-auth-floating {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
 @keyframes scoutly-auth-breathe {
   from { transform: translate3d(0, 0, 0) scale(.9); opacity: .7; }
   to { transform: translate3d(-16px, 12px, 0) scale(1.12); opacity: 1; }
 }
 
-@keyframes scoutly-auth-pin-pulse {
-  0%, 100% { box-shadow: 0 0 0 9px rgba(255, 90, 18, .12), 0 0 28px rgba(255, 90, 18, .32); }
-  50% { box-shadow: 0 0 0 13px rgba(255, 90, 18, .06), 0 0 34px rgba(255, 90, 18, .38); }
+@media (max-height: 790px) and (min-width: 1024px) {
+  .scoutly-auth-form-content {
+    padding-block: 4px;
+  }
+
+  .scoutly-auth-form-content > div:first-child {
+    margin-bottom: 16px;
+  }
+
+  .scoutly-auth-story h2 {
+    font-size: clamp(35px, 3.3vw, 54px);
+  }
+
+  .scoutly-auth-story p {
+    margin-top: 14px;
+  }
 }
 
 @media (max-width: 1023px) {
   .scoutly-auth-layout { box-shadow: none; }
-  .scoutly-auth-form-section { min-height: 100dvh; }
+  .scoutly-auth-form-section { height: 100dvh; }
 }
 
 @media (max-width: 380px) {
@@ -172,19 +165,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scoutly-auth-orb,
-  .scoutly-auth-preview,
-  .scoutly-auth-floating,
-  .scoutly-auth-pin-active {
-    animation: none !important;
-  }
-
-  .scoutly-auth-preview {
-    transform: none;
-  }
-
-  .scoutly-auth-window,
-  .scoutly-auth-submit {
-    transition: none !important;
-  }
+  .scoutly-auth-orb { animation: none !important; }
+  .scoutly-auth-submit { transition: none !important; }
 }
