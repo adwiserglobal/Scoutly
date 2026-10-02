@@ -132,6 +132,8 @@ const COPY = {
 function getInitialLanguage(): Language {
   const requested = new URLSearchParams(window.location.search).get('lang');
   if (requested === 'pt' || requested === 'en') return requested;
+  const saved = window.sessionStorage.getItem('scoutly_language');
+  if (saved === 'pt' || saved === 'en') return saved;
   return navigator.language.toLowerCase().startsWith('pt') ? 'pt' : 'en';
 }
 
@@ -250,6 +252,7 @@ export default function LoginView() {
 
   useEffect(() => {
     document.documentElement.lang = language === 'pt' ? 'pt-BR' : 'en';
+    window.sessionStorage.setItem('scoutly_language', language);
   }, [language]);
 
   const changeMode = (signUpMode: boolean) => {
