@@ -136,9 +136,11 @@ export default function MarketingSite({
   onStart,
   onOpenDashboard,
 }: MarketingSiteProps) {
-  const [language, setLanguage] = useState<Language>(() =>
-    navigator.language.toLowerCase().startsWith('pt') ? 'pt' : 'en'
-  );
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = window.sessionStorage.getItem('scoutly_language');
+    if (saved === 'pt' || saved === 'en') return saved;
+    return navigator.language.toLowerCase().startsWith('pt') ? 'pt' : 'en';
+  });
   const isEnglish = language === 'en';
 
   const t = useMemo(
@@ -264,6 +266,7 @@ export default function MarketingSite({
   useEffect(() => {
     document.title = t.pageTitle;
     document.documentElement.lang = isEnglish ? 'en' : 'pt-BR';
+    window.sessionStorage.setItem('scoutly_language', language);
   }, [isEnglish, t.pageTitle]);
 
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
