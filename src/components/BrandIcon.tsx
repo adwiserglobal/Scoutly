@@ -2,6 +2,7 @@ export type BrandName =
   | 'google'
   | 'googleMaps'
   | 'googleAds'
+  | 'website'
   | 'whatsapp'
   | 'meta'
   | 'facebook'
@@ -12,15 +13,16 @@ export type BrandName =
 
 const BRAND_SOURCES: Record<BrandName, string> = {
   google: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
-  googleMaps: '/google-maps-icon.png',
+  googleMaps: '/brand-icons/google-maps.png',
+  website: '/brand-icons/site-white.png',
   googleAds: '/google-ads-logo.png',
-  whatsapp: 'https://cdn.simpleicons.org/whatsapp/25D366',
+  whatsapp: '/brand-icons/whatsapp.png',
   meta: 'https://cdn.simpleicons.org/meta/0866FF',
   facebook: 'https://cdn.simpleicons.org/facebook/1877F2',
-  instagram: 'https://cdn.simpleicons.org/instagram/E4405F',
-  youtube: 'https://cdn.simpleicons.org/youtube/FF0000',
-  tiktok: 'https://cdn.simpleicons.org/tiktok/111111',
-  linkedin: 'https://cdn.simpleicons.org/linkedin/0A66C2',
+  instagram: '/brand-icons/instagram.png',
+  youtube: '/brand-icons/youtube.png',
+  tiktok: '/brand-icons/tiktok.png',
+  linkedin: '/brand-icons/linkedin.png',
 };
 
 export function brandFromUrl(value?: string | null): BrandName | null {
@@ -48,7 +50,7 @@ export function BrandIcon({
     <img
       src={BRAND_SOURCES[brand]}
       alt={alt ?? brand}
-      className={`${className} shrink-0 object-contain ${brand === 'tiktok' ? 'rounded-sm bg-white p-[1px]' : ''}`}
+      className={`${className} shrink-0 object-contain`}
       loading="lazy"
       referrerPolicy="no-referrer"
     />
