@@ -154,6 +154,7 @@ export default function App() {
   });
 
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [agenticFocusedLead, setAgenticFocusedLead] = useState<Business | null>(null);
   const [modalBusiness, setModalBusiness] = useState<Business | null>(null);
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
 
@@ -1901,6 +1902,12 @@ export default function App() {
           business={selectedBusiness}
           onClose={() => setSelectedBusiness(null)}
           onToggleFavorite={handleToggleFavorite}
+          onAddToPipeline={(lead) => handleUpdateStatus(lead.id, 'CONTATADO', lead.notes || '')}
+          onAskAgentic={(lead) => {
+            setAgenticFocusedLead(lead);
+            setSelectedBusiness(null);
+            setIsAIChatOpen(true);
+          }}
         />
       )}
 
@@ -1943,8 +1950,12 @@ export default function App() {
       {/* Scoutly Copilot AI Assistant Drawer */}
       <AIAssistantDrawer
         isOpen={isAIChatOpen}
-        onClose={() => setIsAIChatOpen(false)}
-        businesses={businesses}
+        onClose={() => {
+          setIsAIChatOpen(false);
+          setAgenticFocusedLead(null);
+        }}
+        focusedLead={agenticFocusedLead}
+        businesses={agenticFocusedLead && !businesses.some((item) => item.id === agenticFocusedLead.id) ? [agenticFocusedLead, ...businesses] : businesses}
         currentRegionName={currentRegionName}
         onSelectBusiness={(biz) => {
           setSelectedBusiness(biz);
