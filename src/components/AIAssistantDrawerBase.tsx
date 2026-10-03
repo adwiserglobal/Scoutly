@@ -39,6 +39,7 @@ interface AIAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   businesses: Business[];
+  focusedLead?: Business | null;
   currentRegionName: string;
   onSelectBusiness: (business: Business) => void;
   onUpdateLeadStatus: (businessId: string, status: LeadStatus) => void;
@@ -69,6 +70,7 @@ function AIAssistantDrawer({
   isOpen,
   onClose,
   businesses,
+  focusedLead,
   currentRegionName,
   onSelectBusiness,
   onUpdateLeadStatus,
@@ -86,6 +88,16 @@ function AIAssistantDrawer({
   const [conversationContext, setConversationContext] = useState<AgenticConversationContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen || !focusedLead) return;
+    setInputMessage('');
+    setConversationContext({
+      businessType: focusedLead.category || '',
+      location: focusedLead.address || null,
+      regionName: currentRegionName,
+    });
+  }, [isOpen, focusedLead?.id]);
 
   const greeting = getGreeting(new Date().getHours());
   const firstName = getFirstName(user?.displayName, user?.email);
@@ -183,6 +195,7 @@ function AIAssistantDrawer({
         businesses: contextBusinesses,
         currentRegionName,
         conversationContext,
+        focusedLead,
       });
 
       if (result.conversationContext) setConversationContext(result.conversationContext);
@@ -286,7 +299,19 @@ function AIAssistantDrawer({
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-7 no-scrollbar sm:px-8 sm:py-8">
-          {messages.length === 0 && !isLoading && (
+          {focusedLead && (
+            <div className="mb-4 rounded-2xl border border-[#ff6a2a]/25 bg-[#ff5a12]/[0.075] px-4 py-3">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.09em] text-[#ff9b6d]"><Sparkles className="h-3.5 w-3.5" /> Contexto do lead</div>
+              <p className="mt-1.5 text-[13px] font-semibold text-white">{focusedLead.name}</p>
+              <p className="mt-1 text-[10px] text-stone-400">{focusedLead.address || focusedLead.category}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {['Encontre o LinkedIn do responsável', 'Analise as oportunidades digitais', 'Sugira uma abordagem'].map((item) => (
+                  <button key={item} type="button" onClick={() => setInputMessage(item)} className="rounded-lg border border-white/[0.12] px-2 py-1.5 text-[10px] text-[#d9dce2] transition hover:border-[#ff6a2a]/40 hover:text-white">{item}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.length === 0 && !isLoading && !focusedLead && (
             <div className="mx-auto flex min-h-full max-w-[620px] flex-col justify-center py-10">
               <div className="mb-8">
                 <h3 className="max-w-[590px] text-[25px] font-semibold leading-[1.2] tracking-[-0.04em] text-white">
