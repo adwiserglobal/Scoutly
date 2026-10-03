@@ -281,6 +281,13 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
     : null;
   const metaAdsLibraryUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&q=${encodeURIComponent(business.name)}&media_type=all`;
   const trackingDetected = Boolean(trackingAudit?.hasTracking);
+  // These are signals not confirmed by the audit, not proof that the business lacks them.
+  const unconfirmedAuditCount = [
+    trackingAudit?.ga4?.detected,
+    trackingAudit?.gtm?.detected,
+    trackingAudit?.metaPixel?.detected,
+    trackingAudit?.cookieConsent?.detected,
+  ].filter((detected) => detected !== true).length;
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
   const confidencePercent = Math.round((business.confidence || 0) * 100);
@@ -387,7 +394,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const toggleSection = (section: string) => setOpenSections((current) => ({
     ...current, [section]: !current[section],
   }));
-  const expandedSection = (section: string, label: string, summary?: string) => (
+  const expandedSection = (section: string, label: string, summary?: string, missingCount?: number) => (
     <button
       type="button"
       aria-expanded={Boolean(openSections[section])}
@@ -395,7 +402,18 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
       className="group flex w-full items-center justify-between gap-3 rounded-xl px-1 py-3 text-left"
     >
       <div className="min-w-0">
-        <span className="text-[12px] font-semibold tracking-[-0.01em] text-[#e8e9ec]">{label}</span>
+        <span className="flex items-center gap-2">
+          <span className="text-[12px] font-semibold tracking-[-0.01em] text-[#e8e9ec]">{label}</span>
+          {typeof missingCount === 'number' && missingCount > 0 && (
+            <span
+              className="flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[#ce3346] px-1 text-[10px] font-bold tabular-nums text-white"
+              title={`${missingCount} itens não confirmados na auditoria`}
+              aria-label={`${missingCount} itens não confirmados`}
+            >
+              {missingCount}
+            </span>
+          )}
+        </span>
         {summary && <span className="mt-0.5 block text-[10px] text-[#969ca6]">{summary}</span>}
       </div>
       <ChevronDown className={`h-4 w-4 shrink-0 text-[#999faa] transition-transform duration-200 group-hover:text-white ${openSections[section] ? 'rotate-180' : ''}`} />
@@ -421,7 +439,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
           </button>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title={verifiedWhatsapp ? 'WhatsApp identificado no site' : 'Testar WhatsApp: número não verificado'} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">WhatsApp indisponível</div>}
-            {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><Globe2 className="h-4 w-4 text-[#b8bec7]" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
+            {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="website" className="h-[17px] w-[17px]" alt="Site" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
           </div>
           {showPipelinePrompt && (
             <div role="status" className="mt-4 rounded-2xl border border-[#ff753e]/25 bg-[#ff5a12]/[0.085] p-4">
@@ -462,13 +480,25 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
               {expandedSection('channels', 'Contato e presença digital', phoneToCopy ? 'Telefone e canais identificados' : 'Canais identificados')}
               {openSections.channels && <div className="space-y-2 pb-4">
                 {phoneToCopy && <div className="flex items-center justify-between gap-3 rounded-xl bg-[#171b20] px-3.5 py-3"><div className="flex min-w-0 items-center gap-2.5"><Phone className="h-4 w-4 text-[#b4bac3]" /><span className="truncate text-[11px] text-[#e4e6eb]">{phoneToCopy}</span></div><button type="button" onClick={handleCopyPhone} className="rounded-lg p-1.5 text-[#b4bac3] transition hover:bg-white/[0.07]" title="Copiar telefone">{copiedPhone ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}</button></div>}
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-[#171b20] px-3.5 py-3"><span className="flex min-w-0 items-center gap-2.5 text-[11px] text-[#e4e6eb]"><Mail className="h-4 w-4 shrink-0 text-[#b4bac3]" />{emailLocked ? 'E-mail — disponível no Pro' : emailAddress || 'E-mail não encontrado'}</span>{emailLocked ? <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="text-[10px] font-semibold text-[#ff9869]"><Lock className="mr-1 inline h-3 w-3" />Pro</button> : emailAddress ? <button type="button" onClick={handleSendEmail} className="text-[10px] font-semibold text-[#ff9869]">Enviar</button> : null}</div>
+                {emailLocked ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-[#171b20] px-3.5 py-3">
+                    <span className="flex items-center gap-2.5 text-[11px] text-[#c8cdd5]"><Mail className="h-4 w-4" />E-mail disponível no Pro</span>
+                    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="inline-flex items-center gap-1 rounded-lg border border-[#ff5a12]/20 bg-[#ff5a12]/[0.08] px-2.5 py-1.5 text-[10px] font-semibold text-[#ffad83]"><Lock className="h-3 w-3" />Ver planos</button>
+                  </div>
+                ) : emailAddress ? (
+                  <a href={`mailto:${emailAddress}`} aria-label={`Enviar e-mail para ${emailAddress}`} className="group flex items-center justify-between gap-3 rounded-xl border border-white/[0.09] bg-[#171b20] px-3.5 py-3 text-[11px] font-medium text-[#e4e6eb] transition hover:border-[#ff5a12]/35 hover:bg-[#20242a]">
+                    <span className="flex min-w-0 items-center gap-2.5"><Mail className="h-4 w-4 shrink-0 text-[#cbd0d7]" /><span className="truncate">{emailAddress}</span></span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-[#ff9d6c] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </a>
+                ) : (
+                  <div className="flex items-center gap-2.5 rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] text-[#9ba1ab]"><Mail className="h-4 w-4" />E-mail não encontrado</div>
+                )>
                 {socialLinks.length > 0 && <div className="flex flex-wrap gap-2">{socialLinks.map((item) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.11] bg-[#171b20] px-3 py-2.5 text-[11px] font-medium text-[#dee0e5] transition hover:border-white/[0.26]"><SocialLogo network={item.network} url={item.url} />{item.network}<ArrowUpRight className="h-3 w-3 text-[#a4aab5]" /></a>)}</div>}
                 <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[11px] text-[#c8ccd3] transition hover:text-white"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>
               </div>}
             </section>
             <section>
-              {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade')}
+              {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade', hasWebsite && isTrackingLoading ? undefined : unconfirmedAuditCount)}
               {openSections.audit && <div className="pb-4">
                 <div className="grid grid-cols-2 gap-2">
                   <TrackingItem label="Google Analytics" ok={Boolean(trackingAudit?.ga4?.detected)} loading={hasWebsite && isTrackingLoading} />
