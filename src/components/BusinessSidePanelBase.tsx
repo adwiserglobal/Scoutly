@@ -268,8 +268,16 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const whatsappNumber = verifiedWhatsapp || phoneToCopy;
   const whatsappUrl = getWhatsAppLink(whatsappNumber);
   const rawEmailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
-  const emailLocked = isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked);
-  const emailAddress = emailLocked ? null : rawEmailAddress;
+  // Plain addresses reach this component only after the authorized server unlock
+  // or an entitlement-checked enrichment response. A stale list emailLocked
+  // flag must not hide them from Developer/paid accounts.
+  const isPlainEmail = Boolean(
+    rawEmailAddress &&
+    !isLockedEmail(rawEmailAddress) &&
+    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(rawEmailAddress).trim())
+  );
+  const emailLocked = !isPlainEmail && (isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked));
+  const emailAddress = isPlainEmail && !emailLocked ? String(rawEmailAddress).trim() : null;
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const websiteDomain = useMemo(() => normalizeWebsiteDomain(websiteUrl), [websiteUrl]);
   const googleAdsTransparencyUrl = websiteDomain
@@ -377,7 +385,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
           <span className="text-[12px] font-semibold tracking-[-0.01em] text-[#e8e9ec]">{label}</span>
           {typeof missingCount === 'number' && missingCount > 0 && (
             <span
-              className="flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[#ce3346] px-1 text-[10px] font-bold tabular-nums text-white"
+              className="inline-flex h-[15px] min-w-[15px] shrink-0 items-center justify-center rounded-full bg-[#c73544] px-[3px] text-[9px] font-semibold leading-none tabular-nums text-white"
               title={`${missingCount} itens não confirmados na auditoria`}
               aria-label={`${missingCount} itens não confirmados`}
             >
