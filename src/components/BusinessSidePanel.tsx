@@ -9,6 +9,8 @@ interface BusinessSidePanelProps {
   business: Business;
   onClose: () => void;
   onToggleFavorite?: (business: Business) => void;
+  onAddToPipeline?: (business: Business) => void;
+  onAskAgentic?: (business: Business) => void;
 }
 
 type UnlockResult = Awaited<ReturnType<typeof unlockBusinessContact>>;
@@ -60,7 +62,7 @@ function LockedPanel({
   const phone = business.phone && !String(business.phone).includes('•') ? business.phone : null;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-[85] flex w-full max-w-[390px] flex-col border-l border-white/[0.08] bg-[#0d1013]/[0.98] text-white shadow-[-24px_0_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl pointer-events-auto">
+    <aside className="fixed inset-y-0 right-0 z-[85] flex w-full max-w-[550px] flex-col border-l border-white/[0.08] bg-[#0d1013]/[0.98] text-white shadow-[-24px_0_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl pointer-events-auto">
       <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 py-5">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#FF6A26]">Negócio</p>
@@ -211,7 +213,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
   }
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-[85] flex w-full max-w-[390px] flex-col border-l border-white/[0.08] bg-[#0d1013]/[0.98] text-white shadow-[-24px_0_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl pointer-events-auto">
+    <aside className="fixed inset-y-0 right-0 z-[85] flex w-full max-w-[550px] flex-col border-l border-white/[0.08] bg-[#0d1013]/[0.98] text-white shadow-[-24px_0_70px_rgba(0,0,0,0.42)] backdrop-blur-2xl pointer-events-auto">
       <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-5">
         <div className="min-w-0">
           <p className="truncate text-base font-semibold">{business.name}</p>
