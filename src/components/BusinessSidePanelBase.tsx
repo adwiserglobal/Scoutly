@@ -170,8 +170,6 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isMessageCopied, setIsMessageCopied] = useState(false);
-  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
 
   const baseWebsiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
   const discoveredWebsiteUrl = useMemo(
@@ -192,8 +190,6 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
     setMessageModel('');
     setMessageError(null);
     setIsMessageCopied(false);
-    setIsGeneratingEmail(false);
-    setEmailError(null);
   }, [business.id]);
 
   useEffect(() => {
@@ -339,32 +335,6 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
     await navigator.clipboard.writeText(generatedMessage);
     setIsMessageCopied(true);
     window.setTimeout(() => setIsMessageCopied(false), 1600);
-  };
-
-  const handleSendEmail = async () => {
-    if (!emailAddress || isGeneratingEmail) return;
-    setIsGeneratingEmail(true);
-    setEmailError(null);
-
-    try {
-      const response = await fetch('/api/ai/generate-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: 'email',
-          business: { ...business, pageSpeedScore: pageSpeed?.score, pageSpeedDiagnostics: pageSpeed?.diagnostics || [], trackingAudit, opportunities },
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.message) throw new Error(data?.error || 'Não foi possível preparar o e-mail.');
-
-      const subject = data.subject || `Uma ideia para ${business.name}`;
-      window.location.href = `mailto:${emailAddress}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(data.message)}`;
-    } catch (error: any) {
-      setEmailError(error?.message || 'Não foi possível preparar o e-mail.');
-    } finally {
-      setIsGeneratingEmail(false);
-    }
   };
 
   useEffect(() => {
@@ -521,7 +491,6 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
               {openSections.approach && <div className="pb-4">
                 {generatedMessage ? <div className="rounded-xl border border-white/[0.1] bg-[#171b20] p-3.5"><p className="whitespace-pre-wrap text-[11px] leading-relaxed text-[#d9dce2]">{generatedMessage}</p><button type="button" onClick={handleCopyMessage} className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-[#ff9c70]">{isMessageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{isMessageCopied ? 'Copiado' : 'Copiar'}</button></div> : <p className="text-[11px] leading-relaxed text-[#a4aab5]">Gere uma sugestão de abordagem usando apenas os sinais disponíveis.</p>}
                 {messageError && <p className="mt-2 text-[10px] text-rose-300">{messageError}</p>}
-                {emailError && <p className="mt-2 text-[10px] text-rose-300">{emailError}</p>}
                 <button type="button" onClick={() => handleGenerateApproach(Boolean(generatedMessage))} disabled={isGeneratingMessage} className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#ff5a12] px-3 text-[11px] font-semibold text-white disabled:opacity-50">{isGeneratingMessage ? <LoaderRing /> : <Sparkles className="h-3.5 w-3.5" />}{generatedMessage ? 'Gerar outra versão' : 'Gerar abordagem'}</button>
               </div>}
             </section>
