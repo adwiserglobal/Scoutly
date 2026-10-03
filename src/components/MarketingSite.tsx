@@ -267,7 +267,54 @@ export default function MarketingSite({
     document.title = t.pageTitle;
     document.documentElement.lang = isEnglish ? 'en' : 'pt-BR';
     window.sessionStorage.setItem('scoutly_language', language);
+    const description = isEnglish
+      ? 'Find local businesses by location and category, review digital signals and organize your sales leads with Scoutly maps, pipeline and AI.'
+      : 'Encontre empresas por nome, segmento e região. Analise sinais digitais e organize seus leads com mapa, pipeline e IA da Scoutly.';
+    const updateMeta = (selector: string, value: string) => {
+      const meta = document.head.querySelector<HTMLMetaElement>(selector);
+      if (meta) meta.content = value;
+    };
+    updateMeta('meta[name="description"]', description);
+    updateMeta('meta[property="og:title"]', t.pageTitle);
+    updateMeta('meta[property="og:description"]', description);
+    updateMeta('meta[name="twitter:title"]', t.pageTitle);
+    updateMeta('meta[name="twitter:description"]', description);
+    updateMeta('meta[property="og:locale"]', isEnglish ? 'en_US' : 'pt_BR');
   }, [isEnglish, t.pageTitle]);
+
+  const publicResources = isEnglish
+    ? [
+        ['/en/', 'Local prospecting', 'Discover businesses by location and category.'],
+        ['/prospeccao-com-ia/', 'Prospecting with AI', 'Learn how Scoutly Agentic works with selected leads.'],
+        ['/dados-e-fontes/', 'Data & reliability', 'Understand coverage, sources and verification limits.'],
+      ]
+    : [
+        ['/prospeccao-local/', 'Prospecção local', 'Encontre empresas por nome, segmento e região.'],
+        ['/prospeccao-com-ia/', 'Prospecção com IA', 'Saiba como o Agentic trabalha com o contexto dos leads.'],
+        ['/para-agencias/', 'Para agências', 'Descubra oportunidades comerciais para serviços digitais.'],
+      ];
+
+  const publicFooterLinks = isEnglish
+    ? [
+        ['/en/', 'English overview'], ['/recursos/', 'Features'], ['/dados-e-fontes/', 'Data & sources'],
+        ['/perguntas-frequentes/', 'FAQ'],
+      ]
+    : [
+        ['/recursos/', 'Recursos'], ['/dados-e-fontes/', 'Dados e fontes'],
+        ['/perguntas-frequentes/', 'Perguntas frequentes'], ['/prospeccao-local/', 'Prospecção local'],
+      ];
+
+  const homeFAQs = isEnglish
+    ? [
+        ['What does Scoutly do?', 'Scoutly helps you find local businesses, review available digital signals and organize leads in a commercial pipeline.'],
+        ['Can I get started for free?', 'Yes. Free accounts have five prospecting credits per day, up to 25 per month. AI and full email access require an eligible plan.'],
+        ['Are contact and tracking signals guaranteed?', 'No. Data varies by source and region, and unavailable tracking or contact signals may need independent verification.'],
+      ]
+    : [
+        ['O que a Scoutly faz?', 'A Scoutly ajuda a encontrar empresas locais, analisar sinais digitais disponíveis e organizar leads no pipeline comercial.'],
+        ['É possível começar gratuitamente?', 'Sim. O plano Free oferece cinco créditos por dia, até o limite de 25 por mês. IA e e-mails completos exigem um plano elegível.'],
+        ['Os contatos e sinais de tracking são garantidos?', 'Não. A cobertura varia por fonte e região, e resultados não confirmados podem exigir verificação independente.'],
+      ];
 
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   const primaryAction = isAuthenticated ? onOpenDashboard : onStart;
@@ -476,6 +523,39 @@ export default function MarketingSite({
           </div>
         </section>
 
+        <section aria-labelledby="scoutly-resources-title" className="border-t border-white/[0.06] bg-[#0a0c10] px-5 py-20 sm:px-8 lg:px-10">
+          <div className="mx-auto max-w-7xl">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff7a3d]">
+              {isEnglish ? 'Explore Scoutly' : 'Explore a Scoutly'}
+            </p>
+            <h2 id="scoutly-resources-title" className="mt-4 max-w-3xl text-[32px] font-semibold tracking-[-0.045em] text-white sm:text-[43px]">
+              {isEnglish ? 'Find the right workflow for your team.' : 'Encontre o fluxo ideal para sua operação.'}
+            </h2>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {publicResources.map(([href, title, copy]) => (
+                <a key={href} href={href} className="group flex min-h-[165px] flex-col justify-between rounded-2xl border border-white/[0.09] bg-white/[0.025] p-6 transition hover:border-[#ff6a2a]/35 hover:bg-white/[0.05]">
+                  <div><h3 className="text-[16px] font-semibold text-white">{title}</h3><p className="mt-3 text-[12px] leading-6 text-stone-400">{copy}</p></div>
+                  <span className="mt-5 inline-flex items-center gap-1 text-[11px] font-semibold text-[#ff995f]">{isEnglish ? 'Learn more' : 'Saiba mais'} <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+                </a>
+              ))}
+            </div>
+            <div className="mt-12 max-w-4xl">
+              <h3 className="mb-5 text-[23px] font-semibold tracking-[-0.03em] text-white">{isEnglish ? 'Frequently asked questions' : 'Perguntas frequentes'}</h3>
+              {homeFAQs.map(([question, answer]) => (
+                <details key={question} className="group border-t border-white/[0.08] py-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[13px] font-medium text-stone-200">
+                    {question}<span className="text-[19px] font-normal text-stone-500 transition group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="mt-3 max-w-3xl text-[12px] leading-6 text-stone-400">{answer}</p>
+                </details>
+              ))}
+              <a href="/perguntas-frequentes/" className="mt-5 inline-flex items-center gap-2 text-[12px] font-semibold text-[#ff995f]">
+                {isEnglish ? 'See all questions' : 'Ver todas as perguntas'} <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          </div>
+        </section>
+
         <section className="px-5 pb-20 pt-6 sm:px-8 sm:pb-28 lg:px-10">
           <div className="site-final-cta mx-auto max-w-7xl overflow-hidden rounded-[34px] border border-[#ff7a3d]/20 px-6 py-16 text-center sm:px-10 sm:py-20">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.12] bg-white/[0.08] text-white"><Radar className="h-5 w-5" /></div>
@@ -491,7 +571,13 @@ export default function MarketingSite({
       <footer className="border-t border-white/[0.07] bg-[#080a0d]">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-9 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
           <div className="flex items-center gap-3"><img src="/logo_white.png" alt="Scoutly" className="h-7 w-auto" /><span className="hidden text-[10px] text-stone-600 sm:inline">{t.footer}</span></div>
-          <div className="flex items-center gap-4 text-[10px] text-stone-600"><span>© {new Date().getFullYear()} Scoutly</span><button onClick={() => setLanguage(isEnglish ? 'pt' : 'en')} className="font-semibold uppercase text-stone-400 transition hover:text-white">{isEnglish ? 'PT-BR' : 'EN'}</button></div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-stone-500">
+            <nav aria-label={isEnglish ? 'Public resources' : 'Recursos públicos'} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {publicFooterLinks.map(([href, label]) => <a key={href} href={href} className="transition hover:text-white">{label}</a>)}
+            </nav>
+            <span>© {new Date().getFullYear()} Scoutly</span>
+            <button onClick={() => setLanguage(isEnglish ? 'pt' : 'en')} className="font-semibold uppercase text-stone-400 transition hover:text-white">{isEnglish ? 'PT-BR' : 'EN'}</button>
+          </div>
         </div>
       </footer>
     </div>
