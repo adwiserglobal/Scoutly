@@ -6,6 +6,8 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
+  ArrowUpRight,
   Copy,
   Gauge,
   Globe2,
@@ -39,6 +41,8 @@ interface BusinessSidePanelProps {
   business: Business;
   onClose: () => void;
   onToggleFavorite?: (business: Business) => void;
+  onAddToPipeline?: (business: Business) => void;
+  onAskAgentic?: (business: Business) => void;
 }
 
 function LoaderRing({ size = 'sm' }: { size?: 'sm' | 'md' }) {
@@ -150,8 +154,11 @@ function isLockedEmail(value?: string | null) {
   return Boolean(value && value.includes('•'));
 }
 
-export default function BusinessSidePanel({ business, onClose, onToggleFavorite }: BusinessSidePanelProps) {
+export default function BusinessSidePanel({ business, onClose, onToggleFavorite, onAddToPipeline, onAskAgentic }: BusinessSidePanelProps) {
   const [enrichment, setEnrichment] = useState<any>(null);
+  const [whatsappPending, setWhatsappPending] = useState(false);
+  const [showPipelinePrompt, setShowPipelinePrompt] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ channels: true, audit: false, ads: false, approach: false, details: false });
   const [trackingAudit, setTrackingAudit] = useState<any>(null);
   const [isEnrichmentLoading, setIsEnrichmentLoading] = useState(false);
   const [isTrackingLoading, setIsTrackingLoading] = useState(false);
@@ -353,249 +360,151 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite 
     }
   };
 
+  useEffect(() => {
+    setWhatsappPending(false);
+    setShowPipelinePrompt(false);
+    setOpenSections({ channels: true, audit: false, ads: false, approach: false, details: false });
+  }, [business.id]);
+
+  useEffect(() => {
+    const checkReturn = () => {
+      if (!whatsappPending || document.visibilityState === 'hidden') return;
+      setWhatsappPending(false);
+      if (business.leadStatus === 'NOVO' || !business.leadStatus) setShowPipelinePrompt(true);
+    };
+    window.addEventListener('focus', checkReturn);
+    document.addEventListener('visibilitychange', checkReturn);
+    return () => {
+      window.removeEventListener('focus', checkReturn);
+      document.removeEventListener('visibilitychange', checkReturn);
+    };
+  }, [whatsappPending, business.id, business.leadStatus]);
+
+  const recordWhatsAppClick = () => {
+    recordRecommendationWhatsApp(business);
+    setWhatsappPending(true);
+  };
+  const toggleSection = (section: string) => setOpenSections((current) => ({
+    ...current, [section]: !current[section],
+  }));
+  const expandedSection = (section: string, label: string, summary?: string) => (
+    <button
+      type="button"
+      aria-expanded={Boolean(openSections[section])}
+      onClick={() => toggleSection(section)}
+      className="group flex w-full items-center justify-between gap-3 rounded-xl px-1 py-3 text-left"
+    >
+      <div className="min-w-0">
+        <span className="text-[12px] font-semibold tracking-[-0.01em] text-[#e8e9ec]">{label}</span>
+        {summary && <span className="mt-0.5 block text-[10px] text-[#969ca6]">{summary}</span>}
+      </div>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-[#999faa] transition-transform duration-200 group-hover:text-white ${openSections[section] ? 'rotate-180' : ''}`} />
+    </button>
+  );
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/[0.42] backdrop-blur-[2px] pointer-events-auto" onClick={onClose} />
-
-      <aside className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-white/[0.08] bg-[#0b0e12]/[0.98] shadow-[0_0_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl pointer-events-auto sm:w-[440px]">
-        <div className="shrink-0 border-b border-white/[0.08] bg-[#101318] px-5 py-5">
-          <div className="mb-4 h-[3px] w-12 rounded-full bg-[#FF5A12]" />
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[18px] font-semibold tracking-tight text-white">{business.name}</h2>
-                <button type="button" onClick={() => onToggleFavorite?.(business)} className="shrink-0 rounded-lg p-1 text-stone-300 transition hover:bg-white/[0.06] hover:text-white" title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}>
-                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-[#FF6A26] text-[#FF6A26]' : ''}`} />
-                </button>
-              </div>
-              <p className="mt-1 text-[11px] font-medium text-stone-300">{translateCategory(business.category)}</p>
+      <div className="fixed inset-0 z-[68] bg-black/45 backdrop-blur-[2px] pointer-events-auto" onClick={onClose} />
+      <aside className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col border-l border-white/[0.09] bg-[#0d1014] text-white shadow-[-28px_0_100px_rgba(0,0,0,0.48)] pointer-events-auto sm:w-[520px] lg:w-[550px]" aria-label={`Detalhes de ${business.name}`}>
+        <header className="shrink-0 border-b border-white/[0.085] bg-[#101317] px-5 pb-5 pt-6 sm:px-7">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a1a6af]">Perfil da empresa</span>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => onToggleFavorite?.(business)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#b8bdc7] transition hover:bg-white/[0.06] hover:text-white" aria-label={isFavorite ? 'Remover favorito' : 'Favoritar'}><Star className={`h-[18px] w-[18px] ${isFavorite ? 'fill-[#ff6a2a] text-[#ff6a2a]' : ''}`} /></button>
+              <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#b8bdc7] transition hover:bg-white/[0.06] hover:text-white" aria-label="Fechar painel"><X className="h-[18px] w-[18px]" /></button>
             </div>
-            <button type="button" onClick={onClose} className="shrink-0 rounded-xl p-2 text-stone-300 transition hover:bg-white/[0.06] hover:text-white" title="Fechar">
-              <X className="h-5 w-5" />
-            </button>
           </div>
-
-          {business.address && (
-            <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-stone-300">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF6A26]" />
-              <span>{business.address}</span>
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
-              <BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps
-            </a>
-            {hasWebsite && (
-              <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
-                <Globe2 className="h-3.5 w-3.5 text-[#FF6A26]" /> Ver site
-              </a>
-            )}
-            {phoneToCopy && (
-              <a href={`tel:${phoneToCopy}`} className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/40 hover:bg-[#FF5A12]/[0.08]">
-                <Phone className="h-3.5 w-3.5 text-[#FF6A26]" /> Ligar
-              </a>
-            )}
-            {whatsappUrl && (
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecommendationWhatsApp(business)} className="inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2 text-[10px] font-semibold text-stone-100 transition hover:border-emerald-500/35 hover:bg-emerald-500/[0.08]" title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'}>
-                <BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" /> WhatsApp
-                {verifiedWhatsapp ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
-              </a>
-            )}
+          <h2 className="break-words text-[24px] font-semibold leading-[1.18] tracking-[-0.05em] text-[#f6f6f7]">{business.name}</h2>
+          <p className="mt-2 text-[12px] text-[#bbc0c9]">{translateCategory(business.category)}</p>
+          {business.address && <p className="mt-3 flex items-start gap-2 text-[11px] leading-[1.65] text-[#a4aab5]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ff7439]" />{business.address}</p>}
+          <button type="button" onClick={() => onAskAgentic?.(business)} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#ff7138]/30 bg-[#ff5a12]/[0.12] text-[12px] font-semibold text-[#ffad83] transition hover:border-[#ff7138]/55 hover:bg-[#ff5a12]/[0.19]">
+            <Sparkles className="h-4 w-4" /> Pedir ao Scoutly Agentic <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title={verifiedWhatsapp ? 'WhatsApp identificado no site' : 'Testar WhatsApp: número não verificado'} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">WhatsApp indisponível</div>}
+            {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><Globe2 className="h-4 w-4 text-[#b8bec7]" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
           </div>
-
-          {isAnythingLoading && (
-            <div className="mt-4 flex items-center gap-2 text-[9px] font-medium text-stone-300"><LoaderRing /> Atualizando sinais do negócio</div>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-5 custom-scrollbar">
-          <section>
-            <SectionTitle icon={<Globe2 className="h-4 w-4" />}>Presença digital</SectionTitle>
-            <div className="flex flex-wrap gap-2">
-              {hasWebsite && (
-                <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
-                  <Globe2 className="h-4 w-4 text-[#FF6A26]" /> Site
-                  <ChevronRight className="h-3.5 w-3.5 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
-                </a>
-              )}
-              {socialLinks.map((item) => (
-                <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 text-[10px] font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.08]">
-                  <SocialLogo network={item.network} url={item.url} /> {item.network}
-                  <ChevronRight className="h-3.5 w-3.5 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6A26]" />
-                </a>
-              ))}
-              {!hasWebsite && socialLinks.length === 0 && (
-                <div className="rounded-xl border border-white/[0.08] bg-[#111418] px-3 py-2.5 text-[10px] text-stone-300">Nenhum canal digital identificado</div>
-              )}
-            </div>
-          </section>
-
-          {opportunities.length > 0 && (
-            <section className="mt-6">
-              <SectionTitle icon={<AlertCircle className="h-4 w-4" />}>Oportunidades</SectionTitle>
-              <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
-                {opportunities.map((item) => (
-                  <div key={item} className="flex items-center gap-2 border-b border-white/[0.07] py-2.5 text-[10px] font-medium text-stone-200 last:border-b-0">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-400" /><span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="mt-6">
-            <SectionTitle icon={<Activity className="h-4 w-4" />}>Anúncios públicos</SectionTitle>
-            <p className="mb-3 text-[9px] leading-relaxed text-stone-300">
-              Verifique nas bibliotecas oficiais se encontramos anúncios associados a este negócio.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <a
-                href={metaAdsLibraryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#1877F2]/40 hover:bg-[#1877F2]/[0.06]"
-                title={`Pesquisar ${business.name} na Biblioteca de Anúncios da Meta`}
-              >
-                <BrandIcon brand="meta" className="h-6 w-6" alt="Meta" />
-                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Meta Ads</span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#1877F2]" />
-              </a>
-
-              {googleAdsTransparencyUrl ? (
-                <a
-                  href={googleAdsTransparencyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.10] bg-[#15191e] px-3 py-2.5 transition hover:border-[#4285F4]/40 hover:bg-[#4285F4]/[0.06]"
-                  title={`Pesquisar ${websiteDomain} no Google Ads Transparency Center`}
-                >
-                  <BrandIcon brand="googleAds" className="h-6 w-6 rounded-md bg-white" alt="Google Ads" />
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-100">Google Ads</span>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#4285F4]" />
-                </a>
-              ) : (
-                <div
-                  className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-[#111418] px-3 py-2.5 opacity-55"
-                  title="A busca direta do Google fica disponível quando o negócio possui um site identificado"
-                >
-                  <BrandIcon brand="googleAds" className="h-6 w-6 rounded-md bg-white grayscale-[0.2]" alt="Google Ads" />
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-stone-300">Google Ads</span>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="mt-6">
-            <SectionTitle icon={<Activity className="h-4 w-4" />}>Visão rápida</SectionTitle>
-            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
-              <SignalRow icon={<Globe2 className="h-4 w-4" />} label="Site" value={hasWebsite ? 'Identificado' : 'Não identificado'} detected={hasWebsite} />
-              <SignalRow icon={<BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} />
-              <SignalRow icon={<Activity className="h-4 w-4" />} label="Tracking" value={trackingDetected ? 'Detectado' : 'Não confirmado'} detected={trackingDetected} loading={hasWebsite && isTrackingLoading} />
-              <SignalRow icon={<Gauge className="h-4 w-4" />} label="PageSpeed mobile" value={pageSpeedDetected && pageSpeed ? `${pageSpeed.score}/100` : 'Indisponível'} detected={pageSpeedDetected} loading={hasWebsite && isPageSpeedLoading} />
-            </div>
-          </section>
-
-          <section className="mt-6">
-            <SectionTitle icon={<Phone className="h-4 w-4" />}>Contato atual</SectionTitle>
-            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
-              <SignalRow icon={<Phone className="h-4 w-4" />} label="Telefone" value={phoneToCopy || 'Não identificado'} detected={Boolean(phoneToCopy)} loading={hasWebsite && isEnrichmentLoading} action={phoneToCopy ? (
-                <button type="button" onClick={handleCopyPhone} className="rounded-md p-1.5 text-stone-300 transition hover:bg-white/[0.06] hover:text-[#FF6A26]" title={copiedPhone ? 'Número copiado' : 'Copiar número'}>
-                  {copiedPhone ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
-              ) : undefined} />
-              <SignalRow
-                icon={<Mail className="h-4 w-4" />}
-                label="Email"
-                value={emailLocked ? 'contato@empresa.com' : (emailAddress || 'Não identificado')}
-                detected={Boolean(rawEmailAddress)}
-                loading={hasWebsite && isEnrichmentLoading}
-                valueClassName={emailLocked ? 'select-none blur-[4px]' : ''}
-                action={emailLocked ? (
-                  <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="inline-flex items-center gap-1 rounded-lg border border-[#FF5A12]/20 bg-[#FF5A12]/[0.08] px-2 py-1 text-[9px] font-semibold text-[#FF8A52]" title="E-mail completo disponível nos planos pagos">
-                    <Lock className="h-3 w-3" /> Pro
-                  </button>
-                ) : emailAddress ? (
-                  <button type="button" onClick={handleSendEmail} disabled={isGeneratingEmail} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-60" title="Gerar uma mensagem com IA e abrir no seu cliente de e-mail">
-                    {isGeneratingEmail ? <LoaderRing /> : <Mail className="h-3 w-3 text-[#FF6A26]" />}{isGeneratingEmail ? 'Preparando' : 'Enviar'}
-                  </button>
-                ) : undefined}
-              />
-              <SignalRow icon={<BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />} label="WhatsApp" value={whatsappNumber || 'Não identificado'} detected={Boolean(verifiedWhatsapp)} loading={hasWebsite && isEnrichmentLoading} title={verifiedWhatsapp ? 'WhatsApp verificado' : 'Número disponível, WhatsApp não confirmado'} action={whatsappUrl ? (
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecommendationWhatsApp(business)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.04] px-2.5 py-1.5 text-[9px] font-semibold text-stone-200 transition hover:border-emerald-500/35 hover:text-white">
-                  Abrir {verifiedWhatsapp ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-400" />}
-                </a>
-              ) : undefined} />
-            </div>
-            {emailError && <p className="mt-2 text-[9px] leading-relaxed text-rose-400">{emailError}</p>}
-          </section>
-
-          <section className="mt-6">
-            <SectionTitle icon={<Sparkles className="h-4 w-4" />}>Gerar abordagem</SectionTitle>
-            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
-              {!generatedMessage && !messageError && <p className="text-[10px] leading-relaxed text-stone-300">Crie uma primeira mensagem usando os sinais encontrados para este negócio.</p>}
-              {messageError && <p className="rounded-lg bg-rose-500/[0.08] px-3 py-2 text-[10px] text-rose-400">{messageError}</p>}
-              {generatedMessage && (
-                <div className="rounded-xl border border-[#FF4D00]/15 bg-[#FFF8F4] p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#D94400]" title={messageModel || undefined}>{messageSource === 'template' ? 'Fallback local' : 'Abordagem com IA'}</span>
-                    <button type="button" onClick={handleCopyMessage} className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-semibold text-stone-400 transition hover:bg-white hover:text-[#FF6A26]">
-                      {isMessageCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}{isMessageCopied ? 'Copiado' : 'Copiar'}
-                    </button>
-                  </div>
-                  <p className="whitespace-pre-wrap text-[10px] leading-relaxed text-stone-700">{generatedMessage}</p>
-                </div>
-              )}
+          {showPipelinePrompt && (
+            <div role="status" className="mt-4 rounded-2xl border border-[#ff753e]/25 bg-[#ff5a12]/[0.085] p-4">
+              <p className="text-[12px] font-semibold text-[#f3f4f5]">Gostaria de adicionar este lead ao pipeline?</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-[#aeb4bf]">Você abriu o WhatsApp deste negócio. Quer acompanhar a oportunidade?</p>
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => handleGenerateApproach(Boolean(generatedMessage))} disabled={isGeneratingMessage} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FF5A12] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#E04400] disabled:cursor-not-allowed disabled:opacity-60">
-                  {isGeneratingMessage ? <LoaderRing /> : generatedMessage ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {isGeneratingMessage ? 'Gerando' : generatedMessage ? 'Nova variação' : 'Gerar abordagem'}
-                </button>
+                <button type="button" onClick={() => { onAddToPipeline?.(business); setShowPipelinePrompt(false); }} className="rounded-lg bg-[#ff5a12] px-3.5 py-2 text-[11px] font-semibold text-white transition hover:bg-[#ff7234]">Adicionar ao pipeline</button>
+                <button type="button" onClick={() => setShowPipelinePrompt(false)} className="rounded-lg border border-white/[0.12] px-3.5 py-2 text-[11px] font-medium text-[#c4c8d0] transition hover:bg-white/[0.05]">Agora não</button>
               </div>
             </div>
-          </section>
-
-          <section className="mt-6">
-            <SectionTitle icon={<Tag className="h-4 w-4" />}>Sinais digitais</SectionTitle>
-            <div className="grid grid-cols-2 gap-2">
-              <TrackingItem label="GA4" ok={Boolean(trackingAudit?.ga4?.detected)} loading={hasWebsite && isTrackingLoading} />
-              <TrackingItem label="GTM" ok={Boolean(trackingAudit?.gtm?.detected)} loading={hasWebsite && isTrackingLoading} />
-              <TrackingItem label="Meta Pixel" ok={Boolean(trackingAudit?.metaPixel?.detected)} loading={hasWebsite && isTrackingLoading} />
-              <TrackingItem label="Cookies" ok={Boolean(trackingAudit?.cookieConsent?.detected)} loading={hasWebsite && isTrackingLoading} />
-            </div>
-          </section>
-
-          {pageSpeed && (
-            <section className="mt-6">
-              <div className="mb-3 flex items-center justify-between">
-                <SectionTitle icon={<Gauge className="h-4 w-4" />}>Performance mobile</SectionTitle>
-                <span className="mb-3 rounded-full border border-[#FF4D00]/20 bg-[#FF5A12]/[0.08] px-2.5 py-1 text-[10px] font-semibold text-[#FF8A52]">{pageSpeed.score}/100</span>
-              </div>
-              <div className="rounded-2xl border border-white/[0.08] bg-[#111418] p-3.5">
-                <div className="grid grid-cols-4 gap-2">
-                  {[[ 'FCP', pageSpeed.fcp || '-' ], [ 'LCP', pageSpeed.lcp || '-' ], [ 'TBT', pageSpeed.tbt || '-' ], [ 'CLS', pageSpeed.cls || '-' ]].map(([label, value]) => (
-                    <div key={label} className="text-center"><span className="block text-[8px] font-semibold text-stone-300">{label}</span><span className="mt-1 block text-[10px] font-semibold text-stone-200">{value}</span></div>
-                  ))}
-                </div>
-                {pageSpeed.opportunityTitle && (
-                  <div className="mt-3 border-t border-white/[0.07] pt-3">
-                    <span className="text-[10px] font-semibold text-stone-100">{pageSpeed.opportunityTitle}</span>
-                    {pageSpeed.opportunityDescription && <p className="mt-1 text-[9px] leading-relaxed text-stone-300">{pageSpeed.opportunityDescription}</p>}
-                  </div>
-                )}
-              </div>
-            </section>
           )}
+        </header>
 
-          <section className="mt-6 pb-3">
-            <SectionTitle icon={<Building2 className="h-4 w-4" />}>Dados do negócio</SectionTitle>
-            <div className="rounded-2xl border border-white/[0.08] bg-[#111418] px-3.5">
-              <DetailRow label="Confiança da fonte" value={`${confidencePercent}%`} />
-              <DetailRow label="Status" value={business.openStatusText || business.operatingStatus || 'Não identificado'} />
-              <DetailRow label="Fonte" value={business.source || 'Não identificada'} />
-              {(business.cnpj || enrichment?.cnpj?.[0]?.value) && <DetailRow label="CNPJ" value={business.cnpj || enrichment.cnpj[0].value} />}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-color:#31363d_transparent] sm:px-7">
+          {isAnythingLoading && <p className="mb-3 flex items-center gap-2 text-[10px] text-[#a6acb6]"><LoaderRing /> Atualizando informações do negócio</p>}
+          <section className="rounded-2xl border border-white/[0.085] bg-[#14181d] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[12px] font-semibold text-white">Visão geral</h3>
+              <span className="text-[10px] font-semibold text-[#a4abb6]">{confidencePercent}% de confiança da fonte</span>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Site</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{hasWebsite ? 'Identificado' : 'Não identificado'}</p></div>
+              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">WhatsApp</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{verifiedWhatsapp ? 'Identificado' : whatsappUrl ? 'Possível' : 'Não identificado'}</p></div>
+              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Tracking</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{trackingDetected ? 'Detectado' : 'Não confirmado'}</p></div>
+              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Performance</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{pageSpeedDetected ? `${pageSpeed!.score}/100` : 'Sem medição'}</p></div>
+            </div>
+            {opportunities.length > 0 && (
+              <div className="mt-4 border-t border-white/[0.08] pt-3">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#ff9869]">Possíveis oportunidades</p>
+                <div className="flex flex-wrap gap-1.5">{opportunities.slice(0, 3).map((item) => <span key={item} className="rounded-lg border border-[#ff7c42]/[0.15] bg-[#ff6a2a]/[0.065] px-2.5 py-1.5 text-[10px] text-[#f1c4ad]">{item}</span>)}</div>
+                <p className="mt-2 text-[9px] text-[#9298a3]">Sinais não confirmados exigem validação antes de abordar o negócio.</p>
+              </div>
+            )}
           </section>
+
+          <div className="mt-4 divide-y divide-white/[0.085]">
+            <section>
+              {expandedSection('channels', 'Contato e presença digital', phoneToCopy ? 'Telefone e canais identificados' : 'Canais identificados')}
+              {openSections.channels && <div className="space-y-2 pb-4">
+                {phoneToCopy && <div className="flex items-center justify-between gap-3 rounded-xl bg-[#171b20] px-3.5 py-3"><div className="flex min-w-0 items-center gap-2.5"><Phone className="h-4 w-4 text-[#b4bac3]" /><span className="truncate text-[11px] text-[#e4e6eb]">{phoneToCopy}</span></div><button type="button" onClick={handleCopyPhone} className="rounded-lg p-1.5 text-[#b4bac3] transition hover:bg-white/[0.07]" title="Copiar telefone">{copiedPhone ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}</button></div>}
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-[#171b20] px-3.5 py-3"><span className="flex min-w-0 items-center gap-2.5 text-[11px] text-[#e4e6eb]"><Mail className="h-4 w-4 shrink-0 text-[#b4bac3]" />{emailLocked ? 'E-mail — disponível no Pro' : emailAddress || 'E-mail não encontrado'}</span>{emailLocked ? <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="text-[10px] font-semibold text-[#ff9869]"><Lock className="mr-1 inline h-3 w-3" />Pro</button> : emailAddress ? <button type="button" onClick={handleSendEmail} className="text-[10px] font-semibold text-[#ff9869]">Enviar</button> : null}</div>
+                {socialLinks.length > 0 && <div className="flex flex-wrap gap-2">{socialLinks.map((item) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.11] bg-[#171b20] px-3 py-2.5 text-[11px] font-medium text-[#dee0e5] transition hover:border-white/[0.26]"><SocialLogo network={item.network} url={item.url} />{item.network}<ArrowUpRight className="h-3 w-3 text-[#a4aab5]" /></a>)}</div>}
+                <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[11px] text-[#c8ccd3] transition hover:text-white"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>
+              </div>}
+            </section>
+            <section>
+              {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade')}
+              {openSections.audit && <div className="pb-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <TrackingItem label="Google Analytics" ok={Boolean(trackingAudit?.ga4?.detected)} loading={hasWebsite && isTrackingLoading} />
+                  <TrackingItem label="Tag Manager" ok={Boolean(trackingAudit?.gtm?.detected)} loading={hasWebsite && isTrackingLoading} />
+                  <TrackingItem label="Meta Pixel" ok={Boolean(trackingAudit?.metaPixel?.detected)} loading={hasWebsite && isTrackingLoading} />
+                  <TrackingItem label="Cookies" ok={Boolean(trackingAudit?.cookieConsent?.detected)} loading={hasWebsite && isTrackingLoading} />
+                </div>
+                {pageSpeed && <div className="mt-3 rounded-xl bg-[#171b20] px-3.5 py-3"><p className="text-[11px] font-semibold text-white">Mobile: {pageSpeed.score}/100</p><p className="mt-1 text-[10px] text-[#a4aab5]">FCP {pageSpeed.fcp || '–'} · LCP {pageSpeed.lcp || '–'} · CLS {pageSpeed.cls || '–'}</p></div>}
+              </div>}
+            </section>
+            <section>
+              {expandedSection('ads', 'Bibliotecas de anúncios', 'Pesquisa em plataformas oficiais')}
+              {openSections.ads && <div className="grid grid-cols-2 gap-2 pb-4">
+                <a href={metaAdsLibraryUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl bg-[#171b20] px-3 py-3 text-[11px] font-medium text-white"><BrandIcon brand="meta" className="h-5 w-5" alt="Meta" /> Meta Ads <ArrowUpRight className="ml-auto h-3 w-3" /></a>
+                {googleAdsTransparencyUrl ? <a href={googleAdsTransparencyUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl bg-[#171b20] px-3 py-3 text-[11px] font-medium text-white"><BrandIcon brand="googleAds" className="h-5 w-5 rounded bg-white" alt="Google Ads" /> Google Ads <ArrowUpRight className="ml-auto h-3 w-3" /></a> : <div className="flex items-center gap-2 rounded-xl bg-[#171b20] px-3 py-3 text-[11px] text-[#8b919a]"><BrandIcon brand="googleAds" className="h-5 w-5 rounded bg-white" alt="Google Ads" /> Sem domínio</div>}
+              </div>}
+            </section>
+            <section>
+              {expandedSection('approach', 'Abordagem comercial', 'Gerar uma mensagem personalizada')}
+              {openSections.approach && <div className="pb-4">
+                {generatedMessage ? <div className="rounded-xl border border-white/[0.1] bg-[#171b20] p-3.5"><p className="whitespace-pre-wrap text-[11px] leading-relaxed text-[#d9dce2]">{generatedMessage}</p><button type="button" onClick={handleCopyMessage} className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-[#ff9c70]">{isMessageCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{isMessageCopied ? 'Copiado' : 'Copiar'}</button></div> : <p className="text-[11px] leading-relaxed text-[#a4aab5]">Gere uma sugestão de abordagem usando apenas os sinais disponíveis.</p>}
+                {messageError && <p className="mt-2 text-[10px] text-rose-300">{messageError}</p>}
+                {emailError && <p className="mt-2 text-[10px] text-rose-300">{emailError}</p>}
+                <button type="button" onClick={() => handleGenerateApproach(Boolean(generatedMessage))} disabled={isGeneratingMessage} className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#ff5a12] px-3 text-[11px] font-semibold text-white disabled:opacity-50">{isGeneratingMessage ? <LoaderRing /> : <Sparkles className="h-3.5 w-3.5" />}{generatedMessage ? 'Gerar outra versão' : 'Gerar abordagem'}</button>
+              </div>}
+            </section>
+            <section>
+              {expandedSection('details', 'Dados e origem', 'Status, fonte e identificação')}
+              {openSections.details && <div className="rounded-xl bg-[#171b20] px-3.5 pb-2">
+                <DetailRow label="Status" value={business.openStatusText || business.operatingStatus || 'Não identificado'} />
+                <DetailRow label="Fonte" value={business.source || 'Não identificada'} />
+                <DetailRow label="Confiança" value={`${confidencePercent}%`} />
+                {(business.cnpj || enrichment?.cnpj?.[0]?.value) && <DetailRow label="CNPJ" value={business.cnpj || enrichment.cnpj[0].value} />}
+              </div>}
+            </section>
+          </div>
         </div>
       </aside>
     </>
