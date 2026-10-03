@@ -274,7 +274,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const isPlainEmail = Boolean(
     rawEmailAddress &&
     !isLockedEmail(rawEmailAddress) &&
-    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(rawEmailAddress).trim())
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rawEmailAddress).trim())
   );
   const emailLocked = !isPlainEmail && (isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked));
   const emailAddress = isPlainEmail && !emailLocked ? String(rawEmailAddress).trim() : null;
