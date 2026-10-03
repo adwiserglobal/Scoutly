@@ -8,6 +8,7 @@ interface AIAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   businesses: Business[];
+  focusedLead?: Business | null;
   currentRegionName: string;
   onSelectBusiness: (business: Business) => void;
   onUpdateLeadStatus: (businessId: string, status: LeadStatus) => void;
