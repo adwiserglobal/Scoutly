@@ -1,3 +1,5 @@
+import { AppWindow } from 'lucide-react';
+
 export type BrandName =
   | 'google'
   | 'googleMaps'
@@ -46,14 +48,24 @@ export function BrandIcon({
   className?: string;
   alt?: string;
 }) {
+  if (brand === 'website') {
+    return <AppWindow className={`${className} shrink-0 text-[#eef0f4]`} aria-label={alt ?? 'Site'} />;
+  }
+
   return (
-    <img
-      src={BRAND_SOURCES[brand]}
-      alt={alt ?? brand}
-      className={`${className} shrink-0 object-contain`}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-    />
+    <span
+      role="img"
+      aria-label={alt ?? brand}
+      className="inline-flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-white/[0.12]"
+    >
+      <img
+        src={BRAND_SOURCES[brand]}
+        alt=""
+        className={`${className} max-h-[16px] max-w-[16px] shrink-0 rounded-none object-contain`}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    </span>
   );
 }
 
