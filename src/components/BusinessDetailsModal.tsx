@@ -159,7 +159,7 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
 
     const raw = business as any;
     setResolvedBusiness(normalizeUnlockedBusiness(business));
-    if (!raw.contactLocked || isBusinessUnlockedInSession(business.id)) {
+    if (!raw.contactLocked || (isBusinessUnlockedInSession(business.id) && !raw.emailLocked)) {
       setResolvedBusiness(normalizeUnlockedBusiness({ ...business, contactLocked: false } as Business));
       setStatus('ready');
       return;
