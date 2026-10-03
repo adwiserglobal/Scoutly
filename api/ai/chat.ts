@@ -3,6 +3,7 @@ import { handleScoutlyAgenticChat } from '../../server/agenticSearchService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { ensureAppUser } from '../../server/appDataService.js';
 import { consumeAiConversation } from '../../server/entitlementService.js';
+import { researchFocusedLead } from '../../server/leadResearchService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -11,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { message, history, businesses, currentRegionName, conversationContext } = req.body || {};
+    const { message, history, businesses, currentRegionName, conversationContext, focusedLead } = req.body || {};
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Mensagem é obrigatória' });
@@ -20,6 +21,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const identity = await requireFirebaseIdentity(req as any);
     const { workspaceId } = await ensureAppUser(identity);
     const access = await consumeAiConversation(identity.uid, workspaceId);
+
+    if (focusedLead && typeof focusedLead === 'object' && focusedLead.id && focusedLead.name) {
+      // A focused lead is an explicit user-selected context; do not reinterpret a
+      // request about its owner as a generic category search.
+      const research = await researchFocusedLead(focusedLead, message.trim());
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ ...research, access });
+    }
 
     const response = await handleScoutlyAgenticChat({
       message: message.trim(),
