@@ -283,6 +283,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
     trackingAudit?.gtm?.detected,
     trackingAudit?.metaPixel?.detected,
     trackingAudit?.cookieConsent?.detected,
+    pageSpeed && typeof pageSpeed.score === 'number',
   ].filter((detected) => detected !== true).length;
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
@@ -468,7 +469,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
               </div>}
             </section>
             <section>
-              {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade', hasWebsite && isTrackingLoading ? undefined : unconfirmedAuditCount)}
+              {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade', hasWebsite && (isTrackingLoading || isPageSpeedLoading) ? undefined : unconfirmedAuditCount)}
               {openSections.audit && <div className="pb-4">
                 <div className="grid grid-cols-2 gap-2">
                   <TrackingItem label="Google Analytics" ok={Boolean(trackingAudit?.ga4?.detected)} loading={hasWebsite && isTrackingLoading} />
@@ -476,7 +477,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
                   <TrackingItem label="Meta Pixel" ok={Boolean(trackingAudit?.metaPixel?.detected)} loading={hasWebsite && isTrackingLoading} />
                   <TrackingItem label="Cookies" ok={Boolean(trackingAudit?.cookieConsent?.detected)} loading={hasWebsite && isTrackingLoading} />
                 </div>
-                {pageSpeed && <div className="mt-3 rounded-xl bg-[#171b20] px-3.5 py-3"><p className="text-[11px] font-semibold text-white">Mobile: {pageSpeed.score}/100</p><p className="mt-1 text-[10px] text-[#a4aab5]">FCP {pageSpeed.fcp || '–'} · LCP {pageSpeed.lcp || '–'} · CLS {pageSpeed.cls || '–'}</p></div>}
+                {pageSpeed ? <div className="mt-3 rounded-xl bg-[#171b20] px-3.5 py-3"><p className="text-[11px] font-semibold text-white">Mobile: {pageSpeed.score}/100</p><p className="mt-1 text-[10px] text-[#a4aab5]">FCP {pageSpeed.fcp || '–'} · LCP {pageSpeed.lcp || '–'} · CLS {pageSpeed.cls || '–'}</p></div> : !isPageSpeedLoading && <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] text-[#a5abb5]"><Gauge className="h-4 w-4" />Performance mobile não medida</div>}
               </div>}
             </section>
             <section>
