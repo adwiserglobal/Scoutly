@@ -397,7 +397,7 @@ export default function BusinessDetailsModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-800 bg-white hover:bg-stone-50 border border-stone-300 transition"
                 >
-                  <Globe2 className="w-3.5 h-3.5 text-stone-600" />
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#161a1f]"><BrandIcon brand="website" className="h-3.5 w-3.5" alt="Site" /></span>
                   <span>Ver site</span>
                 </a>
               )}
