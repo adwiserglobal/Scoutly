@@ -241,7 +241,7 @@ function BusinessCard({
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[9px] font-semibold uppercase tracking-[0.08em] text-stone-400">
           {hasWebsite && (
             <span className="flex items-center gap-1">
-              <Globe2 className="h-3 w-3" />
+              <BrandIcon brand="website" className="h-3.5 w-3.5" alt="Site" />
               Site
             </span>
           )}
@@ -316,7 +316,7 @@ function BusinessCard({
                 className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[9.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-60"
                 title="Abrir site"
               >
-                <Globe2 className="h-3.5 w-3.5" />
+                <BrandIcon brand="website" className="h-3.5 w-3.5" alt="Site" />
                 Site
               </button>
             ) : (
