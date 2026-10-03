@@ -150,7 +150,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
     const raw = business as any;
     setResolvedBusiness(business);
 
-    if (!raw.contactLocked || isBusinessUnlockedInSession(business.id)) {
+    if (!raw.contactLocked || (isBusinessUnlockedInSession(business.id) && !raw.emailLocked)) {
       setResolvedBusiness({ ...business, contactLocked: false } as Business);
       setStatus('ready');
       return;
