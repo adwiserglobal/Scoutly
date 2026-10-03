@@ -1,0 +1,43 @@
+# Scoutly: marketing content is public. User accounts, APIs and workspaces are not.
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Disallow: /__/auth/
+Disallow: /login
+Disallow: /dashboard
+Disallow: /favoritos
+Disallow: /pipeline
+Disallow: /configuracoes
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Disallow: /login
+Disallow: /dashboard
+Disallow: /favoritos
+Disallow: /pipeline
+Disallow: /configuracoes
+
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Disallow: /login
+Disallow: /dashboard
+Disallow: /favoritos
+Disallow: /pipeline
+Disallow: /configuracoes
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Disallow: /login
+Disallow: /dashboard
+Disallow: /favoritos
+Disallow: /pipeline
+Disallow: /configuracoes
+
+Sitemap: https://scoutly.pro/sitemap.xml
