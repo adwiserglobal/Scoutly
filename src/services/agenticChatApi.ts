@@ -14,6 +14,7 @@ export interface AgenticChatPayload {
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   businesses: Business[];
+  focusedLead?: Business | null;
   currentRegionName?: string;
   conversationContext?: AgenticConversationContext | null;
 }
@@ -69,6 +70,16 @@ export async function sendAgenticChatMessage(payload: AgenticChatPayload): Promi
       message: payload.message,
       history: payload.history || [],
       conversationContext: payload.conversationContext || null,
+      focusedLead: payload.focusedLead ? {
+        id: payload.focusedLead.id,
+        name: payload.focusedLead.name,
+        category: payload.focusedLead.category,
+        address: payload.focusedLead.address,
+        website: payload.focusedLead.website,
+        phone: payload.focusedLead.phone,
+        socials: payload.focusedLead.socials,
+        leadStatus: payload.focusedLead.leadStatus,
+      } : null,
       businesses: payload.businesses.slice(0, 120).map((business) => ({
         id: business.id,
         name: business.name,
