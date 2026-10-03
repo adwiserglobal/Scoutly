@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { appDataRequest, dbValue, ensureAppUser, incrementUsage } from '../server/appDataService.js';
 import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
 import { confirmStripeCheckoutSession, createStripeBillingPortal, refreshStripeSubscriptionForUser } from '../server/stripeBillingService.js';
-import { consumeBusinessCredit, getCreditStatus } from '../server/entitlementService.js';
+import { consumeBusinessCredit, getCreditStatus, hasBusinessUnlockAccess } from '../server/entitlementService.js';
 import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { unsealBusinessContacts } from '../server/businessSealService.js';
 
@@ -317,7 +317,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!businessId || !token) return res.status(400).json({ error: 'Dados protegidos do negócio são obrigatórios.' });
 
       const contacts = unsealBusinessContacts(token, businessId);
-      const access = await consumeBusinessCredit(identity.uid, workspaceId, businessId);
+      const alreadyUnlocked = await hasBusinessUnlockAccess(identity.uid, businessId);
+      // Reopening the same business must not charge another credit.
+      const access = alreadyUnlocked
+        ? await getCreditStatus(identity.uid)
+        : await consumeBusinessCredit(identity.uid, workspaceId, businessId);
+      const subscription = await getSubscriptionAccess(identity.uid);
+      // Never send plaintext e-mail to Free, even after a previous unlock.
+      if (String(subscription.plan).toLowerCase() === 'free') {
+        return res.status(402).json({
+          error: 'Crédito utilizado. O e-mail completo é um recurso dos planos pagos.',
+          code: 'CONTACTS_REQUIRE_PAID_PLAN',
+        });
+      }
       return res.status(200).json({
         success: true,
         business: {
@@ -326,6 +338,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phones: contacts.phones,
           email: contacts.email,
           emails: contacts.emails,
+          emailLocked: false,
+          hasProtectedEmail: Boolean(contacts.email || contacts.emails?.length),
           contactLocked: false,
           sealedContactToken: null,
         },
