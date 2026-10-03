@@ -463,7 +463,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
                   </a>
                 ) : (
                   <div className="flex items-center gap-2.5 rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] text-[#9ba1ab]"><Mail className="h-4 w-4" />E-mail não encontrado</div>
-                )>
+                )}
                 {socialLinks.length > 0 && <div className="flex flex-wrap gap-2">{socialLinks.map((item) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.11] bg-[#171b20] px-3 py-2.5 text-[11px] font-medium text-[#dee0e5] transition hover:border-white/[0.26]"><SocialLogo network={item.network} url={item.url} />{item.network}<ArrowUpRight className="h-3 w-3 text-[#a4aab5]" /></a>)}</div>}
                 <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[11px] text-[#c8ccd3] transition hover:text-white"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>
               </div>}
