@@ -19,7 +19,7 @@ for (const route of pages) {
   const html = await read(file);
   check(/<title>[^<]{12,}<\/title>/i.test(html), route + ': missing descriptive title');
   check(/<meta name="description" content="[^"]{50,}"/i.test(html), route + ': missing meta description');
-  check(html.includes('https://scoutly.pro' + route), route + ': missing canonical URL');
+  check(html.includes('https://www.scoutly.pro' + route), route + ': missing canonical URL');
   check(/<h1[ >]/i.test(html), route + ': missing crawlable H1');
   check(html.includes('application/ld+json'), route + ': missing structured data');
   if (preview) check(/name="robots" content="noindex/i.test(html), route + ': preview must be noindex');
@@ -44,18 +44,18 @@ check(homepage.includes('class="seo-fallback"'),
   'No-JavaScript readable homepage content is missing.');
 
 const sitemap = await read('sitemap.xml');
-for (const route of pages) check(sitemap.includes('<loc>https://scoutly.pro' + route + '</loc>'), route + ': not in sitemap');
+for (const route of pages) check(sitemap.includes('<loc>https://www.scoutly.pro' + route + '</loc>'), route + ': not in sitemap');
 for (const privatePath of ['/dashboard', '/login', '/api/', '/pipeline']) {
-  check(!sitemap.includes('<loc>https://scoutly.pro' + privatePath), privatePath + ': private URL in sitemap');
+  check(!sitemap.includes('<loc>https://www.scoutly.pro' + privatePath), privatePath + ': private URL in sitemap');
 }
 const robots = await read('robots.txt');
 if (preview) check(robots.includes('Disallow: /'), 'Preview must block crawlers');
 else {
   check(robots.includes('OAI-SearchBot'), 'Missing OAI search crawler rule');
-  check(robots.includes('Sitemap: https://scoutly.pro/sitemap.xml'), 'Missing sitemap directive');
+  check(robots.includes('Sitemap: https://www.scoutly.pro/sitemap.xml'), 'Missing sitemap directive');
 }
 const llms = await read('llms.txt');
-check(llms.includes('https://scoutly.pro/dados-e-fontes/'), 'llms.txt missing methodology reference');
+check(llms.includes('https://www.scoutly.pro/dados-e-fontes/'), 'llms.txt missing methodology reference');
 if (failures.length) {
   console.error('[SEO] Validation failed:\n' + failures.map(item => ' - ' + item).join('\n'));
   process.exitCode = 1;
