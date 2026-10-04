@@ -5,7 +5,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const DOMAIN = 'https://scoutly.pro';
+const DOMAIN = 'https://www.scoutly.pro';
 const DIST = path.resolve('dist');
 const preview = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development';
 const robots = preview ? 'noindex, nofollow, noarchive' : 'index, follow, max-image-preview:large, max-snippet:-1';
