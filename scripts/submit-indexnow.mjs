@@ -14,7 +14,7 @@ if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
   console.error('IndexNow submission is disabled outside production.');
   process.exit(1);
 }
-const host = 'scoutly.pro';
+const host = 'www.scoutly.pro';
 const urls = [
   '/', '/prospeccao-local/', '/prospeccao-com-ia/', '/para-agencias/',
   '/recursos/', '/dados-e-fontes/', '/perguntas-frequentes/', '/en/'
