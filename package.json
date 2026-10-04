@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "import:gsp": "tsx scripts/import-brazil-overture.ts",
     "seo:check": "node scripts/check-seo.mjs",
-    "seo:submit": "node scripts/submit-indexnow.mjs"
+    "seo:submit": "node scripts/submit-indexnow.mjs",
+    "seo:live": "node scripts/check-public-access.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
