@@ -1,9 +1,9 @@
 # Scoutly — extended public product reference
 
-Site: https://scoutly.pro/
+Site: https://www.scoutly.pro/
 Category: browser-based local business prospecting software for teams, agencies and independent commercial operators.
-Product pages: https://scoutly.pro/recursos/
-Sources and reliability: https://scoutly.pro/dados-e-fontes/
+Product pages: https://www.scoutly.pro/recursos/
+Sources and reliability: https://www.scoutly.pro/dados-e-fontes/
 
 ## Main workflow
 1. Select a business category or enter a business name and geographical area.
@@ -22,11 +22,11 @@ Free accounts receive five prospecting credits per day and a maximum of 25 per m
 Scoutly can use datasets including Overture Maps, supplemental Serper Places when configured, and direct analysis of available official business websites. Maps and public place data can be incomplete, delayed or incorrect. A phone is not WhatsApp verification. Website tracking scripts might not be detectable due to cookie consent or dynamic loading. The AI can use public search when search integration is configured; possible personal profiles are not confirmed identities without adequate evidence.
 
 ## Public pages
-https://scoutly.pro/
-https://scoutly.pro/prospeccao-local/
-https://scoutly.pro/prospeccao-com-ia/
-https://scoutly.pro/para-agencias/
-https://scoutly.pro/recursos/
-https://scoutly.pro/dados-e-fontes/
-https://scoutly.pro/perguntas-frequentes/
-https://scoutly.pro/en/
+https://www.scoutly.pro/
+https://www.scoutly.pro/prospeccao-local/
+https://www.scoutly.pro/prospeccao-com-ia/
+https://www.scoutly.pro/para-agencias/
+https://www.scoutly.pro/recursos/
+https://www.scoutly.pro/dados-e-fontes/
+https://www.scoutly.pro/perguntas-frequentes/
+https://www.scoutly.pro/en/
