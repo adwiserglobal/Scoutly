@@ -2,17 +2,17 @@
 
 > Scoutly is local business prospecting software: search companies by name, segment and region on a map, evaluate available digital signals and contacts, save leads in a pipeline and use AI with commercial context.
 
-Canonical website: https://scoutly.pro/
-Languages: Brazilian Portuguese; English overview: https://scoutly.pro/en/
+Canonical website: https://www.scoutly.pro/
+Languages: Brazilian Portuguese; English overview: https://www.scoutly.pro/en/
 
 ## Public reference pages
-- [Local business prospecting](https://scoutly.pro/prospeccao-local/): search by business name, segment and region.
-- [Prospecting with AI](https://scoutly.pro/prospeccao-com-ia/): Scoutly Agentic and verification limits.
-- [For marketing agencies](https://scoutly.pro/para-agencias/): lead discovery, digital audits and pipeline.
-- [Product features](https://scoutly.pro/recursos/): map, contacts, digital signals, pipeline, favorites and routes.
-- [Data sources and reliability](https://scoutly.pro/dados-e-fontes/): coverage, sources, verification and caveats.
-- [Frequently asked questions](https://scoutly.pro/perguntas-frequentes/): plan limits, contact availability and AI.
-- [English overview](https://scoutly.pro/en/): product description in English.
+- [Local business prospecting](https://www.scoutly.pro/prospeccao-local/): search by business name, segment and region.
+- [Prospecting with AI](https://www.scoutly.pro/prospeccao-com-ia/): Scoutly Agentic and verification limits.
+- [For marketing agencies](https://www.scoutly.pro/para-agencias/): lead discovery, digital audits and pipeline.
+- [Product features](https://www.scoutly.pro/recursos/): map, contacts, digital signals, pipeline, favorites and routes.
+- [Data sources and reliability](https://www.scoutly.pro/dados-e-fontes/): coverage, sources, verification and caveats.
+- [Frequently asked questions](https://www.scoutly.pro/perguntas-frequentes/): plan limits, contact availability and AI.
+- [English overview](https://www.scoutly.pro/en/): product description in English.
 
 ## Product details and limits
 The Free tier provides five prospecting credits per day, up to 25 per month. Full business emails and Scoutly AI require an eligible plan. Place data can include Overture Maps and supplemental place-search services such as Serper when configured. The coverage and freshness of results vary by place and source. A regular phone number is not a confirmed WhatsApp number. Missing tracking tags are not proof that they are absent. AI-assisted public research depends on configured integrations, and potential owner profiles must be verified.
