@@ -35,6 +35,14 @@ for (const route of pages) {
   }
 }
 
+const homepage = await read('index.html');
+check(homepage.includes('document.documentElement.classList.add("scoutly-js")'),
+  'Homepage must hide SEO fallback before the first paint when JS is available.');
+check(homepage.includes('html.scoutly-js .seo-fallback{display:none!important}'),
+  'SEO fallback display rule missing; users may see the duplicate site flash.');
+check(homepage.includes('class="seo-fallback"'),
+  'No-JavaScript readable homepage content is missing.');
+
 const sitemap = await read('sitemap.xml');
 for (const route of pages) check(sitemap.includes('<loc>https://scoutly.pro' + route + '</loc>'), route + ': not in sitemap');
 for (const privatePath of ['/dashboard', '/login', '/api/', '/pipeline']) {
