@@ -40,4 +40,4 @@ Disallow: /favoritos
 Disallow: /pipeline
 Disallow: /configuracoes
 
-Sitemap: https://scoutly.pro/sitemap.xml
+Sitemap: https://www.scoutly.pro/sitemap.xml
