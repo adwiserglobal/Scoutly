@@ -279,8 +279,8 @@ if (!index.includes('<div id="root"></div>')) {
 }
 index = index.replace('<div id="root"></div>', '<div id="root">' + homeFallback + '</div>');
 index = index.replace('</head>',
-  '<style>' + css + 'html.seo-nonhome .seo-fallback{display:none}</style>' +
-  '<script>if(location.pathname!=="/")document.documentElement.classList.add("seo-nonhome")</script>' +
+  '<style>' + css + 'html.scoutly-js .seo-fallback,html.seo-nonhome .seo-fallback{display:none!important}</style>' +
+  '<script>document.documentElement.classList.add("scoutly-js");if(location.pathname!=="/")document.documentElement.classList.add("seo-nonhome")</script>' +
   structured(homepageSchema) + '</head>');
 if (preview) {
   index = index.replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="' + robots + '" />');
