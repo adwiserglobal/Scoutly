@@ -1,3 +1,4 @@
+import { hasPeopleSearchAccess, revealDecisionMaker, searchDecisionMakers } from './peopleSearchService.js';
 type FocusedLead = {
   id: string;
   name: string;
@@ -47,9 +48,10 @@ export async function researchFocusedLead(leadInput: any, message: string) {
 
   const question = clean(message, 350);
   const normalized = question.toLocaleLowerCase('pt-BR');
-  const linkedin = /linkedin|dono|s[oó]cio|fundador|ceo|respons[aá]vel|propriet[aá]rio/.test(normalized);
+  const linkedin = /linkedin|dono|s[oó]cio|fundador|ceo|respons[aá]vel|propriet[aá]rio|decisor/.test(normalized);
   const social = /instagram|facebook|tiktok|youtube|rede social/.test(normalized);
   const approach = /abordagem|mensagem|contato|pitch|vender/.test(normalized);
+  const wantsEmail = /e-?mail|email|contato profissional/.test(normalized);
   const domain = websiteHostname(lead.website);
 
   if (approach && !linkedin && !social) {
@@ -59,6 +61,41 @@ export async function researchFocusedLead(leadInput: any, message: string) {
       matchedBusinessIds: [lead.id],
       modelUsed: 'lead-context-template',
     };
+  }
+
+  if (linkedin && hasPeopleSearchAccess()) {
+    try {
+      const candidates = await searchDecisionMakers(lead.name, lead.address, domain, 5);
+      if (candidates.length > 0) {
+        const person = await revealDecisionMaker(candidates[0].token, wantsEmail);
+        const lines = [
+          `**Lead:** ${lead.name}`,
+          person.name ? `**Possível decisor:** ${person.name}` : '**Possível decisor encontrado**',
+          person.title ? `**Cargo:** ${person.title}` : null,
+          person.company ? `**Empresa:** ${person.company}` : null,
+          person.location ? `**Localização:** ${person.location}` : null,
+          person.linkedinUrl ? `**LinkedIn:** ${person.linkedinUrl}` : null,
+          wantsEmail && person.email ? `**E-mail profissional:** ${person.email}` : null,
+          wantsEmail && person.emailStatus && !person.email ? `**Status do e-mail:** ${person.emailStatus}` : null,
+        ].filter(Boolean);
+
+        const evidence = [
+          'Resultado obtido via PeopleSearch, usando uma base profissional externa e revelação explícita do perfil.',
+          'Confirme nome, cargo e vínculo com a empresa antes de tratar a pessoa como responsável definitivo.',
+          wantsEmail && person.emailConfidence ? `Confiança informada para o e-mail: ${person.emailConfidence}.` : null,
+        ].filter(Boolean).join(' ');
+
+        return {
+          text: `${lines.join('\n')}\n\n${evidence}`,
+          matchedBusinessIds: [lead.id],
+          modelUsed: 'peoplesearch-decision-maker',
+        };
+      }
+    } catch (error: any) {
+      console.warn('[Lead Research] PeopleSearch failed:', error?.message || error);
+      // Fall through to public web search. This keeps the Agentic useful if
+      // credits run out or the external provider is temporarily unavailable.
+    }
   }
 
   const existing = linkedin
