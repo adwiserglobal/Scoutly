@@ -6,7 +6,9 @@ interface InfoItem {
   source: 'official_website';
   sourceUrl: string;
   verifiedAt: string;
-  verification: 'verified_current_website';
+  verification: 'verified_current_website' | 'candidate_current_website';
+  evidence?: 'explicit_whatsapp_link' | 'structured_whatsapp' | 'whatsapp_label_near_number' | 'official_site_phone';
+  confidence?: number;
 }
 
 interface TeamMember {
@@ -22,6 +24,7 @@ export interface EnrichmentResult {
   title?: string;
   metaDescription?: string;
   whatsapp: InfoItem[];
+  whatsappCandidates: InfoItem[];
   emails: InfoItem[];
   phones: InfoItem[];
   socials: {
@@ -147,7 +150,9 @@ async function safeFetch(
   if (
     !contentType.includes('text/html') &&
     !contentType.includes('application/xhtml+xml') &&
-    !contentType.includes('text/plain')
+    !contentType.includes('text/plain') &&
+    !contentType.includes('application/xml') &&
+    !contentType.includes('text/xml')
   ) {
     throw new Error('Not HTML content');
   }
@@ -159,13 +164,24 @@ async function safeFetch(
   };
 }
 
-function makeInfo(value: string, sourceUrl: string, verifiedAt: string): InfoItem {
+function makeInfo(
+  value: string,
+  sourceUrl: string,
+  verifiedAt: string,
+  options: {
+    verification?: InfoItem['verification'];
+    evidence?: InfoItem['evidence'];
+    confidence?: number;
+  } = {},
+): InfoItem {
   return {
     value,
     source: 'official_website',
     sourceUrl,
     verifiedAt,
-    verification: 'verified_current_website',
+    verification: options.verification || 'verified_current_website',
+    evidence: options.evidence,
+    confidence: options.confidence,
   };
 }
 
@@ -178,15 +194,44 @@ function addPhone(result: EnrichmentResult, value: string, sourceUrl: string, ve
   }
 }
 
-function addWhatsApp(result: EnrichmentResult, value: string, sourceUrl: string, verifiedAt: string) {
+function addWhatsApp(
+  result: EnrichmentResult,
+  value: string,
+  sourceUrl: string,
+  verifiedAt: string,
+  evidence: InfoItem['evidence'] = 'explicit_whatsapp_link',
+  confidence = 0.98,
+) {
   const digits = normalizePhone(value);
   if (digits.length < 10 || digits.length > 15) return;
 
   if (!result.whatsapp.some((item) => normalizePhone(item.value) === digits)) {
-    result.whatsapp.push(makeInfo(digits, sourceUrl, verifiedAt));
+    result.whatsapp.push(makeInfo(digits, sourceUrl, verifiedAt, {
+      evidence,
+      confidence,
+      verification: 'verified_current_website',
+    }));
   }
 
   addPhone(result, digits, sourceUrl, verifiedAt);
+}
+
+function addWhatsAppCandidate(
+  result: EnrichmentResult,
+  value: string,
+  sourceUrl: string,
+  verifiedAt: string,
+) {
+  const digits = normalizePhone(value);
+  if (digits.length < 10 || digits.length > 15) return;
+  if (result.whatsapp.some((item) => normalizePhone(item.value) === digits)) return;
+  if (!result.whatsappCandidates.some((item) => normalizePhone(item.value) === digits)) {
+    result.whatsappCandidates.push(makeInfo(digits, sourceUrl, verifiedAt, {
+      evidence: 'whatsapp_label_near_number',
+      confidence: 0.72,
+      verification: 'candidate_current_website',
+    }));
+  }
 }
 
 function extractWhatsappSignalsFromString(
@@ -234,7 +279,7 @@ function extractWhatsappSignalsFromString(
     /(?:whats\s*app|whatsapp|zap|fale\s+(?:conosco\s+)?(?:pelo|no)\s+whatsapp|chame\s+(?:no|pelo)\s+whatsapp)[^0-9+]{0,80}(\+?\d[\d().\s-]{8,20})/gi;
   let contextualMatch: RegExpExecArray | null;
   while ((contextualMatch = contextualRegex.exec(value)) !== null) {
-    if (contextualMatch[1]) addWhatsApp(result, contextualMatch[1], sourceUrl, verifiedAt);
+    if (contextualMatch[1]) addWhatsAppCandidate(result, contextualMatch[1], sourceUrl, verifiedAt);
   }
 }
 
@@ -384,7 +429,7 @@ function extractDataFromPage(
         if (typeof item.telephone === 'string') {
           addPhone(result, item.telephone, sourceUrl, verifiedAt);
           if (/whats\s*app|whatsapp/i.test(String(item.contactType || item.description || ''))) {
-            addWhatsApp(result, item.telephone, sourceUrl, verifiedAt);
+            addWhatsApp(result, item.telephone, sourceUrl, verifiedAt, 'structured_whatsapp', 0.95);
           }
         }
 
@@ -403,7 +448,7 @@ function extractDataFromPage(
             const contactType = String(contact.contactType || contact.description || '');
             if (contactPhone) addPhone(result, contactPhone, sourceUrl, verifiedAt);
             if (contactPhone && /whats\s*app|whatsapp/i.test(contactType)) {
-              addWhatsApp(result, contactPhone, sourceUrl, verifiedAt);
+              addWhatsApp(result, contactPhone, sourceUrl, verifiedAt, 'structured_whatsapp', 0.95);
             }
             for (const key of ['url', 'sameAs']) {
               const candidate = contact[key];
@@ -450,6 +495,7 @@ function buildEmptyResult(): EnrichmentResult {
   return {
     siteStatus: 'unknown',
     whatsapp: [],
+    whatsappCandidates: [],
     emails: [],
     phones: [],
     socials: {},
@@ -535,7 +581,7 @@ export async function enrichBusinessWebsite(
   const baseHost = new URL(finalHomepageUrl).hostname.replace(/^www\./, '');
 
   $home('a[href]').each((_, element) => {
-    if (discoveredSubpages.length >= 8) return;
+    if (discoveredSubpages.length >= 10) return;
 
     const href = $home(element).attr('href')?.trim();
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
@@ -560,8 +606,41 @@ export async function enrichBusinessWebsite(
     }
   });
 
+  const addContactPage = (candidate: string) => {
+    if (discoveredSubpages.length >= 10) return;
+    try {
+      const fullUrl = new URL(candidate, finalHomepageUrl);
+      const host = fullUrl.hostname.replace(/^www\./, '');
+      if (host !== baseHost || fullUrl.toString() === finalHomepageUrl) return;
+      if (!discoveredSubpages.includes(fullUrl.toString())) discoveredSubpages.push(fullUrl.toString());
+    } catch {
+      // Ignore malformed candidates.
+    }
+  };
+
+  // Common contact endpoints often aren't linked in SPA menus or are injected by JS.
+  for (const path of ['/contato', '/fale-conosco', '/atendimento', '/contact', '/whatsapp']) {
+    addContactPage(path);
+  }
+
+  // Sitemap can expose contact pages that aren't present in the server-rendered homepage.
+  try {
+    const sitemapUrl = new URL('/sitemap.xml', finalHomepageUrl).toString();
+    const sitemap = await safeFetch(sitemapUrl, 0, 2400);
+    const $xml = cheerio.load(sitemap.content, { xmlMode: true });
+    $xml('loc').each((_, element) => {
+      if (discoveredSubpages.length >= 10) return;
+      const candidate = $xml(element).text().trim();
+      if (/contato|contact|fale|atendimento|whatsapp|support|suporte|sobre|about|quem-somos/i.test(candidate)) {
+        addContactPage(candidate);
+      }
+    });
+  } catch {
+    // A sitemap is optional.
+  }
+
   await Promise.allSettled(
-    discoveredSubpages.map(async (url) => {
+    discoveredSubpages.slice(0, 10).map(async (url) => {
       const response = await safeFetch(url, 0, 3000);
       extractDataFromPage(cheerio.load(response.content), response.finalUrl, result, verifiedAt);
     }),
@@ -570,7 +649,7 @@ export async function enrichBusinessWebsite(
   result.contactFreshness = {
     checkedAt: new Date().toISOString(),
     websiteReachable: true,
-    verifiedWhatsappCount: result.whatsapp.length,
+    verifiedWhatsappCount: result.whatsapp.filter((item) => (item.confidence ?? 1) >= 0.9).length,
     verifiedPhoneCount: result.phones.length,
     verifiedEmailCount: result.emails.length,
   };
