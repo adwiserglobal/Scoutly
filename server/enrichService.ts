@@ -646,6 +646,51 @@ export async function enrichBusinessWebsite(
     }),
   );
 
+  // Last-mile discovery: if the official crawl still has no explicit WhatsApp,
+  // use the configured web-search provider only to discover more pages on the
+  // SAME official domain. We then fetch those pages ourselves and require the
+  // same strong evidence rules. Search snippets alone never verify WhatsApp.
+  if (result.whatsapp.length === 0 && process.env.SERPER_API_KEY) {
+    try {
+      const search = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': String(process.env.SERPER_API_KEY),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          q: `site:${baseHost} WhatsApp contato`,
+          gl: 'br',
+          hl: 'pt-br',
+          num: 6,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (search.ok) {
+        const data: any = await search.json();
+        const indexedPages = (Array.isArray(data?.organic) ? data.organic : [])
+          .map((item: any) => String(item?.link || '').trim())
+          .filter(Boolean)
+          .filter((candidate: string) => {
+            try {
+              return new URL(candidate).hostname.replace(/^www\./, '') === baseHost;
+            } catch {
+              return false;
+            }
+          })
+          .slice(0, 4);
+
+        await Promise.allSettled(indexedPages.map(async (url: string) => {
+          const response = await safeFetch(url, 0, 3000);
+          extractDataFromPage(cheerio.load(response.content), response.finalUrl, result, verifiedAt);
+        }));
+      }
+    } catch (error: any) {
+      console.warn('[Scoutly WhatsApp Discovery] Indexed official pages failed:', error?.message || error);
+    }
+  }
+
   result.contactFreshness = {
     checkedAt: new Date().toISOString(),
     websiteReachable: true,
