@@ -1101,9 +1101,12 @@ export default function App() {
     return businesses.filter((b) => !b.website).length;
   }, [businesses]);
 
-  // Calculate businesses with WhatsApp/Phone
+  // Count only explicit WhatsApp evidence. A phone number alone is not WhatsApp.
+  const hasExplicitWhatsApp = (business: Business) =>
+    Boolean((business.socials || []).some((url) => /wa\.me\/|whatsapp\.com\//i.test(String(url || ''))));
+
   const whatsappCount = useMemo(() => {
-    return businesses.filter((b) => Boolean(b.phone || (b.phones && b.phones.length > 0))).length;
+    return businesses.filter(hasExplicitWhatsApp).length;
   }, [businesses]);
 
   // Calculate businesses with Social Networks
@@ -1158,12 +1161,8 @@ export default function App() {
         return false;
       }
 
-      // Multi-filter: Com WhatsApp
-      if (
-        activeFilters.comWhatsapp &&
-        !biz.phone &&
-        (!biz.phones || biz.phones.length === 0)
-      ) {
+      // Multi-filter: Com WhatsApp. Phone-only records are intentionally excluded.
+      if (activeFilters.comWhatsapp && !hasExplicitWhatsApp(biz)) {
         return false;
       }
 
