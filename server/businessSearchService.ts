@@ -10,6 +10,7 @@ import {
   getCNAEsForBusinessType,
 } from './cnpjService.js';
 import { fetchBusinessesFromSerper } from './serperService.js';
+import { fetchBusinessesFromRankFabrik } from './rankFabrikService.js';
 import { hasBrazilPlacesDatabase, queryBrazilPlacesByName, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
 import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
 import { resolveSearchGeography, extractBusinessPhraseFromQuery } from './geographyService.js';
@@ -143,6 +144,68 @@ function distanceScore(
   const latDelta = business.lat - center.lat;
   const lngDelta = (business.lng - center.lng) * Math.cos((center.lat * Math.PI) / 180);
   return Math.sqrt(latDelta * latDelta + lngDelta * lngDelta);
+}
+
+function normalizePhoneDigits(value?: string | null): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function websiteHost(value?: string | null): string {
+  try {
+    return new URL(/^https?:\/\//i.test(String(value || '')) ? String(value) : `https://${value}`)
+      .hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function mergeExternalBusiness(
+  results: Map<string, BusinessSummary>,
+  relevance: Map<string, number>,
+  incoming: BusinessSummary,
+  score: number,
+): void {
+  const normalizedName = normalizeText(incoming.name || '');
+  const incomingPhone = normalizePhoneDigits(incoming.phone || incoming.phones?.[0]);
+  const incomingHost = websiteHost(incoming.website);
+
+  let matchedId: string | null = null;
+  for (const [id, current] of results.entries()) {
+    const sameName = normalizedName && normalizeText(current.name || '') === normalizedName;
+    const currentPhone = normalizePhoneDigits(current.phone || current.phones?.[0]);
+    const samePhone = Boolean(incomingPhone && currentPhone && incomingPhone === currentPhone);
+    const currentHost = websiteHost(current.website);
+    const sameWebsite = Boolean(incomingHost && currentHost && incomingHost === currentHost);
+
+    const latDelta = Math.abs((current.lat || 0) - (incoming.lat || 0));
+    const lngDelta = Math.abs((current.lng || 0) - (incoming.lng || 0));
+    const geographicallyClose = latDelta <= 0.004 && lngDelta <= 0.004;
+
+    if (samePhone || sameWebsite || (sameName && geographicallyClose)) {
+      matchedId = id;
+      break;
+    }
+  }
+
+  if (!matchedId) {
+    results.set(incoming.id, incoming);
+    relevance.set(incoming.id, Math.max(relevance.get(incoming.id) || 0, score));
+    return;
+  }
+
+  const current = results.get(matchedId)!;
+  results.set(matchedId, {
+    ...current,
+    website: current.website || incoming.website || null,
+    phone: current.phone || incoming.phone || null,
+    phones: Array.from(new Set([...(current.phones || []), ...(incoming.phones || [])].filter(Boolean))),
+    emails: Array.from(new Set([...(current.emails || []), ...(incoming.emails || [])].filter(Boolean))),
+    socials: Array.from(new Set([...(current.socials || []), ...(incoming.socials || [])].filter(Boolean))),
+    sources: Array.from(new Set([...(current.sources || []), ...(incoming.sources || [])])),
+    notes: [current.notes, incoming.notes].filter(Boolean).join(' · '),
+    confidence: Math.max(current.confidence || 0, incoming.confidence || 0),
+  });
+  relevance.set(matchedId, Math.max(relevance.get(matchedId) || 0, score));
 }
 
 async function searchOvertureByTerms(
@@ -410,6 +473,43 @@ export async function searchBusinessesInBounds(
     }
   }
 
+  // RankFabrik is a paid/free-tier fallback, used only when local + Overture coverage is still sparse.
+  if (results.size < 12) {
+    try {
+      const rankFabrik = await fetchBusinessesFromRankFabrik(
+        profile?.label || phrase,
+        center.lat,
+        center.lng,
+        20,
+      );
+      for (const business of rankFabrik.businesses) {
+        if (!isWithinBounds(business, bbox)) continue;
+        const score = profile ? scoreSummary(business, profile) : scorePlace({
+          id: business.id,
+          name: business.name,
+          category: business.category,
+          basicCategory: business.basicCategory,
+          taxonomyPrimary: business.taxonomyPrimary,
+          taxonomyHierarchy: business.taxonomyHierarchy || [],
+          taxonomyAlternates: business.taxonomyAlternates || [],
+          address: business.address,
+          latitude: business.lat,
+          longitude: business.lng,
+          website: business.website || null,
+          phone: business.phone || null,
+          phones: business.phones || [],
+          emails: business.emails || [],
+          socials: business.socials || [],
+          confidence: business.confidence || 0.9,
+        } as any, [normalizeText(phrase)]);
+        if (profile && score <= 0) continue;
+        mergeExternalBusiness(results, relevance, business, Math.max(1, score));
+      }
+    } catch (error: any) {
+      console.warn('[Viewport Search] RankFabrik fallback failed:', error?.message || error);
+    }
+  }
+
   const businesses = Array.from(results.values())
     .sort((a, b) => {
       const scoreDiff = (relevance.get(b.id) || 0) - (relevance.get(a.id) || 0);
@@ -490,6 +590,23 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
 
   // External enrichment is only used when the geographically precise result set is sparse.
   if (results.size < 12) {
+    try {
+      const rankFabrik = await fetchBusinessesFromRankFabrik(
+        profile?.label || phrase || intent.businessType,
+        resolvedArea.center.lat,
+        resolvedArea.center.lng,
+        20,
+      );
+      for (const business of rankFabrik.businesses) {
+        if (!isWithinBounds(business, resolvedArea.bbox)) continue;
+        const score = profile ? scoreSummary(business, profile) : 1;
+        if (profile && score <= 0) continue;
+        mergeExternalBusiness(results, relevance, business, score);
+      }
+    } catch (err: any) {
+      console.warn('[Business Search] RankFabrik error:', err.message);
+    }
+
     try {
       const cnaes = resolveCnaes(profile?.label || intent.businessType, intent.keywords || []);
       const companies = await fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query);
