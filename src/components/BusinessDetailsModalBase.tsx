@@ -287,8 +287,9 @@ export default function BusinessDetailsModal({
   });
 
   const verifiedWhatsappTarget = whatsapps[0] || null;
-  const datasetPhoneCandidate = business.phone || business.phones?.[0] || null;
-  const whatsappCandidate = verifiedWhatsappTarget || datasetPhoneCandidate || verifiedPhones[0] || null;
+  // A normal phone number is not proof of WhatsApp. Keep the WhatsApp action
+  // disabled unless the website audit found explicit WhatsApp evidence.
+  const whatsappCandidate = verifiedWhatsappTarget;
   const whatsappVerified = Boolean(verifiedWhatsappTarget);
   let whatsappUrl = getWhatsAppLink(whatsappCandidate);
 
@@ -433,10 +434,10 @@ export default function BusinessDetailsModal({
                   rel="noopener noreferrer"
                   onClick={() => recordRecommendationWhatsApp(business)}
                   className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 transition shadow-2xs"
-                  title={whatsappVerified ? 'WhatsApp confirmado no site oficial' : 'Possível WhatsApp baseado no telefone disponível'}
+                  title="WhatsApp confirmado por evidência no site oficial"
                 >
                   <BrandIcon brand="whatsapp" className="h-4 w-4" alt="WhatsApp" />
-                  <span>{whatsappVerified ? 'WhatsApp' : 'Testar WhatsApp'}</span>
+                  <span>WhatsApp confirmado</span>
                 </a>
               )}
 
