@@ -13,7 +13,7 @@ import {
   Star,
 } from 'lucide-react';
 import { Business } from '../types';
-import { fetchAccessStatus, getGoogleBusinessLink, getTrustIcon, getWhatsAppLink, unlockBusinessContact } from '../services/api';
+import { fetchAccessStatus, getGoogleBusinessLink, getTrustIcon, unlockBusinessContact } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
@@ -57,7 +57,8 @@ function BusinessCard({
   const hasEmail = Boolean(business.email || business.emails?.length);
   const confidence = business.confidence || 0.8;
   const confidencePercent = Math.round(confidence * 100);
-  const whatsappUrl = getWhatsAppLink(business.phone);
+  const explicitWhatsappSocial = (business.socials || []).find((url) => /wa\.me\/|whatsapp\.com\//i.test(String(url || ''))) || null;
+  const whatsappUrl = explicitWhatsappSocial ? normalizeExternalUrl(explicitWhatsappSocial) : null;
   const googleBusinessUrl = getGoogleBusinessLink(business);
   const isFavorited = Boolean(business.isFavorite);
 
@@ -339,7 +340,7 @@ function BusinessCard({
                 onClick={(event) => openExternalShortcut(event, whatsappUrl)}
                 disabled={isUnlockingShortcut}
                 className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.10] px-2.5 text-[9.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/[0.16] disabled:opacity-60"
-                title="Abrir WhatsApp"
+                title="WhatsApp confirmado por link explícito da fonte"
               >
                 <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
                 <span className="hidden md:inline">WhatsApp</span>
