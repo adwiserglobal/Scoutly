@@ -265,7 +265,9 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
 
   const placeSignalPhone = enrichment?.placeSignal?.phone || enrichment?.placeSignal?.phones?.[0] || null;
   const phoneToCopy = verifiedPhone || placeSignalPhone || business.phone || business.phones?.[0] || null;
-  const whatsappNumber = verifiedWhatsapp || phoneToCopy;
+  // Never promote an ordinary phone number to WhatsApp. Only explicit evidence
+  // collected from the official website can enable the WhatsApp action.
+  const whatsappNumber = verifiedWhatsapp;
   const whatsappUrl = getWhatsAppLink(whatsappNumber);
   const rawEmailAddress = verifiedEmail || business.email || business.emails?.[0] || null;
   // Plain addresses reach this component only after the authorized server unlock
@@ -417,7 +419,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             <Sparkles className="h-4 w-4" /> Pedir ao Scoutly Agentic <ChevronRight className="h-3.5 w-3.5" />
           </button>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title={verifiedWhatsapp ? 'WhatsApp identificado no site' : 'Testar WhatsApp: número não verificado'} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">WhatsApp indisponível</div>}
+            {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title="WhatsApp confirmado por evidência no site oficial" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp confirmado <ArrowUpRight className="h-3.5 w-3.5" /></a> : phoneToCopy ? <a href={`tel:${phoneToCopy}`} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-[#171b20] text-[12px] font-semibold text-[#d9dde3] transition hover:bg-[#20252b]" title="Telefone encontrado. WhatsApp não confirmado."><Phone className="h-4 w-4" /> Ligar <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">Contato não identificado</div>}
             {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="website" className="h-[17px] w-[17px]" alt="Site" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
           </div>
           {showPipelinePrompt && (
@@ -441,7 +443,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Site</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{hasWebsite ? 'Identificado' : 'Não identificado'}</p></div>
-              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">WhatsApp</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{verifiedWhatsapp ? 'Identificado' : whatsappUrl ? 'Possível' : 'Não identificado'}</p></div>
+              <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">WhatsApp</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{verifiedWhatsapp ? 'Confirmado' : phoneToCopy ? 'Não confirmado' : 'Não identificado'}</p></div>
               <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Tracking</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{trackingDetected ? 'Detectado' : 'Não confirmado'}</p></div>
               <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Performance</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{pageSpeedDetected ? `${pageSpeed!.score}/100` : 'Sem medição'}</p></div>
             </div>
