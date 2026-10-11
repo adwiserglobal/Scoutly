@@ -332,6 +332,58 @@ export async function pollOmkarMapsSearch(jobToken: string): Promise<{
   };
 }
 
+const omkarBusinessVerificationRequests = new Map<string, Promise<{
+  available: boolean;
+  status: string;
+  verification?: {
+    matched: boolean;
+    confidence: number;
+    label: 'confirmed' | 'probable' | 'ambiguous' | 'not_found';
+    matchedFields: string[];
+    distanceMeters: number | null;
+    business: Business | null;
+  };
+}>>();
+
+export function verifyBusinessWithGoogleMaps(business: Business) {
+  const key = String(business.id || business.googlePlaceId || business.name);
+  const existing = omkarBusinessVerificationRequests.get(key);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const started = await startOmkarBusinessVerification(business);
+    if (!started.available || !started.jobToken) {
+      return { available: false, status: started.status || 'unavailable' };
+    }
+
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2200));
+      }
+
+      const polled = await pollOmkarMapsSearch(started.jobToken);
+      if (polled.status === 'completed') {
+        return {
+          available: true,
+          status: 'completed',
+          verification: polled.verification,
+        };
+      }
+      if (['failed', 'aborted', 'unavailable'].includes(polled.status)) {
+        return { available: true, status: polled.status, verification: polled.verification };
+      }
+    }
+
+    return { available: true, status: 'in_progress' };
+  })();
+
+  omkarBusinessVerificationRequests.set(key, request);
+  void request.finally(() => {
+    window.setTimeout(() => omkarBusinessVerificationRequests.delete(key), 5 * 60 * 1000);
+  });
+  return request;
+}
+
 export async function searchBusinessesByQuery(
   query: string,
   currentRegionName: string,
