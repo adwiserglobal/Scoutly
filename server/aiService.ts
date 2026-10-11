@@ -143,6 +143,19 @@ export interface BusinessSummary {
   situacaoCadastral?: string | null;
   sources?: string[];
   hasCoordinates?: boolean;
+
+  // Optional Google Maps / Omkar enrichment fields.
+  googleMapsUrl?: string | null;
+  googlePlaceId?: string | null;
+  googleKgmid?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  owner?: string | null;
+  canClaim?: boolean;
+  isSpendingOnAds?: boolean;
+  featuredImage?: string | null;
+  priceRange?: string | null;
+  googleStatus?: string | null;
 }
 
 export interface AIChatRequest {
