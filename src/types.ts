@@ -85,6 +85,19 @@ export interface Business {
   openStatusText?: string;
   openingHoursRaw?: string | null;
   pageSpeed?: PageSpeedData;
+
+  // Optional Google Maps enrichment (Omkar worker).
+  googleMapsUrl?: string | null;
+  googlePlaceId?: string | null;
+  googleKgmid?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  owner?: string | null;
+  canClaim?: boolean;
+  isSpendingOnAds?: boolean;
+  featuredImage?: string | null;
+  priceRange?: string | null;
+  googleStatus?: string | null;
 }
 
 export type VisitStatus = 'PENDENTE' | 'VISITADO' | 'PULADO';
