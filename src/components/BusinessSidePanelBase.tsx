@@ -280,7 +280,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   );
   const emailLocked = !isPlainEmail && (isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked));
   const emailAddress = isPlainEmail && !emailLocked ? String(rawEmailAddress).trim() : null;
-  const googleBusinessUrl = getGoogleBusinessLink(business);
+  const googleBusinessUrl = business.googleMapsUrl || getGoogleBusinessLink(business);
   const websiteDomain = useMemo(() => normalizeWebsiteDomain(websiteUrl), [websiteUrl]);
   const googleAdsTransparencyUrl = websiteDomain
     ? `https://adstransparency.google.com/?domain=${encodeURIComponent(websiteDomain)}&region=anywhere`
@@ -298,6 +298,20 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
   const confidencePercent = Math.round((business.confidence || 0) * 100);
+  const googleVerification = business.googleMapsVerification || null;
+  const googleVerificationLabel = googleVerification?.status === 'confirmed'
+    ? 'Confirmado no Google Maps'
+    : googleVerification?.status === 'probable'
+      ? 'Correspondência provável'
+      : googleVerification?.status === 'checking'
+        ? 'Verificando no Google Maps'
+        : googleVerification?.status === 'ambiguous'
+          ? 'Correspondência ambígua'
+          : googleVerification?.status === 'not_found'
+            ? 'Não confirmado no Google Maps'
+            : googleVerification?.status === 'failed'
+              ? 'Verificação indisponível'
+              : null;
 
   const opportunities = useMemo(() => {
     const list: string[] = [];
@@ -311,7 +325,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
     return list.slice(0, 5);
   }, [hasWebsite, phoneToCopy, verifiedWhatsapp, trackingAudit, pageSpeedDetected, pageSpeed, isEnrichmentLoading, isTrackingLoading]);
 
-  const isAnythingLoading = isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading;
+  const isAnythingLoading = isEnrichmentLoading || isTrackingLoading || isPageSpeedLoading || googleVerification?.status === 'checking';
 
   const handleCopyPhone = async () => {
     if (!phoneToCopy) return;
@@ -439,7 +453,10 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
           <section className="rounded-2xl border border-white/[0.085] bg-[#14181d] p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[12px] font-semibold text-white">Visão geral</h3>
-              <span className="text-[10px] font-semibold text-[#a4abb6]">{confidencePercent}% de confiança da fonte</span>
+              <div className="text-right">
+                <span className="block text-[10px] font-semibold text-[#a4abb6]">{confidencePercent}% de confiança da fonte</span>
+                {googleVerificationLabel && <span className={`mt-0.5 block text-[9px] font-medium ${googleVerification?.status === 'confirmed' ? 'text-emerald-400' : googleVerification?.status === 'probable' ? 'text-[#ffad83]' : 'text-[#8f96a1]'}`}>{googleVerificationLabel}</span>}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white/[0.035] px-3 py-3"><p className="text-[10px] text-[#989faa]">Site</p><p className="mt-1 text-[12px] font-semibold text-[#ecedf0]">{hasWebsite ? 'Identificado' : 'Não identificado'}</p></div>
@@ -508,9 +525,12 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             <section>
               {expandedSection('details', 'Dados e origem', 'Status, fonte e identificação')}
               {openSections.details && <div className="rounded-xl bg-[#171b20] px-3.5 pb-2">
-                <DetailRow label="Status" value={business.openStatusText || business.operatingStatus || 'Não identificado'} />
+                <DetailRow label="Status" value={business.openStatusText || business.operatingStatus || business.googleStatus || 'Não identificado'} />
                 <DetailRow label="Fonte" value={business.source || 'Não identificada'} />
                 <DetailRow label="Confiança" value={`${confidencePercent}%`} />
+                {googleVerificationLabel && <DetailRow label="Google Maps" value={googleVerificationLabel} />}
+                {typeof business.rating === 'number' && <DetailRow label="Avaliação Google" value={`${business.rating.toFixed(1)}${typeof business.reviewCount === 'number' ? ` · ${business.reviewCount} avaliações` : ''}`} />}
+                {business.googlePlaceId && <DetailRow label="Place ID" value={business.googlePlaceId} />}
                 {(business.cnpj || enrichment?.cnpj?.[0]?.value) && <DetailRow label="CNPJ" value={business.cnpj || enrichment.cnpj[0].value} />}
               </div>}
             </section>
