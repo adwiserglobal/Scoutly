@@ -212,6 +212,38 @@ export async function saveUserLead(
   }
 }
 
+export async function startOmkarBusinessVerification(business: Business): Promise<{
+  available: boolean;
+  status: string;
+  jobToken?: string;
+  reason?: string;
+}> {
+  const res = await authenticatedFetch('/api/omkar-maps', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      mode: 'verify',
+      business: {
+        id: business.id,
+        name: business.name,
+        address: business.address,
+        phone: business.phone || business.phones?.[0] || null,
+        website: business.website || null,
+        latitude: business.latitude,
+        longitude: business.longitude,
+      },
+    }),
+  });
+  const data = await readJsonResponse<any>(res, 'Não foi possível iniciar a verificação no Google Maps.');
+  if (!res.ok) {
+    const error: any = new Error(data?.error || 'Falha ao iniciar a verificação no Google Maps.');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+}
+
 export async function startOmkarMapsSearch(input: {
   query: string;
   regionName: string;
@@ -239,6 +271,14 @@ export async function pollOmkarMapsSearch(jobToken: string): Promise<{
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'aborted' | 'unknown' | 'unavailable';
   businesses: Business[];
   resultCount?: number;
+  verification?: {
+    matched: boolean;
+    confidence: number;
+    label: 'confirmed' | 'probable' | 'ambiguous' | 'not_found';
+    matchedFields: string[];
+    distanceMeters: number | null;
+    business: Business | null;
+  };
 }> {
   const params = new URLSearchParams({ jobToken });
   const res = await authenticatedFetch(`/api/omkar-maps?${params.toString()}`, {
@@ -283,6 +323,12 @@ export async function pollOmkarMapsSearch(jobToken: string): Promise<{
     status: data?.status || 'unknown',
     businesses,
     resultCount: Number(data?.resultCount || businesses.length),
+    verification: data?.verification
+      ? {
+          ...data.verification,
+          business: businesses[0] || null,
+        }
+      : undefined,
   };
 }
 
