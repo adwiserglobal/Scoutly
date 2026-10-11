@@ -26,6 +26,10 @@
       "dest": "/api/places-fast.ts"
     },
     {
+      "src": "/api/omkar-maps",
+      "dest": "/api/search.ts?__scoutly_handler=omkar-maps"
+    },
+    {
       "src": "/api/search",
       "dest": "/api/search.ts"
     },
