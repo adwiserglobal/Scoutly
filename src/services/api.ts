@@ -97,7 +97,7 @@ export async function checkBusinessSocials(url: string): Promise<{
   siteStatus: 'verified' | 'unreachable' | 'unknown';
   checkedAt?: string;
 }> {
-  const res = await fetch(`/api/social-check?url=${encodeURIComponent(url)}`);
+  const res = await fetch(`/api/enrich?__scoutly_handler=social-check&url=${encodeURIComponent(url)}`);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Erro ao verificar redes sociais.');
