@@ -218,7 +218,7 @@ export async function startOmkarBusinessVerification(business: Business): Promis
   jobToken?: string;
   reason?: string;
 }> {
-  const res = await authenticatedFetch('/api/omkar-maps', {
+  const res = await authenticatedFetch('/api/search?__scoutly_handler=omkar-maps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
@@ -251,7 +251,7 @@ export async function startOmkarMapsSearch(input: {
   longitude?: number | null;
   maxResults?: number;
 }): Promise<{ available: boolean; status: string; jobToken?: string; reason?: string }> {
-  const res = await authenticatedFetch('/api/omkar-maps', {
+  const res = await authenticatedFetch('/api/search?__scoutly_handler=omkar-maps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(input),
@@ -281,7 +281,7 @@ export async function pollOmkarMapsSearch(jobToken: string): Promise<{
   };
 }> {
   const params = new URLSearchParams({ jobToken });
-  const res = await authenticatedFetch(`/api/omkar-maps?${params.toString()}`, {
+  const res = await authenticatedFetch(`/api/search?__scoutly_handler=omkar-maps&${params.toString()}`, {
     headers: { Accept: 'application/json' },
   });
   const data = await readJsonResponse<any>(res, 'Não foi possível consultar a busca complementar no Google Maps.');
