@@ -212,6 +212,80 @@ export async function saveUserLead(
   }
 }
 
+export async function startOmkarMapsSearch(input: {
+  query: string;
+  regionName: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  maxResults?: number;
+}): Promise<{ available: boolean; status: string; jobToken?: string; reason?: string }> {
+  const res = await authenticatedFetch('/api/omkar-maps', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse<any>(res, 'Não foi possível iniciar a busca complementar no Google Maps.');
+  if (!res.ok) {
+    const error: any = new Error(data?.error || 'Falha ao iniciar a busca complementar.');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+}
+
+export async function pollOmkarMapsSearch(jobToken: string): Promise<{
+  available: boolean;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'aborted' | 'unknown' | 'unavailable';
+  businesses: Business[];
+  resultCount?: number;
+}> {
+  const params = new URLSearchParams({ jobToken });
+  const res = await authenticatedFetch(`/api/omkar-maps?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const data = await readJsonResponse<any>(res, 'Não foi possível consultar a busca complementar no Google Maps.');
+  if (!res.ok) {
+    const error: any = new Error(data?.error || 'Falha ao consultar a busca complementar.');
+    error.code = data?.code;
+    error.status = res.status;
+    throw error;
+  }
+
+  const businesses = Array.isArray(data?.businesses)
+    ? data.businesses.map((item: any) => {
+        const lat = Number(item.latitude ?? item.lat ?? item.coordinates?.lat);
+        const lng = Number(item.longitude ?? item.lng ?? item.coordinates?.lng);
+        return {
+          ...item,
+          latitude: lat,
+          longitude: lng,
+          coordinates: { lat, lng },
+          websites: Array.isArray(item.websites) ? item.websites : item.website ? [item.website] : [],
+          email: item.email || item.emails?.[0] || null,
+          emails: Array.isArray(item.emails) ? item.emails : item.email ? [item.email] : [],
+          phone: item.phone || item.phones?.[0] || null,
+          phones: Array.isArray(item.phones) ? item.phones : item.phone ? [item.phone] : [],
+          socials: Array.isArray(item.socials) ? item.socials : [],
+          source: item.source || item.sources?.[0] || 'Google Maps',
+          leadStatus: item.leadStatus || 'NOVO',
+          confidence: typeof item.confidence === 'number' ? item.confidence : 0.9,
+          address: item.address || '',
+          category: item.category || item.basicCategory || 'Empresa Local',
+          website: item.website || null,
+          operatingStatus: item.operatingStatus || item.googleStatus || null,
+        } as Business;
+      }).filter((item: Business) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+    : [];
+
+  return {
+    available: Boolean(data?.available),
+    status: data?.status || 'unknown',
+    businesses,
+    resultCount: Number(data?.resultCount || businesses.length),
+  };
+}
+
 export async function searchBusinessesByQuery(
   query: string,
   currentRegionName: string,
