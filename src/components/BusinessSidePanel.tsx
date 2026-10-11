@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Lock, Mail, MapPin, Phone, Star, X } from 'lucide-react';
 import { Business } from '../types';
 import BusinessSidePanelBase from './BusinessSidePanelBase';
-import { fetchAccessStatus, getGoogleBusinessLink, unlockBusinessContact } from '../services/api';
+import { fetchAccessStatus, getGoogleBusinessLink, unlockBusinessContact, verifyBusinessWithGoogleMaps } from '../services/api';
 import { isBusinessUnlockedInSession, markBusinessUnlockedInSession } from '../utils/businessUnlockSession';
 
 interface BusinessSidePanelProps {
@@ -145,6 +145,7 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
   const [status, setStatus] = useState<'unlocking' | 'ready' | 'locked'>('unlocking');
   const [message, setMessage] = useState('Não foi possível abrir este negócio agora. Tente novamente.');
   const attemptRef = useRef('');
+  const googleVerifyRef = useRef('');
 
   useEffect(() => {
     const raw = business as any;
@@ -205,6 +206,108 @@ export default function BusinessSidePanel(props: BusinessSidePanelProps) {
         setStatus('locked');
       });
   }, [business]);
+
+  useEffect(() => {
+    if (status !== 'ready' || !resolvedBusiness?.id) return;
+    const businessId = resolvedBusiness.id;
+    if (googleVerifyRef.current === businessId) return;
+    googleVerifyRef.current = businessId;
+
+    const snapshot = resolvedBusiness;
+    setResolvedBusiness((current) => current.id === businessId
+      ? {
+          ...current,
+          googleMapsVerification: { status: 'checking', checkedAt: new Date().toISOString() },
+        }
+      : current);
+
+    verifyBusinessWithGoogleMaps(snapshot)
+      .then((result) => {
+        if (!result.available) {
+          setResolvedBusiness((current) => {
+            if (current.id !== businessId) return current;
+            const { googleMapsVerification, ...rest } = current as any;
+            return rest as Business;
+          });
+          return;
+        }
+
+        const verification = result.verification;
+        if (result.status === 'completed' && verification) {
+          setResolvedBusiness((current) => {
+            if (current.id !== businessId) return current;
+            const googleBusiness = verification.business;
+            const isStrongMatch = verification.label === 'confirmed' || verification.label === 'probable';
+
+            return {
+              ...current,
+              website: current.website || (isStrongMatch ? googleBusiness?.website || null : null),
+              websites: Array.from(new Set([
+                ...(current.websites || []),
+                ...(isStrongMatch && googleBusiness?.website ? [googleBusiness.website] : []),
+              ].filter(Boolean))),
+              phone: current.phone || (isStrongMatch ? googleBusiness?.phone || null : null),
+              phones: Array.from(new Set([
+                ...(current.phones || []),
+                ...(isStrongMatch ? googleBusiness?.phones || [] : []),
+              ].filter(Boolean))),
+              socials: Array.from(new Set([
+                ...(current.socials || []),
+                ...(isStrongMatch ? googleBusiness?.socials || [] : []),
+              ].filter(Boolean))),
+              confidence: verification.label === 'confirmed'
+                ? Math.max(current.confidence || 0, 0.96)
+                : verification.label === 'probable'
+                  ? Math.max(current.confidence || 0, 0.88)
+                  : current.confidence,
+              googleMapsUrl: googleBusiness?.googleMapsUrl || current.googleMapsUrl || null,
+              googlePlaceId: googleBusiness?.googlePlaceId || current.googlePlaceId || null,
+              googleKgmid: googleBusiness?.googleKgmid || current.googleKgmid || null,
+              rating: googleBusiness?.rating ?? current.rating ?? null,
+              reviewCount: googleBusiness?.reviewCount ?? current.reviewCount ?? null,
+              owner: googleBusiness?.owner || current.owner || null,
+              canClaim: googleBusiness?.canClaim ?? current.canClaim,
+              isSpendingOnAds: googleBusiness?.isSpendingOnAds ?? current.isSpendingOnAds,
+              featuredImage: googleBusiness?.featuredImage || current.featuredImage || null,
+              priceRange: googleBusiness?.priceRange || current.priceRange || null,
+              googleStatus: googleBusiness?.googleStatus || current.googleStatus || null,
+              googleMapsVerification: {
+                status: verification.label,
+                confidence: verification.confidence,
+                matchedFields: verification.matchedFields,
+                distanceMeters: verification.distanceMeters,
+                checkedAt: new Date().toISOString(),
+              },
+              // Never import the Omkar record's e-mail lock/token into this business.
+              email: current.email,
+              emails: current.emails,
+              emailLocked: current.emailLocked,
+              sealedContactToken: current.sealedContactToken,
+              contactLocked: false,
+            } as Business;
+          });
+          return;
+        }
+
+        if (['failed', 'aborted'].includes(result.status)) {
+          setResolvedBusiness((current) => current.id === businessId
+            ? {
+                ...current,
+                googleMapsVerification: { status: 'failed', checkedAt: new Date().toISOString() },
+              }
+            : current);
+        }
+      })
+      .catch((error) => {
+        console.warn('[Scoutly Google Maps Verification]:', error);
+        setResolvedBusiness((current) => current.id === businessId
+          ? {
+              ...current,
+              googleMapsVerification: { status: 'failed', checkedAt: new Date().toISOString() },
+            }
+          : current);
+      });
+  }, [status, resolvedBusiness.id]);
 
   if (status === 'ready') return <BusinessSidePanelBase {...props} business={resolvedBusiness} />;
 
