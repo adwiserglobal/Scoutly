@@ -2,8 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runScoutlyBusinessSearch } from '../server/searchFacade.js';
 import { searchBusinessesByNameInBounds, searchBusinessesInBounds } from '../server/businessSearchService.js';
 import { protectBusinessListForClient } from '../server/businessSealService.js';
+import { handleOmkarMapsRequest } from '../server/omkarMapsApiHandler.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.query.__scoutly_handler === 'omkar-maps') {
+    return handleOmkarMapsRequest(req, res);
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
