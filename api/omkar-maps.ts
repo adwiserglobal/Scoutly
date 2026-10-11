@@ -10,6 +10,7 @@ import {
   normalizeOmkarPlaces,
   normalizeTaskStatus,
   startOmkarMapsTask,
+  verifyBusinessAgainstOmkar,
   verifyOmkarJobToken,
 } from '../server/omkarMapsService.js';
 
@@ -47,18 +48,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const query = String(req.body?.query || '').trim();
-      const regionName = String(req.body?.regionName || '').trim();
-      const latitude = Number(req.body?.latitude);
-      const longitude = Number(req.body?.longitude);
-      const maxResults = Number(req.body?.maxResults);
+      const mode = String(req.body?.mode || 'search').toLowerCase();
+      const business = req.body?.business && typeof req.body.business === 'object' ? req.body.business : null;
+      const query = mode === 'verify'
+        ? String(business?.name || '').trim()
+        : String(req.body?.query || '').trim();
+      const regionName = mode === 'verify'
+        ? String(business?.address || req.body?.regionName || '').trim()
+        : String(req.body?.regionName || '').trim();
+      const latitude = Number(mode === 'verify' ? business?.latitude : req.body?.latitude);
+      const longitude = Number(mode === 'verify' ? business?.longitude : req.body?.longitude);
+      const maxResults = Number(mode === 'verify' ? 25 : req.body?.maxResults);
 
       if (query.length < 2 || query.length > 180) {
         return res.status(400).json({ error: 'Consulta inválida.', code: 'INVALID_QUERY' });
       }
-      if (!regionName || regionName.length > 220) {
+      if (!regionName || regionName.length > 320) {
         return res.status(400).json({ error: 'Região inválida.', code: 'INVALID_REGION' });
       }
+
+      const verificationSeed = mode === 'verify'
+        ? {
+            businessId: String(business?.id || '').trim() || undefined,
+            name: query,
+            address: String(business?.address || '').trim() || null,
+            phone: String(business?.phone || business?.phones?.[0] || '').trim() || null,
+            website: String(business?.website || '').trim() || null,
+            latitude: Number.isFinite(latitude) ? latitude : null,
+            longitude: Number.isFinite(longitude) ? longitude : null,
+          }
+        : null;
 
       const task = await startOmkarMapsTask({
         query,
@@ -70,15 +89,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       return res.status(202).json({
         available: true,
+        mode,
         status: task.status,
-        jobToken: createOmkarJobToken(identity.uid, task.taskId),
+        jobToken: createOmkarJobToken(identity.uid, task.taskId, verificationSeed),
       });
     }
 
     const jobToken = typeof req.query.jobToken === 'string' ? req.query.jobToken : '';
     if (!jobToken) return res.status(400).json({ error: 'jobToken é obrigatório.', code: 'INVALID_OMKAR_JOB' });
 
-    const { taskId } = verifyOmkarJobToken(jobToken, identity.uid);
+    const { taskId, verificationSeed } = verifyOmkarJobToken(jobToken, identity.uid);
     const task = await getOmkarMapsTask(taskId);
     const status = normalizeTaskStatus(task?.status);
 
@@ -90,11 +110,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const records = await getOmkarMapsTaskResults(taskId, 300);
-    const businesses = protectBusinessListForClient(normalizeOmkarPlaces(records));
+    const records = await getOmkarMapsTaskResults(taskId, verificationSeed ? 80 : 300);
+    const normalized = normalizeOmkarPlaces(records);
 
+    if (verificationSeed) {
+      const verification = verifyBusinessAgainstOmkar(verificationSeed, normalized);
+      const protectedBusiness = verification.business
+        ? protectBusinessListForClient([verification.business])[0]
+        : null;
+      return res.status(200).json({
+        available: true,
+        mode: 'verify',
+        status: 'completed',
+        verification: {
+          ...verification,
+          business: protectedBusiness,
+        },
+        businesses: protectedBusiness ? [protectedBusiness] : [],
+        resultCount: protectedBusiness ? 1 : 0,
+      });
+    }
+
+    const businesses = protectBusinessListForClient(normalized);
     return res.status(200).json({
       available: true,
+      mode: 'search',
       status: 'completed',
       businesses,
       resultCount: businesses.length,
