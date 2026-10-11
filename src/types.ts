@@ -98,6 +98,13 @@ export interface Business {
   featuredImage?: string | null;
   priceRange?: string | null;
   googleStatus?: string | null;
+  googleMapsVerification?: {
+    status: 'checking' | 'confirmed' | 'probable' | 'ambiguous' | 'not_found' | 'failed';
+    confidence?: number;
+    matchedFields?: string[];
+    distanceMeters?: number | null;
+    checkedAt?: string;
+  };
 }
 
 export type VisitStatus = 'PENDENTE' | 'VISITADO' | 'PULADO';
