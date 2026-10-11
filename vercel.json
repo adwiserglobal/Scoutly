@@ -63,7 +63,7 @@
     },
     {
       "src": "/api/social-check",
-      "dest": "/api/social-check.ts"
+      "dest": "/api/enrich.ts?__scoutly_handler=social-check"
     },
     {
       "src": "/api/pagespeed",
