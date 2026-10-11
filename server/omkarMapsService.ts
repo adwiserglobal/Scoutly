@@ -292,6 +292,173 @@ function stableId(record: any, name: string, lat: number, lng: number) {
   return `omkar_${(hash >>> 0).toString(36)}`;
 }
 
+function normalizeComparableText(value?: string | null): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function phoneDigits(value?: string | null): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function host(value?: string | null): string {
+  try {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+      .hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const earth = 6371000;
+  const rad = (value: number) => value * Math.PI / 180;
+  const dLat = rad(bLat - aLat);
+  const dLng = rad(bLng - aLng);
+  const x = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earth * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function tokenOverlapScore(a: string, b: string): number {
+  const aa = new Set(normalizeComparableText(a).split(' ').filter((part) => part.length >= 2));
+  const bb = new Set(normalizeComparableText(b).split(' ').filter((part) => part.length >= 2));
+  if (!aa.size || !bb.size) return 0;
+  let intersection = 0;
+  for (const token of aa) if (bb.has(token)) intersection += 1;
+  return intersection / Math.max(aa.size, bb.size);
+}
+
+export type OmkarVerificationSeed = {
+  businessId?: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+export type OmkarVerificationResult = {
+  matched: boolean;
+  confidence: number;
+  label: 'confirmed' | 'probable' | 'ambiguous' | 'not_found';
+  matchedFields: string[];
+  distanceMeters: number | null;
+  business: BusinessSummary | null;
+};
+
+export function verifyBusinessAgainstOmkar(
+  seed: OmkarVerificationSeed,
+  candidates: BusinessSummary[],
+): OmkarVerificationResult {
+  let best: { business: BusinessSummary; score: number; matchedFields: string[]; distanceMeters: number | null } | null = null;
+
+  const seedName = normalizeComparableText(seed.name);
+  const seedPhone = phoneDigits(seed.phone);
+  const seedHost = host(seed.website);
+
+  for (const business of candidates) {
+    const matchedFields: string[] = [];
+    let score = 0;
+
+    const exactName = seedName && normalizeComparableText(business.name) === seedName;
+    const fuzzyName = tokenOverlapScore(seed.name, business.name);
+    if (exactName) {
+      score += 0.42;
+      matchedFields.push('name');
+    } else if (fuzzyName >= 0.8) {
+      score += 0.30;
+      matchedFields.push('name');
+    } else if (fuzzyName >= 0.55) {
+      score += 0.18;
+    }
+
+    const candidatePhone = phoneDigits(business.phone || business.phones?.[0]);
+    if (seedPhone && candidatePhone && seedPhone === candidatePhone) {
+      score += 0.30;
+      matchedFields.push('phone');
+    }
+
+    const candidateHost = host(business.website);
+    if (seedHost && candidateHost && seedHost === candidateHost) {
+      score += 0.30;
+      matchedFields.push('website');
+    }
+
+    let distanceMeters: number | null = null;
+    if (
+      Number.isFinite(Number(seed.latitude)) &&
+      Number.isFinite(Number(seed.longitude)) &&
+      Number.isFinite(Number(business.lat)) &&
+      Number.isFinite(Number(business.lng))
+    ) {
+      distanceMeters = haversineMeters(
+        Number(seed.latitude),
+        Number(seed.longitude),
+        Number(business.lat),
+        Number(business.lng),
+      );
+      if (distanceMeters <= 80) {
+        score += 0.22;
+        matchedFields.push('location');
+      } else if (distanceMeters <= 250) {
+        score += 0.14;
+        matchedFields.push('location');
+      } else if (distanceMeters <= 800) {
+        score += 0.06;
+      }
+    }
+
+    if (seed.address && business.address) {
+      const addressOverlap = tokenOverlapScore(seed.address, business.address);
+      if (addressOverlap >= 0.65) {
+        score += 0.12;
+        matchedFields.push('address');
+      } else if (addressOverlap >= 0.4) {
+        score += 0.05;
+      }
+    }
+
+    score = Math.min(1, score);
+    if (!best || score > best.score) best = { business, score, matchedFields, distanceMeters };
+  }
+
+  if (!best || best.score < 0.38) {
+    return {
+      matched: false,
+      confidence: best?.score || 0,
+      label: best ? 'ambiguous' : 'not_found',
+      matchedFields: best?.matchedFields || [],
+      distanceMeters: best?.distanceMeters ?? null,
+      business: null,
+    };
+  }
+
+  const label: OmkarVerificationResult['label'] =
+    best.score >= 0.72 && best.matchedFields.length >= 2
+      ? 'confirmed'
+      : best.score >= 0.52
+        ? 'probable'
+        : 'ambiguous';
+
+  return {
+    matched: label === 'confirmed' || label === 'probable',
+    confidence: Number(best.score.toFixed(2)),
+    label,
+    matchedFields: best.matchedFields,
+    distanceMeters: best.distanceMeters !== null ? Math.round(best.distanceMeters) : null,
+    business: label === 'ambiguous' ? null : best.business,
+  };
+}
+
 export function normalizeOmkarPlaces(records: any[]): BusinessSummary[] {
   const businesses: BusinessSummary[] = [];
 
@@ -365,17 +532,25 @@ function signingSecret(): Buffer {
   return Buffer.from(raw);
 }
 
-export function createOmkarJobToken(uid: string, taskId: number): string {
+export function createOmkarJobToken(
+  uid: string,
+  taskId: number,
+  verificationSeed?: OmkarVerificationSeed | null,
+): string {
   const payload = Buffer.from(JSON.stringify({
     uid,
     taskId,
+    verificationSeed: verificationSeed || null,
     exp: Date.now() + 20 * 60 * 1000,
   })).toString('base64url');
   const signature = createHmac('sha256', signingSecret()).update(payload).digest('base64url');
   return `${payload}.${signature}`;
 }
 
-export function verifyOmkarJobToken(token: string, uid: string): { taskId: number } {
+export function verifyOmkarJobToken(
+  token: string,
+  uid: string,
+): { taskId: number; verificationSeed: OmkarVerificationSeed | null } {
   const [payload, signature] = String(token || '').split('.');
   if (!payload || !signature) throw Object.assign(new Error('Invalid Omkar job token.'), { statusCode: 400, code: 'INVALID_OMKAR_JOB' });
 
@@ -401,5 +576,19 @@ export function verifyOmkarJobToken(token: string, uid: string): { taskId: numbe
   if (!Number.isInteger(taskId) || taskId <= 0) {
     throw Object.assign(new Error('Invalid Omkar task id.'), { statusCode: 400, code: 'INVALID_OMKAR_JOB' });
   }
-  return { taskId };
+  const rawSeed = decoded?.verificationSeed;
+  const verificationSeed: OmkarVerificationSeed | null =
+    rawSeed && typeof rawSeed === 'object' && clean(rawSeed.name, 180)
+      ? {
+          businessId: clean(rawSeed.businessId, 220) || undefined,
+          name: clean(rawSeed.name, 180),
+          address: clean(rawSeed.address, 320) || null,
+          phone: clean(rawSeed.phone, 80) || null,
+          website: clean(rawSeed.website, 500) || null,
+          latitude: Number.isFinite(Number(rawSeed.latitude)) ? Number(rawSeed.latitude) : null,
+          longitude: Number.isFinite(Number(rawSeed.longitude)) ? Number(rawSeed.longitude) : null,
+        }
+      : null;
+
+  return { taskId, verificationSeed };
 }
