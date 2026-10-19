@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   RefreshCw,
   Search,
+  ThumbsDown,
   ShieldCheck,
   TicketCheck,
   Users,
@@ -21,6 +22,7 @@ import { auth, googleProvider } from './firebase';
 import {
   createTicket,
   fetchAudit,
+  fetchFeedbacks,
   fetchBootstrap,
   fetchTicket,
   fetchTickets,
@@ -29,7 +31,9 @@ import {
   replyTicket,
   updateTicket,
 } from './api';
+import FeedbacksView, { type FeedbackFilter } from './FeedbacksView';
 import type {
+  BusinessFeedback,
   DashboardData,
   InternalTab,
   Ticket,
@@ -45,6 +49,7 @@ const NAV: Array<{ id: InternalTab; label: string; icon: any }> = [
   { id: 'tickets', label: 'Suporte', icon: Headphones },
   { id: 'customers', label: 'Clientes', icon: Users },
   { id: 'billing', label: 'Billing', icon: BadgeDollarSign },
+  { id: 'feedbacks', label: 'Feedbacks', icon: ThumbsDown },
   { id: 'audit', label: 'Auditoria', icon: ShieldCheck },
 ];
 
@@ -604,6 +609,9 @@ export default function App() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
   const [audit, setAudit] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<BusinessFeedback[]>([]);
+  const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilter>('down');
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [appError, setAppError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -712,6 +720,17 @@ export default function App() {
     await reloadTickets();
   };
 
+  const loadFeedbacks = async (filter: FeedbackFilter) => {
+    setFeedbackLoading(true);
+    try {
+      setFeedbacks(await fetchFeedbacks(filter === 'all' ? undefined : filter));
+    } catch (error: any) {
+      setAppError(error?.message || 'Não foi possível carregar os feedbacks.');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
   const content = useMemo(() => {
     if (!bootstrap) return null;
 
@@ -744,8 +763,22 @@ export default function App() {
         />
       );
     }
+    if (tab === 'feedbacks') {
+      return (
+        <FeedbacksView
+          rows={feedbacks}
+          filter={feedbackFilter}
+          loading={feedbackLoading}
+          onFilter={(value) => {
+            setFeedbackFilter(value);
+            void loadFeedbacks(value);
+          }}
+          onReload={() => void loadFeedbacks(feedbackFilter)}
+        />
+      );
+    }
     return <AuditView rows={audit} />;
-  }, [bootstrap, tab, tickets, selectedTicket, messages, ticketLoading, users, userDetail, audit]);
+  }, [bootstrap, tab, tickets, selectedTicket, messages, ticketLoading, users, userDetail, audit, feedbacks, feedbackFilter, feedbackLoading]);
 
   if (authLoading) {
     return <div className="screen-loader"><RefreshCw className="spin" /> Carregando...</div>;
@@ -805,6 +838,7 @@ export default function App() {
                   setUsers(await fetchUsers());
                 }
                 if (id === 'audit') setAudit(await fetchAudit());
+                if (id === 'feedbacks') await loadFeedbacks(feedbackFilter);
               }}
             >
               <Icon size={17} />
