@@ -67,11 +67,11 @@ export async function analyzePageSpeed(rawUrl: string): Promise<PageSpeedAuditRe
 
       if (perfCategory && typeof perfCategory.score === 'number') {
         const score = Math.round(perfCategory.score * 100);
-        const fcp = audits['first-contentful-paint']?.displayValue || '2.1 s';
-        const lcp = audits['largest-contentful-paint']?.displayValue || '3.8 s';
-        const tbt = audits['total-blocking-time']?.displayValue || '280 ms';
-        const cls = audits['cumulative-layout-shift']?.displayValue || '0.04';
-        const speedIndex = audits['speed-index']?.displayValue || '2.9 s';
+        const fcp = audits['first-contentful-paint']?.displayValue || '-';
+        const lcp = audits['largest-contentful-paint']?.displayValue || '-';
+        const tbt = audits['total-blocking-time']?.displayValue || '-';
+        const cls = audits['cumulative-layout-shift']?.displayValue || '-';
+        const speedIndex = audits['speed-index']?.displayValue || '-';
 
         const rating: 'FAST' | 'AVERAGE' | 'SLOW' =
           score >= 90 ? 'FAST' : score >= 50 ? 'AVERAGE' : 'SLOW';
@@ -98,13 +98,6 @@ export async function analyzePageSpeed(rawUrl: string): Promise<PageSpeedAuditRe
         if (audits['unminified-javascript']?.details?.items?.length) {
           diagnostics.push({
             title: 'Minificar e adiar execução de scripts JavaScript',
-            impact: 'Médio',
-          });
-        }
-
-        if (diagnostics.length === 0) {
-          diagnostics.push({
-            title: 'Habilitar compressão de arquivos e cache de navegador',
             impact: 'Médio',
           });
         }

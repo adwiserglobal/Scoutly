@@ -9,6 +9,8 @@ import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
 import BottomMenu from './components/BottomMenu';
 import Header from './components/Header';
+import RecommendationsPanel from './components/RecommendationsPanel';
+import { getNewCompanies } from './utils/newCompanies';
 import FilterBar from './components/FilterBar';
 import InteractiveMap, { MapBounds, RadarPinState } from './components/InteractiveMap';
 import BusinessCard from './components/BusinessCard';
@@ -142,6 +144,7 @@ export default function App() {
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
+  const [isRecommendationsOpen, setIsRecommendationsOpen] = useState(false); // Right-side recommendations card
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [listCategoryFilter, setListCategoryFilter] = useState('TODAS');
   const [listWebsiteFilter, setListWebsiteFilter] = useState<'TODOS' | 'COM_SITE' | 'SEM_SITE'>('TODOS');
@@ -1414,7 +1417,23 @@ export default function App() {
     [recommendationCandidates, recommendationRevision]
   );
 
+  const newCompanies = useMemo(
+    () => getNewCompanies(recommendationCandidates),
+    [recommendationCandidates]
+  );
+
   const recommendationsLocked = !hasRecommendationsAccess(billingStatus);
+
+  // The card steps aside while another right-side surface (business panel, filters, list, AI) is open
+  const showRecommendations =
+    isRecommendationsOpen &&
+    !recommendationsLocked &&
+    currentTab === 'INICIO' &&
+    !selectedBusiness &&
+    !modalBusiness &&
+    !isFiltersOpen &&
+    !isListOpen &&
+    !isAIChatOpen;
 
   const handleSelectRecommended = useCallback((business: Business) => {
     rememberRecommendationBusiness(business);
@@ -1510,8 +1529,10 @@ export default function App() {
                     });
                   }}
                   recommendedBusinesses={recommendedBusinesses}
+                  newCompaniesCount={newCompanies.length}
                   recommendationsLocked={recommendationsLocked}
-                  onSelectRecommended={handleSelectRecommended}
+                  recommendationsOpen={showRecommendations}
+                  onToggleRecommendations={() => setIsRecommendationsOpen((current) => !current)}
                   onOpenRecommendationsUpgrade={() => setIsPlansOpen(true)}
                 />
               </div>
@@ -1603,6 +1624,16 @@ export default function App() {
               </div>
             </div>
             
+            {/* Right-side recommendations card */}
+            <RecommendationsPanel
+              open={showRecommendations}
+              onClose={() => setIsRecommendationsOpen(false)}
+              recommended={recommendedBusinesses}
+              newCompanies={newCompanies}
+              selectedBusinessId={selectedBusiness?.id}
+              onSelectBusiness={handleSelectRecommended}
+            />
+
             {/* Zoom Alert Overlay */}
             {isZoomTooLow && !isMapLoading && (
               <div className="absolute top-[180px] left-1/2 -translate-x-1/2 z-20 bg-amber-500/90 text-white backdrop-blur-md px-4 py-2 rounded-xl text-xs font-bold shadow-md animate-bounce pointer-events-auto">

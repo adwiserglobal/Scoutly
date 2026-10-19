@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail, MapPin } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail, MapPin, FileText } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
 import { enrichBusinessData, fetchTrackingAudit, getGoogleBusinessLink, getWhatsAppLink, getTrustIcon, generateMessage } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
@@ -9,6 +9,8 @@ import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
 import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
+import { useAuth } from '../context/AuthContext';
+import { downloadDiagnosticPdf } from '../utils/diagnosticPdf';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -46,6 +48,9 @@ export default function BusinessDetailsModal({
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     setCurrentLeadStatus(business.leadStatus || 'NOVO');
@@ -60,6 +65,7 @@ export default function BusinessDetailsModal({
     setMessageModel('');
     setMessageError(null);
     setCopiedPhone('');
+    setPdfError(null);
     markBusinessRecentlyViewed(business.id, business);
   }, [business]);
 
@@ -309,6 +315,35 @@ export default function BusinessDetailsModal({
     Boolean(enrichmentData?.contactFreshness?.websiteReachable) &&
     (verifiedPhones.length > 0 || verifiedEmails.length > 0 || whatsapps.length > 0);
 
+  const handleDownloadDiagnostic = async () => {
+    setIsGeneratingPdf(true);
+    setPdfError(null);
+    try {
+      const enrichedSocials = Object.values(enrichmentData?.socials || {})
+        .map((item: any) => String(item?.value || item?.url || ''))
+        .filter((value) => /^https?:\/\//i.test(value));
+
+      await downloadDiagnosticPdf({
+        business: { ...business, socials: [...(business.socials || []), ...enrichedSocials] },
+        websiteUrl,
+        pageSpeed,
+        tracking: trackingAudit,
+        // Availability only: the PDF never contains phone/e-mail values.
+        contact: {
+          hasPhone: phones.some((value: string) => !String(value).includes('•')),
+          hasWhatsApp: whatsapps.length > 0,
+          hasEmail: emails.some((value: string) => value && !String(value).includes('•')),
+        },
+        preparedBy: user?.displayName || null,
+      });
+    } catch (err) {
+      console.error('[Diagnostic PDF]', err);
+      setPdfError('Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto no-scrollbar cursor-pointer"
@@ -465,7 +500,34 @@ export default function BusinessDetailsModal({
                 )}
                 <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar mensagem'}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadDiagnostic}
+                disabled={isGeneratingPdf || (hasWebsite && isSpeedLoading)}
+                title="Baixa um PDF com os dados reais deste negócio para enviar ao cliente"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-stone-900 hover:bg-[#FF4D00] border border-stone-900 hover:border-[#FF4D00] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingPdf || (hasWebsite && isSpeedLoading) ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {hasWebsite && isSpeedLoading
+                    ? 'Medindo velocidade...'
+                    : isGeneratingPdf
+                    ? 'Gerando PDF...'
+                    : 'Diagnóstico em PDF'}
+                </span>
+              </button>
             </div>
+
+            {pdfError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                {pdfError}
+              </div>
+            )}
 
             {/* AI Generated Message Box */}
             {messageError && (

@@ -128,6 +128,8 @@ export interface PageSpeedData {
   opportunityDescription?: string;
   diagnostics?: Array<{ title: string; impact: string }>;
   fetchedAt?: string;
+  /** 'google_pagespeed_api' = real Google measurement; 'live_audit' = Scoutly's own estimate. */
+  source?: 'google_pagespeed_api' | 'live_audit';
 }
 
 export interface FilterOptions {

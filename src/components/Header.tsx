@@ -1,7 +1,7 @@
 import { FormEvent, KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { Business } from '../types';
-import RecommendedDropdown from './RecommendedDropdown';
+import RecommendedTrigger from './RecommendedTrigger';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -16,8 +16,10 @@ interface HeaderProps {
   totalBusinessesCount: number;
   onOpenFilters: () => void;
   recommendedBusinesses: Business[];
+  newCompaniesCount: number;
   recommendationsLocked: boolean;
-  onSelectRecommended: (business: Business) => void;
+  recommendationsOpen: boolean;
+  onToggleRecommendations: () => void;
   onOpenRecommendationsUpgrade: () => void;
 }
 
@@ -91,8 +93,10 @@ function Header({
   totalBusinessesCount,
   onOpenFilters,
   recommendedBusinesses,
+  newCompaniesCount,
   recommendationsLocked,
-  onSelectRecommended,
+  recommendationsOpen,
+  onToggleRecommendations,
   onOpenRecommendationsUpgrade,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -434,10 +438,12 @@ function Header({
         </button>
 
         <div className="hidden xl:block">
-          <RecommendedDropdown
-            businesses={recommendedBusinesses}
+          <RecommendedTrigger
+            count={recommendedBusinesses.length}
+            newCount={newCompaniesCount}
             locked={recommendationsLocked}
-            onSelectBusiness={onSelectRecommended}
+            open={recommendationsOpen}
+            onToggle={onToggleRecommendations}
             onUpgrade={onOpenRecommendationsUpgrade}
           />
         </div>
