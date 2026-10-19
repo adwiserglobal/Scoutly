@@ -33,25 +33,25 @@ function StatusItem({
   detail?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4">
+    <div className="rounded-2xl border border-white/[0.1] bg-[#14181d] p-4">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-stone-700">{icon}</div>
+        <div className="mt-0.5 text-[#d3d7dd]">{icon}</div>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-semibold text-stone-900">{title}</div>
+          <div className="text-[12px] font-semibold text-[#f6f6f7]">{title}</div>
 
           <div className="mt-1.5 flex items-center gap-1.5">
             {detected ? (
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
             ) : (
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-stone-600" />
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#a4aab5]" />
             )}
 
-            <span className="text-[10px] font-medium text-stone-700">{subtitle}</span>
+            <span className="text-[10px] font-medium text-[#d3d7dd]">{subtitle}</span>
           </div>
 
           {detail && (
-            <div className="mt-1.5 truncate font-mono text-[9px] text-stone-600">{detail}</div>
+            <div className="mt-1.5 truncate font-mono text-[9px] text-[#a4aab5]">{detail}</div>
           )}
         </div>
       </div>
@@ -67,11 +67,11 @@ function OpportunityItem({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-2.5 border-b border-stone-100 py-3 last:border-b-0">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-stone-600" />
+    <div className="flex items-start gap-2.5 border-b border-white/[0.085] py-3 last:border-b-0">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#a4aab5]" />
       <div>
-        <div className="text-[11px] font-semibold text-stone-900">{title}</div>
-        <div className="mt-0.5 text-[10px] leading-relaxed text-stone-700">{description}</div>
+        <div className="text-[11px] font-semibold text-[#f6f6f7]">{title}</div>
+        <div className="mt-0.5 text-[10px] leading-relaxed text-[#d3d7dd]">{description}</div>
       </div>
     </div>
   );
@@ -110,28 +110,28 @@ export default function TrackingAuditPanel({ audit }: TrackingAuditPanelProps) {
   ].filter(Boolean) as Array<{ title: string; description: string }>;
 
   return (
-    <div className="rounded-3xl border border-stone-200 bg-[#FCFBF9] p-4 sm:p-5">
+    <div className="rounded-3xl border border-white/[0.1] bg-[#171b20] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-600">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a4aab5]">
             Tracking e privacidade
           </span>
 
-          <p className="mt-1 text-[11px] text-stone-700">
+          <p className="mt-1 text-[11px] text-[#d3d7dd]">
             {deepScan
               ? `HTML e ${assetsScanned} script(s) públicos analisados`
               : 'HTML público analisado'}
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-2.5 py-1">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-[#14181d] px-2.5 py-1">
           {audit.hasTracking ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
           ) : (
-            <AlertCircle className="h-3.5 w-3.5 text-stone-600" />
+            <AlertCircle className="h-3.5 w-3.5 text-[#a4aab5]" />
           )}
 
-          <span className="text-[10px] font-medium text-stone-600">
+          <span className="text-[10px] font-medium text-[#a4aab5]">
             {audit.hasTracking ? 'Tracking detectado' : 'Tracking não confirmado'}
           </span>
         </div>
@@ -190,16 +190,16 @@ export default function TrackingAuditPanel({ audit }: TrackingAuditPanelProps) {
       </div>
 
       {(audit.googleAds?.detected || (audit.otherTrackers || []).length > 0) && (
-        <div className="mt-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
+        <div className="mt-4 rounded-2xl border border-white/[0.1] bg-[#14181d] px-4 py-3">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a4aab5]">
             <Boxes className="h-3.5 w-3.5" />
             Outros sinais
           </div>
 
           <div className="mt-2.5 flex flex-wrap gap-2">
             {audit.googleAds?.detected && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 px-2.5 py-1 text-[10px] font-medium text-stone-600">
-                <BrandIcon brand="googleAds" className="h-3.5 w-3.5 rounded-sm bg-white" alt="Google Ads" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] px-2.5 py-1 text-[10px] font-medium text-[#a4aab5]">
+                <BrandIcon brand="googleAds" className="h-3.5 w-3.5 rounded-sm bg-[#14181d]" alt="Google Ads" />
                 Google Ads
               </span>
             )}
@@ -207,9 +207,9 @@ export default function TrackingAuditPanel({ audit }: TrackingAuditPanelProps) {
             {(audit.otherTrackers || []).map((tracker: string) => (
               <span
                 key={tracker}
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 px-2.5 py-1 text-[10px] font-medium text-stone-600"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] px-2.5 py-1 text-[10px] font-medium text-[#a4aab5]"
               >
-                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                <CheckCircle2 className="h-3 w-3 text-emerald-400" />
                 {tracker}
               </span>
             ))}
@@ -218,8 +218,8 @@ export default function TrackingAuditPanel({ audit }: TrackingAuditPanelProps) {
       )}
 
       {opportunities.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600">
+        <div className="mt-4 rounded-2xl border border-white/[0.1] bg-[#14181d] px-4 py-3">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a4aab5]">
             <Shield className="h-3.5 w-3.5" />
             Oportunidades
           </div>
@@ -236,7 +236,7 @@ export default function TrackingAuditPanel({ audit }: TrackingAuditPanelProps) {
         </div>
       )}
 
-      <p className="mt-4 text-[9px] leading-relaxed text-stone-600">
+      <p className="mt-4 text-[9px] leading-relaxed text-[#a4aab5]">
         Detecções positivas indicam sinais técnicos encontrados. Não confirmado não significa
         ausência definitiva, porque algumas tecnologias só aparecem após JavaScript,
         consentimento, região ou interação do usuário.

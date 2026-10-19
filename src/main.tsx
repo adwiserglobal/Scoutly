@@ -10,7 +10,6 @@ import { installAuthenticatedFetchPatch } from './lib/authenticatedFetchPatch';
 import './index.css';
 import './marketing-overrides.css';
 import './ai-icon.css';
-import './business-details-dark.css';
 
 installAuthenticatedFetchPatch();
 

@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ArrowUpRight,
   Copy,
+  FileText,
   Gauge,
   Globe2,
   Lock,
@@ -32,6 +33,7 @@ import {
 } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
 import { usePageSpeed } from '../hooks/usePageSpeed';
+import { useDiagnosticPdf } from '../hooks/useDiagnosticPdf';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
@@ -170,6 +172,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isMessageCopied, setIsMessageCopied] = useState(false);
+  const { download: downloadPdf, isGenerating: isGeneratingPdf, error: pdfError } = useDiagnosticPdf();
 
   const baseWebsiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
   const discoveredWebsiteUrl = useMemo(
@@ -281,6 +284,20 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const emailLocked = !isPlainEmail && (isLockedEmail(rawEmailAddress) || Boolean((business as any).emailLocked));
   const emailAddress = isPlainEmail && !emailLocked ? String(rawEmailAddress).trim() : null;
   const googleBusinessUrl = business.googleMapsUrl || getGoogleBusinessLink(business);
+  const isPdfWaitingForSpeed = hasWebsite && isPageSpeedLoading;
+  const handleDownloadDiagnostic = () =>
+    downloadPdf({
+      business: { ...business, socials: [...new Set([...(business.socials || []), ...socialLinks.map((item) => item.url)])] },
+      websiteUrl,
+      pageSpeed,
+      tracking: trackingAudit,
+      // Presence only (masked, credit-locked values still count): the PDF never contains phone/e-mail values.
+      contact: {
+        hasPhone: Boolean(phoneToCopy) || Boolean(business.hasProtectedPhone),
+        hasWhatsApp: Boolean(verifiedWhatsapp),
+        hasEmail: Boolean(rawEmailAddress) || emailLocked || Boolean(business.hasProtectedEmail),
+      },
+    });
   const websiteDomain = useMemo(() => normalizeWebsiteDomain(websiteUrl), [websiteUrl]);
   const googleAdsTransparencyUrl = websiteDomain
     ? `https://adstransparency.google.com/?domain=${encodeURIComponent(websiteDomain)}&region=anywhere`
@@ -436,6 +453,17 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title="WhatsApp confirmado por evidência no site oficial" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp confirmado <ArrowUpRight className="h-3.5 w-3.5" /></a> : phoneToCopy ? <a href={`tel:${phoneToCopy}`} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-[#171b20] text-[12px] font-semibold text-[#d9dde3] transition hover:bg-[#20252b]" title="Telefone encontrado. WhatsApp não confirmado."><Phone className="h-4 w-4" /> Ligar <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">Contato não identificado</div>}
             {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="website" className="h-[17px] w-[17px]" alt="Site" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
           </div>
+          <button
+            type="button"
+            onClick={handleDownloadDiagnostic}
+            disabled={isGeneratingPdf || isPdfWaitingForSpeed}
+            title="Baixa um relatório em PDF com os dados reais deste negócio para enviar ao cliente"
+            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.045] text-[12px] font-semibold text-[#e6e7eb] transition hover:border-white/[0.24] hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {isGeneratingPdf || isPdfWaitingForSpeed ? <LoaderRing /> : <FileText className="h-4 w-4" />}
+            {isPdfWaitingForSpeed ? 'Medindo velocidade do site...' : isGeneratingPdf ? 'Gerando relatório...' : 'Relatório para o cliente (PDF)'}
+          </button>
+          {pdfError && <p className="mt-2 text-[10px] text-rose-300">{pdfError}</p>}
           {showPipelinePrompt && (
             <div role="status" className="mt-4 rounded-2xl border border-[#ff753e]/25 bg-[#ff5a12]/[0.085] p-4">
               <p className="text-[12px] font-semibold text-[#f3f4f5]">Gostaria de adicionar este lead ao pipeline?</p>

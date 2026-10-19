@@ -139,16 +139,6 @@ export default function BusinessDetailsModal(props: BusinessDetailsModalProps) {
   const [message, setMessage] = useState('Não foi possível abrir este negócio agora. Tente novamente.');
   const attemptRef = useRef('');
 
-  useEffect(() => {
-    if (!business) {
-      delete document.documentElement.dataset.scoutlyBusinessModal;
-      return;
-    }
-    document.documentElement.dataset.scoutlyBusinessModal = 'true';
-    return () => {
-      delete document.documentElement.dataset.scoutlyBusinessModal;
-    };
-  }, [business?.id]);
 
   useEffect(() => {
     if (!business) {
