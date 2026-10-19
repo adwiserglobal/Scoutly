@@ -172,7 +172,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [isMessageCopied, setIsMessageCopied] = useState(false);
-  const { download: downloadPdf, isGenerating: isGeneratingPdf, error: pdfError } = useDiagnosticPdf();
+  const { download: downloadPdf, isGenerating: isGeneratingPdf, error: pdfError, needsReload: pdfNeedsReload } = useDiagnosticPdf();
 
   const baseWebsiteUrl = useMemo(() => normalizeExternalUrl(business.website), [business.website]);
   const discoveredWebsiteUrl = useMemo(
@@ -463,7 +463,20 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             {isGeneratingPdf || isPdfWaitingForSpeed ? <LoaderRing /> : <FileText className="h-4 w-4" />}
             {isPdfWaitingForSpeed ? 'Medindo velocidade do site...' : isGeneratingPdf ? 'Gerando relatório...' : 'Relatório para o cliente (PDF)'}
           </button>
-          {pdfError && <p className="mt-2 text-[10px] text-rose-300">{pdfError}</p>}
+          {pdfError && (
+            <p className="mt-2 text-[10px] text-rose-300">
+              {pdfError}
+              {pdfNeedsReload && (
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="ml-2 rounded-md border border-white/[0.16] px-2 py-0.5 font-semibold text-white transition hover:bg-white/[0.08]"
+                >
+                  Recarregar página
+                </button>
+              )}
+            </p>
+          )}
           {showPipelinePrompt && (
             <div role="status" className="mt-4 rounded-2xl border border-[#ff753e]/25 bg-[#ff5a12]/[0.085] p-4">
               <p className="text-[12px] font-semibold text-[#f3f4f5]">Gostaria de adicionar este lead ao pipeline?</p>

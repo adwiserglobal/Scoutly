@@ -47,7 +47,7 @@ export default function BusinessDetailsModal({
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState('');
-  const { download: downloadPdf, isGenerating: isGeneratingPdf, error: pdfError, clearError: clearPdfError } = useDiagnosticPdf();
+  const { download: downloadPdf, isGenerating: isGeneratingPdf, error: pdfError, needsReload: pdfNeedsReload, clearError: clearPdfError } = useDiagnosticPdf();
 
   useEffect(() => {
     setCurrentLeadStatus(business.leadStatus || 'NOVO');
@@ -523,6 +523,15 @@ export default function BusinessDetailsModal({
             {pdfError && (
               <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/25 rounded-xl text-xs text-rose-300">
                 {pdfError}
+                {pdfNeedsReload && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="ml-3 rounded-lg border border-white/[0.16] px-2.5 py-1 font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Recarregar página
+                  </button>
+                )}
               </div>
             )}
 
