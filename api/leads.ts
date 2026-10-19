@@ -5,6 +5,7 @@ import { confirmStripeCheckoutSession, createStripeBillingPortal, refreshStripeS
 import { consumeBusinessCredit, getCreditStatus, hasBusinessUnlockAccess } from '../server/entitlementService.js';
 import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { unsealBusinessContacts } from '../server/businessSealService.js';
+import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -487,6 +488,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(body),
       });
       return res.status(200).json({ success: true });
+    }
+
+    if (action === 'get-profile') {
+      return res.status(200).json(await getUserProfile(identity.uid));
+    }
+
+    if (action === 'save-profile') {
+      await saveUserProfileData(identity.uid, {
+        outreach: req.body?.outreach,
+        brand: req.body?.brand,
+        logo: req.body?.logo,
+        hasLogo: 'logo' in (req.body || {}),
+      });
+      return res.status(200).json({ success: true, ...(await getUserProfile(identity.uid)) });
     }
 
     if (action === 'recent-business') {

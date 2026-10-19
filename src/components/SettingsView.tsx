@@ -3,6 +3,9 @@ import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { formatBRL, type BillingStatus } from '../lib/billing';
 import { createBillingPortalSession, saveUserProfile, saveUserSettings } from '../services/api';
+import { useUserProfile } from '../hooks/useUserProfile';
+import OutreachProfileSection from './settings/OutreachProfileSection';
+import BrandSection from './settings/BrandSection';
 
 function getInitialBatchSize() {
   const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
@@ -29,6 +32,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const [isOpeningBilling, setIsOpeningBilling] = useState(false);
   const [billingError, setBillingError] = useState('');
   const isDeveloper = billing.subscriptionStatus === 'developer';
+  const { profile: commercialProfile, isLoading: isProfileLoading, loadError: profileLoadError, save: saveCommercial } = useUserProfile();
 
   const initials = useMemo(() => {
     const source = displayName || user?.email || 'S';
@@ -110,7 +114,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
 
   return (
     <div className="flex-1 h-full overflow-y-auto bg-[#090c10] px-4 py-6 md:px-8 md:py-10">
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-4xl">
         <div className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-white">
             Configurações
@@ -186,6 +190,22 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               </button>
             </div>
           </section>
+
+          <OutreachProfileSection
+            profile={commercialProfile?.outreach ?? null}
+            isLoading={isProfileLoading}
+            loadError={profileLoadError}
+            defaultSenderName={displayName}
+            onSave={(outreach) => saveCommercial({ outreach })}
+          />
+
+          <BrandSection
+            profile={commercialProfile}
+            isLoading={isProfileLoading}
+            loadError={profileLoadError}
+            defaultName={displayName}
+            onSave={({ brand, logo }) => saveCommercial({ brand, ...(logo !== undefined ? { logo } : {}) })}
+          />
 
           <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="mb-5">

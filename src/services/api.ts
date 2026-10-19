@@ -1,3 +1,4 @@
+import type { BrandProfile, OutreachProfile, UserProfile } from '../lib/userProfile';
 import { Business, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
 import { auth } from '../lib/firebase';
@@ -655,6 +656,34 @@ export async function saveUserProfile(displayName: string) {
     console.warn('[API] Error saving user profile:', error);
     return false;
   }
+}
+
+let profileCache: { profile: UserProfile; at: number } | null = null;
+const PROFILE_CACHE_MS = 5 * 60 * 1000;
+
+/** Commercial profile + report branding. Cached briefly so the PDF button stays fast. */
+export async function fetchUserProfile(options: { force?: boolean } = {}): Promise<UserProfile> {
+  if (!options.force && profileCache && Date.now() - profileCache.at < PROFILE_CACHE_MS) {
+    return profileCache.profile;
+  }
+  const res = await appDataAction('get-profile');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível carregar o perfil.');
+  profileCache = { profile: data as UserProfile, at: Date.now() };
+  return profileCache.profile;
+}
+
+export async function saveCommercialProfile(input: {
+  outreach?: OutreachProfile;
+  brand?: BrandProfile;
+  /** Pass a data URL to replace the logo, null to remove it, omit to keep it. */
+  logo?: string | null;
+}): Promise<UserProfile> {
+  const res = await appDataAction('save-profile', input as Record<string, unknown>);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível salvar o perfil.');
+  profileCache = { profile: data as UserProfile, at: Date.now() };
+  return profileCache.profile;
 }
 
 export async function saveRecentBusiness(businessId: string, business?: Business) {

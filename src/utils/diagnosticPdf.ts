@@ -1,4 +1,5 @@
 import type { Business, PageSpeedData } from '../types';
+import { hexToRgb, isHexColor } from '../lib/userProfile';
 
 /** Subset of the tracking audit (static public HTML scan) used by the report. */
 export interface DiagnosticTracking {
@@ -23,18 +24,34 @@ export interface DiagnosticPdfOptions {
   contact: { hasPhone: boolean; hasWhatsApp: boolean; hasEmail: boolean };
   /** Name shown as the author of the report (agency / consultant). */
   preparedBy?: string | null;
+  /** White-label settings saved by the user (colors, logo, name, contact lines). */
+  brand?: DiagnosticBrand | null;
+}
+
+export interface DiagnosticBrand {
+  name?: string;
+  tagline?: string;
+  accentColor?: string;
+  coverColor?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactWebsite?: string;
+  /** PNG/JPEG data URL. */
+  logo?: string | null;
+  logoWidth?: number;
+  logoHeight?: number;
 }
 
 type RGB = [number, number, number];
 
 const INK: RGB = [15, 17, 21];
-const INK_SOFT: RGB = [31, 35, 42];
 const TEXT: RGB = [34, 38, 45];
 const MUTED: RGB = [105, 112, 124];
 const LINE: RGB = [227, 222, 213];
 const SOFT: RGB = [247, 244, 239];
 const WHITE: RGB = [255, 255, 255];
-const ACCENT: RGB = [255, 90, 18];
+const ACCENT_DEFAULT: RGB = [255, 90, 18];
+const COVER_DEFAULT: RGB = [15, 17, 21];
 const GOOD: RGB = [28, 150, 100];
 const MID: RGB = [222, 154, 8];
 const BAD: RGB = [208, 66, 58];
@@ -482,6 +499,40 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+function relLuminance([r, g, b]: RGB): number {
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrast(a: RGB, b: RGB): number {
+  const [hi, lo] = [relLuminance(a), relLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function mix(a: RGB, b: RGB, t: number): RGB {
+  return [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * t)) as RGB;
+}
+
+/** Moves `color` toward `target` until it reaches the contrast ratio against `against`. */
+function ensureContrast(color: RGB, against: RGB, target: RGB, min: number): RGB {
+  let out = color;
+  for (let step = 1; step <= 20 && contrast(out, against) < min; step++) out = mix(color, target, step / 20);
+  return out;
+}
+
+function parseBrandColor(value: string | undefined, fallback: RGB): RGB {
+  return value && isHexColor(value) ? (hexToRgb(value) as RGB) : fallback;
+}
+
+function logoFormat(dataUrl: string): 'PNG' | 'JPEG' | null {
+  if (dataUrl.startsWith('data:image/png')) return 'PNG';
+  if (dataUrl.startsWith('data:image/jpeg')) return 'JPEG';
+  return null;
+}
+
 const INTER_FILES: Array<{ file: string; style: 'normal' | 'bold' | 'italic' }> = [
   { file: 'inter-regular.ttf', style: 'normal' },
   { file: 'inter-bold.ttf', style: 'bold' },
@@ -541,7 +592,36 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   }
   const r = buildReport(opts);
   const now = new Date();
-  const preparedBy = opts.preparedBy?.trim() || '';
+  const brand = opts.brand || {};
+  const preparedBy = brand.name?.trim() || opts.preparedBy?.trim() || '';
+  const WHITE_RGB: RGB = [255, 255, 255];
+  const BLACK_RGB: RGB = [0, 0, 0];
+  // White cover text needs a dark cover; the accent sits on white pages as text/labels.
+  const COVER = ensureContrast(parseBrandColor(brand.coverColor, COVER_DEFAULT), WHITE_RGB, BLACK_RGB, 7);
+  const COVER_SOFT = mix(COVER, WHITE_RGB, 0.12);
+  const ACCENT = ensureContrast(parseBrandColor(brand.accentColor, ACCENT_DEFAULT), WHITE_RGB, BLACK_RGB, 3);
+  // Accent drawn on the dark cover must stay visible there
+  const ACCENT_ON_COVER = ensureContrast(ACCENT, COVER, WHITE_RGB, 3);
+  const logo =
+    brand.logo && brand.logoWidth && brand.logoHeight && logoFormat(brand.logo)
+      ? { data: brand.logo, format: logoFormat(brand.logo) as 'PNG' | 'JPEG', ratio: brand.logoWidth / brand.logoHeight }
+      : null;
+  const drawLogo = (x: number, y: number, maxW: number, maxH: number) => {
+    if (!logo) return { w: 0, h: 0 };
+    let h = maxH;
+    let w = h * logo.ratio;
+    if (w > maxW) {
+      w = maxW;
+      h = w / logo.ratio;
+    }
+    try {
+      doc.addImage(logo.data, logo.format, x, y + (maxH - h) / 2, w, h, 'brand-logo', 'FAST');
+    } catch (error) {
+      console.warn('[Diagnostic PDF] Could not draw the logo:', error);
+      return { w: 0, h: 0 };
+    }
+    return { w, h };
+  };
 
   // ---- primitives ----
   const text = (c: RGB) => doc.setTextColor(c[0], c[1], c[2]);
@@ -703,7 +783,8 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   const pageChrome = (page: number) => {
     if (page > 1) {
       font('helvetica', 'normal', 7.5, MUTED);
-      doc.text(`${r.name}  |  Relatório de presença digital`, M, 12);
+      const { w: headerLogoW } = drawLogo(M, 6.2, 24, 6.2);
+      doc.text(`${r.name}  |  Relatório de presença digital`, M + (headerLogoW ? headerLogoW + 3.5 : 0), 12);
       doc.text(`${page}/3`, PAGE_W - M, 12, { align: 'right' });
       stroke(LINE);
       doc.setLineWidth(0.25);
@@ -723,17 +804,30 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   // =========================================================================
   // PAGE 1 - cover and overview
   // =========================================================================
-  fill(INK);
+  fill(COVER);
   doc.rect(0, 0, PAGE_W, 132, 'F');
-  fill(ACCENT);
+  fill(ACCENT_ON_COVER);
   doc.rect(0, 0, PAGE_W, 1.6, 'F');
 
-  font('helvetica', 'bold', 8, [200, 204, 212]);
-  doc.text((preparedBy || 'Relatório').toUpperCase(), M, 17, { charSpace: 0.9 });
+  if (logo) {
+    const maxLogoW = 40;
+    const maxLogoH = 10;
+    const probeH = Math.min(maxLogoH, maxLogoW / logo.ratio);
+    const plateW = Math.min(maxLogoW, probeH * logo.ratio) + 7;
+    rrect(M, 9, plateW, probeH + 6, 2.2, WHITE);
+    drawLogo(M + 3.5, 12, maxLogoW, maxLogoH);
+  } else {
+    font('helvetica', 'bold', 8, [200, 204, 212]);
+    doc.text((preparedBy || 'Relatório').toUpperCase(), M, 17, { charSpace: 0.9 });
+  }
   font('helvetica', 'normal', 8, [150, 156, 166]);
   doc.text(formatDate(now), PAGE_W - M, 17, { align: 'right' });
+  if (brand.tagline?.trim()) {
+    font('helvetica', 'italic', 8.2, [176, 182, 192]);
+    doc.text(lines(brand.tagline.trim(), 110, 1)[0], M, logo ? 31 : 24);
+  }
 
-  caps('Relatório de presença digital', M, 38, 7.6, ACCENT);
+  caps('Relatório de presença digital', M, 38, 7.6, ACCENT_ON_COVER);
 
   // Title: shrink until it fits in 3 lines
   let titleSize = 30;
@@ -752,7 +846,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   const subtitle = [r.category, r.place].filter(Boolean).join('  |  ');
   if (subtitle) y = paragraph(subtitle, M, y, titleW, { size: 9.5, c: [176, 182, 192], max: 2 }) + 3;
 
-  fill(ACCENT);
+  fill(ACCENT_ON_COVER);
   doc.rect(M, y + 1, 10, 0.8, 'F');
   paragraph(r.verdict, M, y + 6, 98, { size: 11, family: 'times', style: 'italic', c: [232, 234, 238], lh: 5.2, max: 5 });
 
@@ -760,7 +854,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   const gx = 152;
   const gy = 84;
   const gr = 26;
-  arc(gx, gy, gr, Math.PI, Math.PI * 2, 5.4, INK_SOFT);
+  arc(gx, gy, gr, Math.PI, Math.PI * 2, 5.4, COVER_SOFT);
   if (r.index > 0) arc(gx, gy, gr, Math.PI, Math.PI + (Math.PI * r.index) / 100, 5.4, levelColor(r.indexLevel));
   font('helvetica', 'bold', 36, WHITE);
   doc.text(String(r.index), gx, gy - 1, { align: 'center' });
@@ -1111,14 +1205,14 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   r.actions.forEach((a, i) => {
     const ay = ay0 + i * (aH + 6);
     card(M, ay, W, aH);
-    fill(INK);
+    fill(COVER);
     doc.circle(M + 12, ay + 12, 6.2, 'F');
     font('times', 'bold', 14, WHITE);
     doc.text(String(i + 1), M + 12, middleY(ay + 12, 14), { align: 'center' });
     font('helvetica', 'bold', 12, INK);
     doc.text(lines(a.title, W - 100, 1)[0], M + 24, ay + 11.8);
     const wImpact = pill(`Impacto ${a.impact.toLowerCase()}`, PAGE_W - M - 6, ay + 7.4, a.impact === 'Alto' ? ACCENT : GREY, 'right');
-    pill(`Esforço ${a.effort.toLowerCase()}`, PAGE_W - M - 6 - wImpact - 2.5, ay + 7.4, INK_SOFT, 'right');
+    pill(`Esforço ${a.effort.toLowerCase()}`, PAGE_W - M - 6 - wImpact - 2.5, ay + 7.4, COVER, 'right');
     const colX = M + 24;
     const colWd = (W - 24 - 10) / 2;
     caps('Por que', colX, ay + 21, 6.2, MUTED);
@@ -1130,8 +1224,8 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   // CTA
   const ctaY = ay0 + 3 * (aH + 6) + 2;
   const ctaH = 38;
-  rrect(M, ctaY, W, ctaH, 4, INK);
-  fill(ACCENT);
+  rrect(M, ctaY, W, ctaH, 4, COVER);
+  fill(ACCENT_ON_COVER);
   doc.roundedRect(M, ctaY, 3, ctaH, 1.5, 1.5, 'F');
   font('times', 'bold', 17, WHITE);
   doc.text('Vamos conversar sobre isso?', M + 12, ctaY + 13);
@@ -1145,7 +1239,15 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   if (preparedBy) {
     caps('Preparado por', PAGE_W - M - 8, ctaY + 11, 6.2, [160, 166, 176], 'right');
     font('helvetica', 'bold', 10.5, WHITE);
-    doc.text(lines(preparedBy, 52, 2), PAGE_W - M - 8, ctaY + 17, { align: 'right' });
+    doc.text(lines(preparedBy, 56, 1)[0], PAGE_W - M - 8, ctaY + 17, { align: 'right' });
+    const contacts = [brand.contactEmail, brand.contactPhone, brand.contactWebsite]
+      .map((value) => (value || '').trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    font('helvetica', 'normal', 7.8, [205, 209, 217]);
+    contacts.forEach((value, i) => {
+      doc.text(lines(value, 58, 1)[0], PAGE_W - M - 8, ctaY + 22.6 + i * 4, { align: 'right' });
+    });
   }
 
   // How we work together
@@ -1164,7 +1266,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
     const px = M + i * sW;
     fill(WHITE);
     doc.circle(px + 5, py + 4.5, 5.2, 'F');
-    fill(i === 0 ? ACCENT : INK);
+    fill(i === 0 ? ACCENT : COVER);
     doc.circle(px + 5, py + 4.5, 4.2, 'F');
     font('helvetica', 'bold', 8.5, WHITE);
     doc.text(String(i + 1), px + 5, middleY(py + 4.5, 8.5), { align: 'center' });
