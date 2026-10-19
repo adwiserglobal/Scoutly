@@ -100,12 +100,14 @@ export function sanitizeLogo(value: unknown): string | null {
 }
 
 function profileError(error: any) {
-  // PostgREST answers with 400/42703 when the migration has not been applied yet.
+  // PostgREST answers 400/42703 (unknown column) or PGRST204 (stale schema cache) when the
+  // migration has not been applied to this database yet.
   const message = String(error?.message || '');
   if (/outreach_profile|brand_profile|brand_logo|42703|PGRST204/i.test(message)) {
-    return Object.assign(new Error('Perfil comercial indisponível: a migration 013 ainda não foi aplicada.'), {
-      statusCode: 503,
-    });
+    return Object.assign(
+      new Error('O perfil comercial ainda não foi ativado neste ambiente: falta aplicar a migration 013 no banco do app (ou recarregar o schema do Supabase).'),
+      { statusCode: 503, code: 'PROFILE_MIGRATION_PENDING' }
+    );
   }
   return error;
 }

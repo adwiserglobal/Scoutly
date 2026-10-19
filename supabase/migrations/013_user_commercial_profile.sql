@@ -11,3 +11,6 @@ comment on column public.user_settings.brand_profile is
   'White-label report settings: display name, colors, tagline, contact lines and logo dimensions.';
 comment on column public.user_settings.brand_logo is
   'Logo as a PNG/JPEG data URL (client-resized, size-capped). Kept out of the bootstrap payload.';
+
+-- Make PostgREST pick up the new columns right away.
+notify pgrst, 'reload schema';

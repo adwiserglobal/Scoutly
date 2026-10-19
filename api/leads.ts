@@ -273,6 +273,7 @@ function publicError(error: any, statusCode: number) {
     'RECOMMENDATIONS_REQUIRE_PAID_PLAN',
     'INVALID_BUSINESS_TOKEN',
     'CREDIT_RESERVATION_FAILED',
+    'PROFILE_MIGRATION_PENDING',
   ]);
   const code = String(error?.code || '');
   if (safeCodes.has(code)) {
