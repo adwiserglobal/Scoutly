@@ -18,6 +18,8 @@ import {
   type SupportTicket,
   type SupportTicketDetail,
 } from '../services/supportApi';
+import HelpArticleView from './HelpArticleView';
+import { HELP_ARTICLES, getHelpArticle } from '../data/helpArticles';
 
 type Props = {
   isOpen: boolean;
@@ -25,7 +27,7 @@ type Props = {
   onOpen: () => void;
 };
 
-type View = 'home' | 'topics' | 'questions' | 'review' | 'cases' | 'chat';
+type View = 'home' | 'topics' | 'questions' | 'review' | 'cases' | 'chat' | 'article';
 type TopicId = 'billing' | 'bug' | 'product_help' | 'feedback' | 'hacked';
 type Question = {
   id: string;
@@ -249,6 +251,8 @@ function fileToAttachment(file: File): Promise<SupportAttachmentDraft> {
 
 export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
   const [view, setView] = useState<View>('home');
+  const [articleId, setArticleId] = useState<string | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [detail, setDetail] = useState<SupportTicketDetail | null>(null);
   const [liveDetail, setLiveDetail] = useState<SupportTicketDetail | null>(null);
@@ -342,6 +346,7 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
 
   const closeCenter = () => {
     setView('home');
+    setArticleId(null);
     setSelectedTopic(null);
     setQuestionIndex(0);
     setAnswers({});
@@ -349,6 +354,13 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
     setError('');
     setFileError('');
     onClose();
+  };
+
+  const openArticle = (id: string) => {
+    setError('');
+    setArticleId(id);
+    setView('article');
+    scrollAreaRef.current?.scrollTo({ top: 0 });
   };
 
   const goBack = () => {
@@ -359,6 +371,11 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
     }
     if (view === 'topics' || view === 'cases') {
       setView('home');
+      return;
+    }
+    if (view === 'article') {
+      setView('home');
+      setArticleId(null);
       return;
     }
     if (view === 'questions') {
@@ -480,6 +497,7 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
     view === 'topics' ? 'Preciso de ajuda' :
     view === 'cases' ? 'Meus casos de suporte' :
     view === 'chat' ? `Caso #${activeTicket?.id || ''}` :
+    view === 'article' ? 'Artigo de ajuda' :
     flow?.subject || 'Suporte';
 
   const renderHome = () => (
@@ -515,6 +533,37 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
           </button>
         </div>
       </div>
+
+      <section className="mt-20" aria-labelledby="help-articles-title">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7c7f83]">Passo a passo</p>
+            <h2 id="help-articles-title" className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#202124]">
+              Artigos de ajuda
+            </h2>
+          </div>
+          <p className="hidden text-[12px] text-[#85898d] sm:block">{HELP_ARTICLES.length} guias com capturas de tela</p>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {HELP_ARTICLES.map((article) => (
+            <button
+              key={article.id}
+              type="button"
+              onClick={() => openArticle(article.id)}
+              className="group flex flex-col rounded-xl border border-[#e1e3e5] bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-[#ffb494] hover:shadow-[0_14px_34px_rgba(0,0,0,.07)]"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#ff6a26]">{article.tag}</span>
+              <strong className="mt-2.5 text-[15px] font-semibold leading-[1.35] tracking-[-0.015em] text-[#2b2e31]">{article.title}</strong>
+              <span className="mt-2 flex-1 text-[12px] leading-5 text-[#7b7f83]">{article.summary}</span>
+              <span className="mt-4 flex items-center justify-between text-[11px] font-medium text-[#94979b]">
+                {article.readMinutes} min de leitura
+                <ChevronRight className="h-4 w-4 text-[#a7aaad] transition group-hover:translate-x-0.5 group-hover:text-[#ff6a26]" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </main>
   );
 
@@ -814,8 +863,15 @@ export default function SupportCenterPage({ isOpen, onClose, onOpen }: Props) {
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div ref={scrollAreaRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {view === 'home' && renderHome()}
+          {view === 'article' && getHelpArticle(articleId) && (
+            <HelpArticleView
+              article={getHelpArticle(articleId)!}
+              onOpenArticle={openArticle}
+              onContactSupport={() => setView('topics')}
+            />
+          )}
           {view === 'topics' && renderTopics()}
           {view === 'questions' && renderQuestions()}
           {view === 'review' && renderReview()}
