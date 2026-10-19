@@ -6,6 +6,7 @@ import { consumeBusinessCredit, getCreditStatus, hasBusinessUnlockAccess } from 
 import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
+import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -487,6 +488,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if ([30, 60, 100].includes(resultsBatchSize)) body.results_batch_size = resultsBatchSize;
       await appDataRequest('user_settings?on_conflict=user_uid', {
         method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(body),
+      });
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'business-feedback') {
+      await saveBusinessFeedback({
+        userUid: identity.uid,
+        userEmail: identity.email || null,
+        businessId: req.body?.businessId,
+        business: req.body?.business,
+        displayed: req.body?.displayed,
+        rating: req.body?.rating,
+        issues: req.body?.issues,
       });
       return res.status(200).json({ success: true });
     }

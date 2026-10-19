@@ -5,6 +5,7 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  Columns3,
   ChevronRight,
   ChevronDown,
   ArrowUpRight,
@@ -38,6 +39,7 @@ import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
 import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
 import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
+import DataFeedback from './DataFeedback';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -314,6 +316,9 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   ].filter((detected) => detected !== true).length;
   const pageSpeedDetected = Boolean(pageSpeed && typeof pageSpeed.score === 'number');
   const isFavorite = Boolean(business.isFavorite);
+  const [pipelineAdded, setPipelineAdded] = useState(false);
+  useEffect(() => setPipelineAdded(false), [business.id]);
+  const isInPipeline = pipelineAdded || Boolean(business.leadStatus && business.leadStatus !== 'NOVO');
   const confidencePercent = Math.round((business.confidence || 0) * 100);
   const googleVerification = business.googleMapsVerification || null;
   const googleVerificationLabel = googleVerification?.status === 'confirmed'
@@ -439,6 +444,22 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
           <div className="mb-4 flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a1a6af]">Perfil da empresa</span>
             <div className="flex items-center gap-1">
+              {onAddToPipeline && (
+                isInPipeline ? (
+                  <span className="mr-1 inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.08] px-3 text-[11px] font-semibold text-emerald-300" title="Este negócio já está no seu pipeline">
+                    <Check className="h-3.5 w-3.5" /> <span className="hidden sm:inline">No pipeline</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { onAddToPipeline(business); setPipelineAdded(true); }}
+                    className="mr-1 inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.12] bg-white/[0.045] px-3 text-[11px] font-semibold text-[#e6e7eb] transition hover:border-[#ff7138]/50 hover:bg-[#ff5a12]/[0.1] hover:text-white"
+                    title="Adicionar este negócio ao seu pipeline"
+                  >
+                    <Columns3 className="h-3.5 w-3.5 text-[#ff8a57]" /> <span className="hidden sm:inline">Adicionar ao pipeline</span><span className="sm:hidden">Pipeline</span>
+                  </button>
+                )
+              )}
               <button type="button" onClick={() => onToggleFavorite?.(business)} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#b8bdc7] transition hover:bg-white/[0.06] hover:text-white" aria-label={isFavorite ? 'Remover favorito' : 'Favoritar'}><Star className={`h-[18px] w-[18px] ${isFavorite ? 'fill-[#ff6a2a] text-[#ff6a2a]' : ''}`} /></button>
               <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl text-[#b8bdc7] transition hover:bg-white/[0.06] hover:text-white" aria-label="Fechar painel"><X className="h-[18px] w-[18px]" /></button>
             </div>
@@ -477,6 +498,15 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
               )}
             </p>
           )}
+          <DataFeedback
+            business={business}
+            displayed={{
+              website: websiteUrl,
+              phone: phoneToCopy,
+              whatsapp: verifiedWhatsapp,
+              socials: socialLinks.map((item) => item.url),
+            }}
+          />
           {showPipelinePrompt && (
             <div role="status" className="mt-4 rounded-2xl border border-[#ff753e]/25 bg-[#ff5a12]/[0.085] p-4">
               <p className="text-[12px] font-semibold text-[#f3f4f5]">Gostaria de adicionar este lead ao pipeline?</p>

@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import type { DashboardData, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
+import type { BusinessFeedback, DashboardData, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
 
 const ENDPOINT = '/api/ai/suggestions';
 const GATE_STORAGE_KEY = 'scoutly_internal_gate_session';
@@ -113,4 +113,9 @@ export async function fetchUser(uid: string): Promise<UserDetail> {
 export async function fetchAudit(): Promise<any[]> {
   const data = await internalAction('internal-audit');
   return data.audit || [];
+}
+
+export async function fetchFeedbacks(rating?: 'up' | 'down'): Promise<BusinessFeedback[]> {
+  const data = await internalAction('internal-feedback-list', rating ? { rating } : {});
+  return data.feedback || [];
 }

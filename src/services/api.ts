@@ -686,6 +686,42 @@ export async function saveCommercialProfile(input: {
   return profileCache.profile;
 }
 
+export type FeedbackIssue = 'whatsapp' | 'site' | 'redes_sociais' | 'outros';
+
+/** "Os dados estão atualizados?" vote on a business card. */
+export async function submitBusinessFeedback(input: {
+  business: Business;
+  /** What the card was showing, to help the team find the wrong data. */
+  displayed: { website?: string | null; phone?: string | null; whatsapp?: string | null; socials?: string[] };
+  rating: 'up' | 'down';
+  issues?: FeedbackIssue[];
+}): Promise<boolean> {
+  try {
+    const { business } = input;
+    const res = await appDataAction('business-feedback', {
+      businessId: business.id,
+      business: {
+        name: business.name,
+        category: business.category,
+        address: business.address,
+        source: business.source,
+        confidence: business.confidence,
+        googleMapsUrl: business.googleMapsUrl,
+        googlePlaceId: business.googlePlaceId,
+        latitude: business.latitude,
+        longitude: business.longitude,
+      },
+      displayed: input.displayed,
+      rating: input.rating,
+      issues: input.issues || [],
+    });
+    return res.ok;
+  } catch (error) {
+    console.warn('[API] Error sending business feedback:', error);
+    return false;
+  }
+}
+
 export async function saveRecentBusiness(businessId: string, business?: Business) {
   try {
     const res = await appDataAction('recent-business', { businessId, business });

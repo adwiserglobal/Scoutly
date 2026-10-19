@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { appDataRequest, dbValue } from './appDataService.js';
 import type { FirebaseIdentity } from './firebaseTokenService.js';
+import { listBusinessFeedback } from './businessFeedbackService.js';
 
 type StaffRole = 'admin' | 'support' | 'viewer';
 
@@ -397,6 +398,14 @@ export async function handleInternalAction(
 
   if (action === 'internal-user-detail') {
     return { status: 200, body: await userDetail(String(payload?.uid || '')) };
+  }
+
+  if (action === 'internal-feedback-list') {
+    const feedback = await listBusinessFeedback({
+      rating: String(payload?.rating || ''),
+      limit: Number(payload?.limit) || 300,
+    });
+    return { status: 200, body: { feedback } };
   }
 
   if (action === 'internal-audit') {

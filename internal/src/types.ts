@@ -1,4 +1,4 @@
-export type InternalTab = 'dashboard' | 'tickets' | 'customers' | 'billing' | 'audit';
+export type InternalTab = 'dashboard' | 'tickets' | 'customers' | 'billing' | 'feedbacks' | 'audit';
 
 export type TicketStatus =
   | 'OPEN'
@@ -87,4 +87,33 @@ export interface DashboardData {
   tickets: Ticket[];
   recentUsers: UserSummary[];
   audit: any[];
+}
+
+export type FeedbackIssue = 'whatsapp' | 'site' | 'redes_sociais' | 'outros';
+
+export interface BusinessFeedback {
+  id: number;
+  user_uid: string;
+  user_email: string | null;
+  business_id: string;
+  business_name: string;
+  business_snapshot: {
+    name?: string;
+    category?: string;
+    address?: string;
+    source?: string;
+    confidence?: number | null;
+    googleMapsUrl?: string | null;
+    googlePlaceId?: string | null;
+    shown?: {
+      website?: string | null;
+      phone?: string | null;
+      whatsapp?: string | null;
+      socials?: string[];
+    };
+  } | null;
+  rating: 'up' | 'down';
+  issues: FeedbackIssue[];
+  created_at: string;
+  updated_at: string;
 }
