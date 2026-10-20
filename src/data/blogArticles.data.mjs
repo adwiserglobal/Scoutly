@@ -200,14 +200,14 @@ export const BLOG_ARTICLES = [
         id: 'regras-oficiais',
         h: 'O que as regras oficiais dizem (em linhas gerais)',
         p: [
-          'A política comercial do WhatsApp (WhatsApp Business Messaging Policy) exige que a empresa tenha o **consentimento (opt-in)** da pessoa para enviar mensagens e proíbe práticas como o envio em massa não solicitado e o uso de métodos automatizados fora dos canais oficiais. Os detalhes e as exceções mudam com o tempo: leia a versão atual nas fontes ao final.',
+          'A política comercial do WhatsApp (WhatsApp Business Messaging Policy) exige que a empresa obtenha **opt-in** (permissão) antes de enviar mensagens. O opt-in precisa deixar claro o nome da empresa e que a pessoa aceita receber mensagens por WhatsApp: ter o número de telefone, por si só, não basta. A empresa também deve respeitar pedidos de parar, mesmo quando feitos fora do WhatsApp. A política prevê que a Meta pode limitar ou remover o acesso de quem envia mensagens em escala de forma não autorizada (spam) e limitar contas cuja qualidade é consistentemente baixa, já que as pessoas podem bloquear e denunciar empresas. Os detalhes e as exceções mudam com o tempo: leia a versão atual nas fontes ao final.',
           'Na prática, existem dois mundos:'
         ],
         table: {
           head: ['', 'App WhatsApp / WhatsApp Business (celular)', 'WhatsApp Business Platform (API)'],
           rows: [
             ['Para quem serve', 'Contato individual, atendimento e primeiro contato pontual', 'Empresas com volume, CRM e consentimento'],
-            ['Opt-in', 'Recomendado, mesmo no primeiro contato', 'Exigido para mensagens iniciadas pela empresa'],
+            ['Opt-in', 'A política exige permissão; sem ela, o risco é de denúncia e bloqueio', 'Exigido para mensagens iniciadas pela empresa'],
             ['Envio em massa', 'Não é o uso pretendido; maior risco de restrição', 'Possível apenas com modelos aprovados e opt-in'],
             ['Risco ao prospectar a frio', 'Alto se houver volume', 'Não é permitido enviar a quem não deu opt-in']
           ]
@@ -274,6 +274,7 @@ export const BLOG_ARTICLES = [
     ],
     sources: [
       ['WhatsApp Business Messaging Policy', 'https://business.whatsapp.com/policy'],
+      ['Meta for Developers: como obter opt-in no WhatsApp', 'https://developers.facebook.com/documentation/business-messaging/whatsapp/getting-opt-in'],
       ['Termos de Serviço do WhatsApp', 'https://www.whatsapp.com/legal/terms-of-service'],
       ['Central de Ajuda do WhatsApp Business', 'https://faq.whatsapp.com/']
     ],
@@ -290,7 +291,7 @@ export const BLOG_ARTICLES = [
     readMinutes: 8,
     tldr: [
       'A LGPD protege dados de pessoas naturais. Dados de uma empresa (razão social, CNPJ, endereço comercial) não são dados pessoais, mas o nome, o WhatsApp ou o e-mail de uma pessoa específica são.',
-      'A LGPD não proíbe prospecção. Para tratar dados pessoais comerciais, uma base legal comum é o legítimo interesse (art. 7º, IX), que exige finalidade legítima, necessidade, avaliação do impacto e transparência.',
+      'A LGPD não proíbe prospecção. Para tratar dados pessoais comerciais, uma base legal comum é o legítimo interesse (art. 7º, IX), que exige finalidade legítima, necessidade, balanceamento com salvaguardas e transparência.',
       'Na prática: colete o mínimo, informe quem você é e de onde vem o contato, facilite o descadastro e respeite imediatamente quem pedir para parar.'
     ],
     intro: 'Quem prospecta empresas costuma ter a mesma dúvida: "isso é legal pela LGPD?". A resposta honesta é: **depende de que dado você usa, para qual finalidade e de como você trata a pessoa do outro lado**. Este artigo explica os conceitos em linguagem simples e traz um checklist prático. Ele tem caráter informativo e não substitui a orientação de um advogado, principalmente em operações de maior escala.',
@@ -318,20 +319,20 @@ export const BLOG_ARTICLES = [
         ],
         ul: [
           '**Consentimento:** a pessoa concordou de forma livre, informada e para finalidade específica. Ideal para listas de e-mail e newsletters, mas inviável para o primeiro contato de uma abordagem fria.',
-          '**Legítimo interesse (art. 7º, IX):** permite o tratamento quando há uma finalidade legítima e concreta do controlador ou de terceiros, desde que não prevaleçam os direitos e as liberdades do titular. Exige documentar uma avaliação (o chamado teste de balanceamento).'
+          '**Legítimo interesse (art. 7º, IX):** permite o tratamento quando há uma finalidade legítima e concreta do controlador ou de terceiros, desde que não prevaleçam os direitos e as liberdades do titular. A ANPD recomenda documentar uma avaliação (o chamado teste de balanceamento).'
         ],
         p2: ['A Autoridade Nacional de Proteção de Dados (ANPD) publicou um guia orientativo sobre hipóteses legais de tratamento, incluindo o legítimo interesse. Leia-o nas fontes ao final deste artigo.']
       },
       {
         id: 'teste-legitimo-interesse',
-        h: 'O teste do legítimo interesse, em 4 perguntas',
+        h: 'O teste do legítimo interesse, em 3 fases',
+        p: ['O guia orientativo da ANPD (publicado em fevereiro de 2024) propõe um modelo de teste de balanceamento dividido em três fases. Aplicado à prospecção, ele fica assim:'],
         ol: [
-          '**Finalidade legítima:** o motivo é real e específico? (ex.: oferecer um serviço relacionado à atividade da empresa contatada).',
-          '**Necessidade:** você usa só os dados necessários? (ex.: o contato comercial divulgado, não a vida pessoal do dono).',
-          '**Balanceamento:** a pessoa esperaria razoavelmente receber esse contato? O impacto sobre ela é baixo?',
-          '**Salvaguardas e transparência:** você informa quem é, de onde obteve o contato e oferece um jeito simples de pedir para sair?'
+          '**Finalidade:** o interesse é legítimo e concreto? (ex.: oferecer um serviço relacionado à atividade da empresa contatada).',
+          '**Necessidade:** o tratamento é realmente necessário para essa finalidade e não há alternativa menos intrusiva? (ex.: usar o contato comercial divulgado, não dados da vida pessoal do dono).',
+          '**Balanceamento e salvaguardas:** os riscos para a pessoa são baixos e ela esperaria receber esse contato? Você adota medidas de mitigação, como informar quem é, de onde veio o contato e oferecer um jeito simples de pedir para sair?'
         ],
-        p2: ['Se a resposta a alguma delas for "não", ajuste a prática antes de prosseguir. Registre a sua avaliação por escrito: ela é a sua prova de que você pensou no assunto.']
+        p2: ['Segundo o guia, se o resultado do teste for inconclusivo ou não houver salvaguardas adequadas, outra base legal deve ser usada. Registre a sua avaliação por escrito: ela é a sua prova de que você pensou no assunto e atende ao princípio de responsabilização.']
       },
       {
         id: 'direitos',
@@ -377,7 +378,7 @@ export const BLOG_ARTICLES = [
     ],
     sources: [
       ['Lei Geral de Proteção de Dados (Lei nº 13.709/2018)', 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm'],
-      ['ANPD: Guia orientativo sobre hipóteses legais de tratamento de dados pessoais, legítimo interesse', 'https://www.gov.br/anpd/pt-br'],
+      ['ANPD: Guia orientativo sobre hipóteses legais de tratamento de dados pessoais, legítimo interesse (fev. 2024)', 'https://www.gov.br/anpd/pt-br'],
       ['Receita Federal: Dados Abertos do CNPJ', 'https://dados.gov.br/']
     ],
     related: ['prospeccao-whatsapp-sem-ser-banido', 'como-prospectar-clientes-no-google-maps', 'como-agencias-conseguem-clientes-com-ia']
