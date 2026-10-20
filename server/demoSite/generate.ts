@@ -175,6 +175,7 @@ export async function generateCopy(
     maxTokens: 2400,
     minLength: 400,
     json: true,
+    providers: ['gateway'],
     // Long answer: let a slow model keep working while the next one starts in parallel.
     hedgeMs: 9_000,
     attemptMs: 32_000,

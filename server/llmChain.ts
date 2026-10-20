@@ -25,6 +25,8 @@ export interface LlmRequest {
   hedgeMs?: number;
   /** An answer failing this check counts as a failed attempt. */
   validate?: (text: string) => boolean;
+  /** Restrict the chain to these providers (default: all configured). */
+  providers?: Array<'gateway' | 'gemini' | 'openrouter'>;
   /** Ask the provider for JSON output when supported. */
   json?: boolean;
   title?: string;
@@ -68,25 +70,62 @@ function list(value: string | undefined, fallback: string[]) {
 
 type Candidate = { provider: 'gateway' | 'gemini' | 'openrouter'; model: string };
 
-function candidates(): Candidate[] {
+const gatewayKey = () => String(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || '').trim();
+
+let freeModelsCache: { at: number; models: string[] } | null = null;
+const PREFERRED = ['gpt-oss', 'llama-3.3-70b', 'qwen3', 'qwen-2.5-72b', 'llama-4', 'deepseek', 'gemma-3', 'mistral-small', 'glm', 'kimi'];
+const EXCLUDED = /vision|embed|guard|moderation|image|audio|tts|whisper|thinking-exp|safety/i;
+
+/** Free model ids change often, so ask OpenRouter which ones exist right now (cached for an hour). */
+async function liveFreeModels(): Promise<string[]> {
+  if (freeModelsCache && Date.now() - freeModelsCache.at < 60 * 60 * 1000) return freeModelsCache.models;
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const models = (Array.isArray(data?.data) ? data.data : [])
+      .filter((model: any) => typeof model?.id === 'string' && model.id.endsWith(':free') && !EXCLUDED.test(model.id)
+        && Number(model.pricing?.prompt) === 0 && Number(model.context_length || 0) >= 16_000
+        && (model.architecture?.output_modalities || ['text']).includes('text'))
+      .map((model: any) => {
+        const rank = PREFERRED.findIndex((key) => model.id.includes(key));
+        return { id: model.id as string, rank: rank === -1 ? PREFERRED.length : rank, context: Number(model.context_length || 0) };
+      })
+      .sort((a: any, b: any) => a.rank - b.rank || b.context - a.context)
+      .slice(0, 6)
+      .map((model: any) => model.id);
+    freeModelsCache = { at: Date.now(), models };
+    return models;
+  } catch (error: any) {
+    console.warn('[LLM] could not list OpenRouter models:', error?.message || error);
+    return [];
+  }
+}
+
+async function candidates(allowed?: LlmRequest['providers']): Promise<Candidate[]> {
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY;
   // The gateway is paid/credit based and reliable, so it goes first; free tiers are the safety net.
-  const chain: Candidate[] = process.env.AI_GATEWAY_API_KEY
+  const chain: Candidate[] = gatewayKey()
     ? list(process.env.AI_GATEWAY_MODELS, DEFAULT_GATEWAY_MODELS).map((model) => ({ provider: 'gateway' as const, model }))
     : [];
   const gemini = geminiKey
     ? list(process.env.GEMINI_MODELS, DEFAULT_GEMINI_MODELS).map((model) => ({ provider: 'gemini' as const, model }))
     : [];
-  const openrouter = process.env.OPENROUTER_API_KEY
-    ? list(process.env.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS).map((model) => ({ provider: 'openrouter' as const, model }))
-    : [];
+  let openrouterModels: string[] = [];
+  if (process.env.OPENROUTER_API_KEY) {
+    openrouterModels = String(process.env.OPENROUTER_MODELS || '').trim()
+      ? list(process.env.OPENROUTER_MODELS, [])
+      : await liveFreeModels();
+    if (!openrouterModels.length) openrouterModels = DEFAULT_OPENROUTER_MODELS;
+  }
+  const openrouter = openrouterModels.map((model) => ({ provider: 'openrouter' as const, model }));
   // Interleave so a single saturated provider never consumes the whole budget.
   const max = Math.max(gemini.length, openrouter.length);
   for (let i = 0; i < max; i += 1) {
     if (gemini[i]) chain.push(gemini[i]);
     if (openrouter[i]) chain.push(openrouter[i]);
   }
-  return chain;
+  return allowed?.length ? chain.filter((item) => allowed.includes(item.provider)) : chain;
 }
 
 async function callGemini(model: string, request: LlmRequest, timeoutMs: number): Promise<string> {
@@ -113,7 +152,7 @@ async function callGemini(model: string, request: LlmRequest, timeoutMs: number)
 async function callGateway(model: string, request: LlmRequest, timeoutMs: number): Promise<string> {
   const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.AI_GATEWAY_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${gatewayKey()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, messages: request.messages, temperature: request.temperature, max_tokens: request.maxTokens }),
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -162,14 +201,20 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
   const attemptMs = request.attemptMs ?? 9_000;
   const hedgeMs = request.hedgeMs ?? 0;
   const started = Date.now();
-  const queue = candidates();
+  const queue = await candidates(request.providers);
   const failures: string[] = [];
   const note = (candidate: Candidate, error: any) =>
     failures.push(`${candidate.provider}/${candidate.model}: ${String(error?.message || error).slice(0, 80)}`);
   const counts = queue.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.provider]: (acc[item.provider] || 0) + 1 }), {});
   console.info(`[LLM] chain: ${Object.entries(counts).map(([name, n]) => `${name}x${n}`).join(' ') || 'EMPTY'}${request.title ? ` (${request.title})` : ''}`);
   if (queue.length === 0) {
-    throw new LlmUnavailableError('Nenhum provedor de IA está configurado neste ambiente.', ['sem AI_GATEWAY_API_KEY, GEMINI_API_KEY ou OPENROUTER_API_KEY']);
+    const gatewayOnly = request.providers?.length === 1 && request.providers[0] === 'gateway';
+    throw new LlmUnavailableError(
+      gatewayOnly
+        ? 'O AI Gateway não está configurado neste deploy. Crie a variável AI_GATEWAY_API_KEY na Vercel (Production) e faça um novo deploy.'
+        : 'Nenhum provedor de IA está configurado neste ambiente.',
+      ['sem chave: AI_GATEWAY_API_KEY'],
+    );
   }
   let attempts = 0;
 
