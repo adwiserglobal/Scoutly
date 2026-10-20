@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as maplibregl from 'maplibre-gl';
+import { getFlightModel, type FlightModelId, type FlightModelProfile } from './models';
 
 /**
  * 3D "prospecting flight" mode: a small plane flies over the map and the camera chases it.
@@ -17,31 +18,34 @@ export interface FlightState {
   speed: number; // m/s
   altitude: number; // m (visual)
   turn: number; // -1..1 smoothed
+  vertical: number; // -1..1 smoothed climb
 }
 
 export interface FlightInput {
   turn: number; // -1 (left) .. 1 (right)
   throttle: number; // -1 (slow) .. 1 (faster)
   boost: boolean;
+  climb: number; // -1 (descend) .. 1 (climb)
 }
 
 export interface PlaneFlightOptions {
+  model?: FlightModelId;
   onFrame?: (state: FlightState) => void;
 }
 
 const LAYER_ID = 'scoutly-plane-layer';
 const BUILDINGS_ID = 'scoutly-flight-buildings';
-const MODEL_SCALE = 12; // model units -> meters (wingspan ~11 units => ~100 m, readable at zoom 16)
-const ALTITUDE_M = 55;
-const CRUISE = 90;
-const MIN_SPEED = 40;
-const MAX_SPEED = 230;
 const TRAIL_POINTS = 70;
 
 const ORANGE = 0xff5a12;
 const CREAM = 0xf6f1e8;
 
-function buildPlaneModel() {
+interface FlightModelRig {
+  group: THREE.Group;
+  animate: (spin: number, time: number, speedRatio: number) => void;
+}
+
+function buildPlaneModel(): FlightModelRig {
   const group = new THREE.Group();
   const paint = new THREE.MeshStandardMaterial({ color: ORANGE, metalness: 0.15, roughness: 0.42, side: THREE.DoubleSide });
   const cream = new THREE.MeshStandardMaterial({ color: CREAM, metalness: 0.1, roughness: 0.5, side: THREE.DoubleSide });
@@ -151,7 +155,198 @@ function buildPlaneModel() {
     lights.push(light);
   }
 
-  return { group, propeller, lights };
+  return {
+    group,
+    animate(spin, time) {
+      propeller.rotation.z = spin;
+      const blink = Math.sin(time * 7) > 0.2 ? 1 : 0.25;
+      for (const light of lights) light.scale.setScalar(blink + 0.4);
+    },
+  };
+}
+
+const makeMaterials = (primary: number, secondary: number) => ({
+  primary: new THREE.MeshStandardMaterial({ color: primary, metalness: 0.2, roughness: 0.4, side: THREE.DoubleSide }),
+  secondary: new THREE.MeshStandardMaterial({ color: secondary, metalness: 0.15, roughness: 0.5, side: THREE.DoubleSide }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x15181d, metalness: 0.45, roughness: 0.5, side: THREE.DoubleSide }),
+  glass: new THREE.MeshStandardMaterial({
+    color: 0x9fd6ff, metalness: 0.7, roughness: 0.12, transparent: true, opacity: 0.82, side: THREE.DoubleSide,
+  }),
+});
+
+function buildJetModel(): FlightModelRig {
+  const group = new THREE.Group();
+  const m = makeMaterials(0x2c3a52, 0xdfe5ee);
+  const accent = new THREE.MeshStandardMaterial({ color: ORANGE, metalness: 0.2, roughness: 0.4, side: THREE.DoubleSide });
+
+  const profile = [
+    [0, -6.4], [0.25, -6.2], [0.55, -4.8], [0.85, -2.6], [1.0, -0.2], [1.0, 2.0], [0.85, 4.2], [0.6, 5.6], [0.0, 6.0],
+  ].map(([r, y]) => new THREE.Vector2(r, y));
+  const bodyGeo = new THREE.LatheGeometry(profile, 32);
+  bodyGeo.rotateX(-Math.PI / 2);
+  const body = new THREE.Mesh(bodyGeo, m.primary);
+  body.scale.set(1, 0.85, 1);
+  group.add(body);
+
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 7.5), accent);
+  stripe.position.set(0, 0.86, -0.4);
+  group.add(stripe);
+
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 16), m.glass);
+  canopy.scale.set(0.62, 0.55, 2.0);
+  canopy.position.set(0, 0.7, -2.6);
+  group.add(canopy);
+
+  // Swept delta-like wings
+  const wingShape = new THREE.Shape([
+    [-5.4, -1.6], [-0.8, -2.6], [0.8, -2.6], [5.4, -1.6], [5.4, -0.9], [0.9, 2.4], [-0.9, 2.4], [-5.4, -0.9],
+  ].map(([x, y]) => new THREE.Vector2(x, y)));
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.16, bevelEnabled: false });
+  wingGeo.rotateX(-Math.PI / 2);
+  const wing = new THREE.Mesh(wingGeo, m.secondary);
+  wing.position.set(0, -0.25, 1.8);
+  group.add(wing);
+  for (const side of [-1, 1]) {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 1.0), accent);
+    tip.position.set(side * 5.1, -0.17, 3.0);
+    group.add(tip);
+  }
+
+  // Stabilizers + twin canted fins
+  const stab = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.12, 1.2), m.secondary);
+  stab.position.set(0, 0, 5.0);
+  group.add(stab);
+  for (const side of [-1, 1]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.9, 1.5), m.primary);
+    fin.position.set(side * 0.9, 1.0, 5.0);
+    fin.rotation.z = -side * 0.22;
+    group.add(fin);
+    const intake = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 1.3, 16), m.dark);
+    intake.rotation.x = Math.PI / 2;
+    intake.position.set(side * 1.05, -0.2, -1.2);
+    group.add(intake);
+  }
+
+  // Engine glow
+  const glow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.55, 2.2, 20),
+    new THREE.MeshBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.85 }),
+  );
+  glow.geometry.rotateX(Math.PI / 2);
+  glow.position.set(0, 0, 7.0);
+  group.add(glow);
+
+  return {
+    group,
+    animate(_spin, time, speedRatio) {
+      const flicker = 0.85 + Math.sin(time * 38) * 0.12;
+      glow.scale.set(1, 1, (0.5 + speedRatio * 0.9) * flicker);
+    },
+  };
+}
+
+function buildHeliModel(palette: { primary: number; secondary: number; accent: number }, rescue: boolean): FlightModelRig {
+  const group = new THREE.Group();
+  const m = makeMaterials(palette.primary, palette.secondary);
+  const accent = new THREE.MeshStandardMaterial({ color: palette.accent, metalness: 0.2, roughness: 0.4, side: THREE.DoubleSide });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 36, 24), m.primary);
+  body.scale.set(rescue ? 1.75 : 1.5, rescue ? 1.5 : 1.3, rescue ? 3.0 : 2.5);
+  group.add(body);
+
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(rescue ? 3.55 : 3.05, 0.34, rescue ? 3.6 : 3.1), accent);
+  belt.position.set(0, -0.15, 0.3);
+  belt.scale.set(0.99, 1, 0.99);
+  group.add(belt);
+
+  const bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), m.glass);
+  bubble.scale.set(1.25, 0.95, 1.5);
+  bubble.position.set(0, 0.35, rescue ? -2.0 : -1.65);
+  group.add(bubble);
+
+  // Tail boom
+  const boomLength = rescue ? 6.2 : 5.2;
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.5, boomLength, 18), m.primary);
+  boom.rotation.x = Math.PI / 2;
+  boom.position.set(0, 0.15, 2 + boomLength / 2);
+  group.add(boom);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.9, 1.2), accent);
+  fin.position.set(0, 0.9, 2 + boomLength - 0.1);
+  fin.rotation.x = -0.35;
+  group.add(fin);
+  const hStab = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.1, 0.6), m.secondary);
+  hStab.position.set(0, 0.3, 2 + boomLength - 0.9);
+  group.add(hStab);
+
+  // Engine hump + mast
+  const hump = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 2.0), m.secondary);
+  hump.position.set(0, 1.15, 0.5);
+  group.add(hump);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.7, 12), m.dark);
+  mast.position.set(0, 1.7, 0.4);
+  group.add(mast);
+
+  // Skids
+  for (const side of [-1, 1]) {
+    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, rescue ? 5.2 : 4.4, 10), m.dark);
+    skid.rotation.x = Math.PI / 2;
+    skid.position.set(side * 1.45, -1.75, 0.2);
+    group.add(skid);
+    for (const z of [-1.0, 1.4]) {
+      const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 8), m.dark);
+      strut.position.set(side * 1.3, -1.2, z);
+      strut.rotation.z = side * 0.18;
+      group.add(strut);
+    }
+  }
+
+  // Main rotor
+  const rotor = new THREE.Group();
+  rotor.position.set(0, 2.1, 0.4);
+  const bladeCount = rescue ? 4 : 2;
+  for (let i = 0; i < bladeCount; i += 1) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(rescue ? 8.4 : 8.8, 0.06, 0.42), m.dark);
+    blade.rotation.y = (i * Math.PI) / bladeCount;
+    rotor.add(blade);
+  }
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(rescue ? 4.2 : 4.4, 40),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  disc.rotation.x = -Math.PI / 2;
+  rotor.add(disc);
+  group.add(rotor);
+
+  // Tail rotor
+  const tailRotor = new THREE.Group();
+  tailRotor.position.set(0.32, 1.0, 2 + boomLength - 0.1);
+  for (let i = 0; i < 2; i += 1) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.7, 0.16), m.dark);
+    blade.rotation.x = (i * Math.PI) / 2;
+    tailRotor.add(blade);
+  }
+  group.add(tailRotor);
+
+  // Beacon
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), new THREE.MeshBasicMaterial({ color: 0xff2d2d }));
+  beacon.position.set(0, 2.05, 2 + boomLength - 0.2);
+  group.add(beacon);
+
+  return {
+    group,
+    animate(spin, time) {
+      rotor.rotation.y = spin * 1.4;
+      tailRotor.rotation.x = spin * 2;
+      beacon.scale.setScalar(Math.sin(time * 6) > 0.1 ? 1.2 : 0.3);
+    },
+  };
+}
+
+function buildModel(id: FlightModelId): FlightModelRig {
+  if (id === 'jet') return buildJetModel();
+  if (id === 'heli-city') return buildHeliModel({ primary: 0xff5a12, secondary: 0xf6f1e8, accent: 0x1b1f26 }, false);
+  if (id === 'heli-rescue') return buildHeliModel({ primary: 0xf4f4f1, secondary: 0x2b3a55, accent: 0xd8262d }, true);
+  return buildPlaneModel();
 }
 
 function buildShadow() {
@@ -175,8 +370,9 @@ const angleDiff = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 18
 export class PlaneFlight {
   private map: maplibregl.Map;
   private options: PlaneFlightOptions;
-  private state: FlightState = { lng: 0, lat: 0, heading: 0, speed: CRUISE, altitude: ALTITUDE_M, turn: 0 };
-  private input: FlightInput = { turn: 0, throttle: 0, boost: false };
+  private profile: FlightModelProfile;
+  private state: FlightState;
+  private input: FlightInput = { turn: 0, throttle: 0, boost: false, climb: 0 };
   private raf = 0;
   private last = 0;
   private running = false;
@@ -184,7 +380,7 @@ export class PlaneFlight {
   private cameraZoom = 16.2;
   private roll = 0;
   private pitchTilt = 0;
-  private prevSpeed = CRUISE;
+  private prevSpeed = 0;
   private spin = 0;
   private paused = false;
   private layerAdded = false;
@@ -196,7 +392,7 @@ export class PlaneFlight {
   private planeScene = new THREE.Scene();
   private shadowScene = new THREE.Scene();
   private trailScene = new THREE.Scene();
-  private plane: ReturnType<typeof buildPlaneModel> | null = null;
+  private plane: FlightModelRig | null = null;
   private shadow: THREE.Mesh | null = null;
   private trail: THREE.Points | null = null;
   private trailPositions = new Float32Array(TRAIL_POINTS * 3);
@@ -209,6 +405,8 @@ export class PlaneFlight {
   constructor(map: maplibregl.Map, options: PlaneFlightOptions = {}) {
     this.map = map;
     this.options = options;
+    this.profile = getFlightModel(options.model);
+    this.state = { lng: 0, lat: 0, heading: 0, speed: this.profile.cruise, altitude: this.profile.altitude, turn: 0, vertical: 0 };
   }
 
   get currentState() {
@@ -226,8 +424,8 @@ export class PlaneFlight {
   start(lng: number, lat: number, heading = 0) {
     if (this.running) return;
     this.running = true;
-    this.state = { lng, lat, heading, speed: CRUISE, altitude: ALTITUDE_M, turn: 0 };
-    this.prevSpeed = CRUISE;
+    this.state = { lng, lat, heading, speed: this.profile.cruise, altitude: this.profile.altitude, turn: 0, vertical: 0 };
+    this.prevSpeed = this.profile.cruise;
     this.anchor = { lng, lat };
     this.cameraBearing = this.map.getBearing();
     this.cameraZoom = this.map.getZoom();
@@ -322,7 +520,7 @@ export class PlaneFlight {
     });
     this.renderer.autoClear = false;
 
-    this.plane = buildPlaneModel();
+    this.plane = buildModel(this.profile.id);
     this.planeScene.add(this.plane.group);
     this.planeScene.add(new THREE.AmbientLight(0xffffff, 1.35));
     this.planeScene.add(new THREE.HemisphereLight(0xcfe3ff, 0x2b2118, 0.9));
@@ -389,7 +587,7 @@ export class PlaneFlight {
       new THREE.Vector3(0, 0, 1),
       new THREE.Vector3(-Math.sin(h), Math.cos(h), 0),
     );
-    const scale = unit * MODEL_SCALE;
+    const scale = unit * this.profile.scale;
 
     this.renderer.resetState();
 
@@ -420,9 +618,7 @@ export class PlaneFlight {
       .multiply(new THREE.Matrix4().makeScale(scale, scale, scale))
       .multiply(attitude);
     this.camera.projectionMatrix = main.clone().multiply(planeMatrix);
-    this.plane.propeller.rotation.z = this.spin;
-    const blink = Math.sin(this.elapsed * 7) > 0.2 ? 1 : 0.25;
-    for (const light of this.plane.lights) light.scale.setScalar(blink + 0.4);
+    this.plane.animate(this.spin, this.elapsed, Math.min(1, this.state.speed / this.profile.maxSpeed));
     this.renderer.render(this.planeScene, this.camera);
   }
 
@@ -437,21 +633,32 @@ export class PlaneFlight {
 
   private update(dt: number) {
     const state = this.state;
+    const profile = this.profile;
+    const isHeli = profile.kind === 'heli';
     const frozen = this.paused;
 
     // Throttle + boost
     let target = state.speed;
-    if (this.input.throttle !== 0) target = state.speed + this.input.throttle * 120 * dt;
-    const cap = this.input.boost ? MAX_SPEED : MAX_SPEED * 0.6;
-    target = Math.min(cap, Math.max(MIN_SPEED, target));
-    if (!this.input.boost && state.speed > cap) target = Math.max(cap, state.speed - 260 * dt);
+    if (this.input.throttle !== 0) target = state.speed + this.input.throttle * profile.maxSpeed * 0.5 * dt;
+    const cap = this.input.boost ? profile.maxSpeed : profile.maxSpeed * 0.6;
+    target = Math.min(cap, Math.max(profile.minSpeed, target));
+    if (!this.input.boost && state.speed > cap) target = Math.max(cap, state.speed - profile.maxSpeed * dt);
     state.speed += (target - state.speed) * Math.min(1, dt * 5);
 
-    // Turning
+    // Turning (helicopters can pirouette even when hovering)
     const desiredTurn = frozen ? 0 : this.input.turn;
     state.turn += (desiredTurn - state.turn) * Math.min(1, dt * 5.5);
-    const turnRate = 62 * state.turn; // deg/s
-    if (!frozen) state.heading = (state.heading + turnRate * dt + 360) % 360;
+    if (!frozen) state.heading = (state.heading + profile.turnRate * state.turn * dt + 360) % 360;
+
+    // Climb / descend
+    state.vertical += ((frozen ? 0 : this.input.climb) - state.vertical) * Math.min(1, dt * 4);
+    if (!frozen) {
+      state.altitude = THREE.MathUtils.clamp(
+        state.altitude + state.vertical * profile.climbRate * dt,
+        profile.minAltitude,
+        profile.maxAltitude,
+      );
+    }
 
     // Move
     if (!frozen) {
@@ -461,25 +668,29 @@ export class PlaneFlight {
       state.lng += (Math.sin(rad) * meters) / (111_320 * Math.max(0.2, Math.cos(THREE.MathUtils.degToRad(state.lat))));
     }
 
-    // Attitude
-    this.roll += (state.turn * 0.62 - this.roll) * Math.min(1, dt * 6);
-    const accel = (state.speed - this.prevSpeed) / Math.max(dt, 0.001);
+    // Attitude: bank into turns, nose up/down with the climb; helicopters lean forward with speed
+    this.roll += (state.turn * profile.bank - this.roll) * Math.min(1, dt * 6);
     this.prevSpeed = state.speed;
-    const pitchTarget = THREE.MathUtils.clamp(-accel * 0.0022, -0.18, 0.18);
-    this.pitchTilt += (pitchTarget - this.pitchTilt) * Math.min(1, dt * 4);
-    this.spin += dt * (22 + state.speed * 0.12);
+    const atLimit = (state.altitude <= profile.minAltitude && this.input.climb < 0)
+      || (state.altitude >= profile.maxAltitude && this.input.climb > 0);
+    const climbPitch = atLimit ? 0 : state.vertical * (isHeli ? 0.1 : 0.3);
+    const forwardLean = isHeli ? -0.22 * Math.min(1, state.speed / profile.maxSpeed) : 0;
+    this.pitchTilt += (climbPitch + forwardLean - this.pitchTilt) * Math.min(1, dt * 4);
+    this.spin += dt * (isHeli ? 34 : 22 + state.speed * 0.12);
 
-    // Contrail
+    // Contrail (planes only)
     this.trailTimer += dt;
-    if (this.trailTimer > 0.035 && !frozen) {
+    if (!isHeli && this.trailTimer > 0.035 && !frozen) {
       this.trailTimer = 0;
       this.pushTrailPoint();
     }
     this.ageTrail(dt);
 
-    // Camera: chase with lag, zoom out a little with speed
+    // Camera: chase with lag, zoom out a little with speed and altitude
     this.cameraBearing += angleDiff(state.heading, this.cameraBearing) * Math.min(1, dt * 2.6);
-    const targetZoom = 16.1 - Math.log2(Math.max(0.5, state.speed / CRUISE)) * 0.55;
+    const speedZoom = Math.log2(Math.max(0.5, state.speed / profile.cruise)) * 0.5;
+    const altitudeZoom = Math.log2(Math.max(0.3, state.altitude / profile.altitude)) * 0.45;
+    const targetZoom = (isHeli ? 16.7 : 16.1) - speedZoom - altitudeZoom;
     this.cameraZoom += (targetZoom - this.cameraZoom) * Math.min(1, dt * 2.5);
     const height = this.map.getContainer().clientHeight || 700;
     this.map.jumpTo({

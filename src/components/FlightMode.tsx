@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import * as maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Globe, MousePointerClick, X, Zap } from 'lucide-react';
 import type { Business } from '../types';
 import type { FlightState, PlaneFlight } from '../flight/PlaneFlight';
+import type { FlightModelId } from '../flight/models';
 
 const NEARBY_METERS = 230;
 const FLYOVER_METERS = 140;
@@ -14,6 +15,7 @@ interface FlightModeProps {
   selectedBusiness: Business | null;
   onSelectBusiness: (business: Business) => void;
   onExit: () => void;
+  model: FlightModelId;
 }
 
 function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -30,7 +32,7 @@ function bearingTo(lat1: number, lng1: number, lat2: number, lng2: number) {
 
 const HELP_KEY = 'scoutly-flight-help-seen';
 
-export default function FlightMode({ map, businesses, selectedBusiness, onSelectBusiness, onExit }: FlightModeProps) {
+export default function FlightMode({ map, businesses, selectedBusiness, onSelectBusiness, onExit, model }: FlightModeProps) {
   const engineRef = useRef<PlaneFlight | null>(null);
   const stateRef = useRef<FlightState | null>(null);
   const businessesRef = useRef(businesses);
@@ -39,11 +41,10 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
   selectedRef.current = selectedBusiness;
   const nearestRef = useRef<Business | null>(null);
   const flownRef = useRef<Set<string>>(new Set());
-  const markerRef = useRef<maplibregl.Marker | null>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const touchRef = useRef({ left: false, right: false, up: false, down: false, boost: false });
 
-  const [hud, setHud] = useState({ speed: 0, heading: 0, nearest: null as Business | null, distance: 0, relative: 0 });
+  const [hud, setHud] = useState({ speed: 0, altitude: 0, heading: 0, nearest: null as Business | null, distance: 0, relative: 0 });
   const [flown, setFlown] = useState({ total: 0, opportunities: 0 });
   const [loadError, setLoadError] = useState(false);
   const [showHelp, setShowHelp] = useState(() => {
@@ -65,11 +66,15 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
     const touch = touchRef.current;
     const left = keys.has('ArrowLeft') || keys.has('a') || touch.left;
     const right = keys.has('ArrowRight') || keys.has('d') || touch.right;
-    const up = keys.has('ArrowUp') || keys.has('w') || touch.up;
-    const down = keys.has('ArrowDown') || keys.has('s') || touch.down;
+    const faster = keys.has('ArrowUp');
+    const slower = keys.has('ArrowDown');
+    // S pulls the nose up (climb), W pushes it down (descend)
+    const climb = keys.has('s') || touch.up;
+    const descend = keys.has('w') || touch.down;
     engineRef.current?.setInput({
       turn: (right ? 1 : 0) - (left ? 1 : 0),
-      throttle: (up ? 1 : 0) - (down ? 1 : 0),
+      throttle: (faster ? 1 : 0) - (slower ? 1 : 0),
+      climb: (climb ? 1 : 0) - (descend ? 1 : 0),
       boost: keys.has('Shift') || touch.boost,
     });
   }, []);
@@ -87,7 +92,7 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
       try {
         const { PlaneFlight: Engine } = await import('../flight/PlaneFlight');
         if (cancelled) return;
-        const engine = new Engine(map, { onFrame: (state) => { stateRef.current = state; } });
+        const engine = new Engine(map, { model, onFrame: (state) => { stateRef.current = state; } });
         engineRef.current = engine;
         const center = map.getCenter();
         engine.start(center.lng, center.lat, map.getBearing());
@@ -115,6 +120,7 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
           nearestRef.current = near;
           setHud({
             speed: Math.round(state.speed * 3.6),
+            altitude: Math.round(state.altitude),
             heading: Math.round(state.heading),
             nearest: near,
             distance: Math.round(bestDistance),
@@ -131,8 +137,6 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
       window.clearInterval(timer);
       engineRef.current?.stop();
       engineRef.current = null;
-      markerRef.current?.remove();
-      markerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
@@ -141,23 +145,6 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
   useEffect(() => {
     engineRef.current?.setPaused(Boolean(selectedBusiness));
   }, [selectedBusiness]);
-
-  // Highlight ring around the nearest business
-  useEffect(() => {
-    const target = hud.nearest;
-    if (!target) {
-      markerRef.current?.remove();
-      markerRef.current = null;
-      return;
-    }
-    if (!markerRef.current) {
-      const element = document.createElement('div');
-      element.className = 'flight-ring';
-      markerRef.current = new maplibregl.Marker({ element }).setLngLat([target.coordinates.lng, target.coordinates.lat]).addTo(map);
-    } else {
-      markerRef.current.setLngLat([target.coordinates.lng, target.coordinates.lat]);
-    }
-  }, [hud.nearest, map]);
 
   // Keyboard
   useEffect(() => {
@@ -169,7 +156,7 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
     const onDown = (event: KeyboardEvent) => {
       if (typing(event)) return;
       const key = normalize(event.key);
-      if (key === 'Escape') { exit(); return; }
+      if (key === 'Escape') { if (!selectedRef.current) exit(); return; }
       if (key === ' ' || key === 'Enter' || key === 'e') {
         event.preventDefault();
         if (!event.repeat) interact();
@@ -224,11 +211,6 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
 
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[200] font-sans" data-flight-hud>
-      <style>{`
-        .flight-ring{width:74px;height:74px;border-radius:50%;border:3px solid #ff7a45;box-shadow:0 0 0 6px rgba(255,90,18,.18),0 0 28px rgba(255,90,18,.65);animation:flightPulse 1.2s ease-in-out infinite;pointer-events:none}
-        @keyframes flightPulse{0%,100%{transform:scale(.82);opacity:.95}50%{transform:scale(1.12);opacity:.55}}
-      `}</style>
-
       {/* Top bar */}
       <div className="pointer-events-none absolute left-0 right-0 top-0 flex items-start justify-between gap-3 p-4">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-white shadow-xl backdrop-blur-md">
@@ -244,7 +226,7 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
         <button
           type="button"
           onClick={exit}
-          className="pointer-events-auto flex h-11 items-center gap-2 rounded-2xl border border-white/15 bg-black/60 px-4 text-xs font-semibold text-white shadow-xl backdrop-blur-md hover:bg-white/10"
+          className={`pointer-events-auto flex h-11 items-center gap-2 rounded-2xl border border-white/15 bg-black/60 px-4 text-xs font-semibold text-white shadow-xl backdrop-blur-md hover:bg-white/10 ${selectedBusiness ? 'hidden' : ''}`}
         >
           <X className="h-4 w-4" /> Sair <kbd className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">Esc</kbd>
         </button>
@@ -253,8 +235,9 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
       {/* Help */}
       {showHelp && !loadError && (
         <div className="pointer-events-none absolute left-1/2 top-24 hidden -translate-x-1/2 rounded-2xl border border-white/10 bg-black/70 px-5 py-3 text-center text-[12px] text-white/85 shadow-2xl backdrop-blur-md md:block">
-          <span className="font-semibold text-white">← →</span> ou <span className="font-semibold text-white">A D</span> para virar ·{' '}
-          <span className="font-semibold text-white">↑ ↓</span> para acelerar ·{' '}
+          <span className="font-semibold text-white">← →</span> ou <span className="font-semibold text-white">A D</span> virar ·{' '}
+          <span className="font-semibold text-white">↑ ↓</span> velocidade ·{' '}
+          <span className="font-semibold text-white">S</span> sobe · <span className="font-semibold text-white">W</span> desce ·{' '}
           <span className="font-semibold text-white">Shift</span> turbo ·{' '}
           <span className="font-semibold text-white">Espaço</span> abre a empresa mais próxima
         </div>
@@ -301,6 +284,11 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
         </div>
         <div className="h-8 w-px bg-white/10" />
         <div className="text-center">
+          <p className="text-2xl font-extrabold tabular-nums leading-none">{hud.altitude}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-white/50">m alt.</p>
+        </div>
+        <div className="h-8 w-px bg-white/10" />
+        <div className="text-center">
           <p className="text-2xl font-extrabold tabular-nums leading-none">{compass}</p>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-white/50">{hud.heading}°</p>
         </div>
@@ -315,8 +303,8 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
         <div className="pointer-events-auto flex gap-3">
           <button type="button" aria-label="Turbo" className={padButton} {...holdProps('boost')}><Zap className="h-7 w-7" /></button>
           <div className="flex flex-col gap-2">
-            <button type="button" aria-label="Acelerar" className={`${padButton} !h-[30px] !rounded-xl`} {...holdProps('up')}><ChevronUp className="h-5 w-5" /></button>
-            <button type="button" aria-label="Desacelerar" className={`${padButton} !h-[30px] !rounded-xl`} {...holdProps('down')}><ChevronDown className="h-5 w-5" /></button>
+            <button type="button" aria-label="Subir" className={`${padButton} !h-[30px] !rounded-xl`} {...holdProps('up')}><ChevronUp className="h-5 w-5" /></button>
+            <button type="button" aria-label="Descer" className={`${padButton} !h-[30px] !rounded-xl`} {...holdProps('down')}><ChevronDown className="h-5 w-5" /></button>
           </div>
         </div>
       </div>

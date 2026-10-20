@@ -7,6 +7,8 @@ import { Business, VisitRouteStop } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
 const FlightMode = lazy(() => import('./FlightMode'));
+const FlightSetup = lazy(() => import('./FlightSetup'));
+import type { FlightModelId } from '../flight/models';
 import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
@@ -90,12 +92,19 @@ function InteractiveMap({
   );
   const pinMarkerRef = useRef<maplibregl.Marker | null>(null);
   const [isFlying, setIsFlying] = useState(false);
+  const [isChoosingAircraft, setIsChoosingAircraft] = useState(false);
+  const [flightModel, setFlightModel] = useState<FlightModelId>('plane');
   const isFlyingRef = useRef(false);
   isFlyingRef.current = isFlying;
   const lastFlightBoundsRef = useRef(0);
   const onFlightModeChangeRef = useRef(onFlightModeChange);
   onFlightModeChangeRef.current = onFlightModeChange;
-  const startFlight = useCallback(() => {
+  const openFlightSetup = useCallback(() => {
+    setIsChoosingAircraft((open) => !open);
+  }, []);
+  const startFlight = useCallback((model: FlightModelId) => {
+    setFlightModel(model);
+    setIsChoosingAircraft(false);
     setIsFlying(true);
     onFlightModeChangeRef.current?.(true);
   }, []);
@@ -103,8 +112,8 @@ function InteractiveMap({
     setIsFlying(false);
     onFlightModeChangeRef.current?.(false);
   }, []);
-  const startFlightRef = useRef(startFlight);
-  startFlightRef.current = startFlight;
+  const openFlightSetupRef = useRef(openFlightSetup);
+  openFlightSetupRef.current = openFlightSetup;
   const isPinPlacementModeRef = useRef(isPinPlacementMode);
   isPinPlacementModeRef.current = isPinPlacementMode;
   const routeModeRef = useRef(routeMode);
@@ -189,7 +198,7 @@ function InteractiveMap({
           button.title = 'Modo voo: sobrevoe a cidade prospectando';
           button.setAttribute('aria-label', 'Modo voo');
           button.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="#ff5a12" style="margin:auto;display:block"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
-          button.addEventListener('click', () => startFlightRef.current());
+          button.addEventListener('click', () => openFlightSetupRef.current());
           container.appendChild(button);
           return container;
         },
@@ -887,7 +896,13 @@ function InteractiveMap({
             selectedBusiness={selectedBusiness}
             onSelectBusiness={onSelectBusiness}
             onExit={stopFlight}
+            model={flightModel}
           />
+        </Suspense>
+      )}
+      {isChoosingAircraft && !isFlying && (
+        <Suspense fallback={null}>
+          <FlightSetup onPlay={startFlight} onClose={() => setIsChoosingAircraft(false)} />
         </Suspense>
       )}
     </div>
