@@ -567,7 +567,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'demo-site-style') {
       const businessId = String(req.body?.businessId || '');
-      await changeDemoSiteStyle(identity.uid, businessId, String(req.body?.style || ''), req.body?.variant);
+      await changeDemoSiteStyle(identity.uid, businessId, {
+        style: req.body?.style ? String(req.body.style) : undefined,
+        layout: req.body?.layout ? String(req.body.layout) : undefined,
+        variant: req.body?.variant,
+      });
       return res.status(200).json(await getDemoSiteForBusiness(identity.uid, businessId));
     }
 

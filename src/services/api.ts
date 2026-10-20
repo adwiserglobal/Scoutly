@@ -797,11 +797,13 @@ export async function refreshSubscriptionFromStripe() {
 // Demo websites ("Site em 1 clique")
 // ---------------------------------------------------------------------------
 export type DemoStyleId = 'clean' | 'warm' | 'bold' | 'elegant' | 'fresh' | 'noir';
+export type DemoLayoutId = 'classic' | 'editorial' | 'immersive' | 'centered' | 'magazine' | 'bento';
 
 export interface DemoSiteSummary {
   slug: string;
   path: string;
   style: DemoStyleId;
+  layout: DemoLayoutId;
   businessName: string;
   views: number;
   lastViewedAt: string | null;
@@ -838,8 +840,8 @@ export const getDemoSite = (businessId: string) => demoAction('demo-site-get', {
 export const createDemoSite = (business: Record<string, unknown>, options: { variation?: number; style?: DemoStyleId } = {}) =>
   demoAction('demo-site-create', { business, ...options }, 65000);
 
-export const setDemoSiteStyle = (businessId: string, style: DemoStyleId, variant?: 0 | 1) =>
-  demoAction('demo-site-style', { businessId, style, variant });
+export const setDemoSiteStyle = (businessId: string, change: { style?: DemoStyleId; layout?: DemoLayoutId; variant?: 0 | 1 }) =>
+  demoAction('demo-site-style', { businessId, ...change });
 
 export async function deleteDemoSite(businessId: string) {
   await demoAction('demo-site-delete', { businessId });

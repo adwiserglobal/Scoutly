@@ -1,6 +1,9 @@
 export const STYLE_IDS = ['clean', 'warm', 'bold', 'elegant', 'fresh', 'noir'] as const;
 export type StyleId = (typeof STYLE_IDS)[number];
 
+export const LAYOUT_IDS = ['classic', 'editorial', 'immersive', 'centered', 'magazine', 'bento'] as const;
+export type LayoutId = (typeof LAYOUT_IDS)[number];
+
 export const ICON_IDS = [
   'check', 'star', 'heart', 'tool', 'scissors', 'tooth', 'cutlery', 'car', 'home', 'shield', 'clock',
   'phone', 'pin', 'sparkle', 'leaf', 'dumbbell', 'book', 'camera', 'key', 'bag',
@@ -9,6 +12,7 @@ export type IconId = (typeof ICON_IDS)[number];
 
 export interface DemoCopy {
   style: StyleId;
+  layout?: LayoutId;
   variant: 0 | 1;
   eyebrow: string;
   headline: string;

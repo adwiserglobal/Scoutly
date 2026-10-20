@@ -3,7 +3,7 @@ import { Check, Copy, Eye, Globe, Loader2, RefreshCw, Sparkles, Trash2, External
 import type { Business } from '../types';
 import {
   createDemoSite, deleteDemoSite, getDemoSite, setDemoSiteStyle,
-  type DemoSiteState, type DemoStyleId,
+  type DemoLayoutId, type DemoSiteState, type DemoStyleId,
 } from '../services/api';
 
 const STYLES: Array<{ id: DemoStyleId; label: string; swatch: string }> = [
@@ -13,6 +13,15 @@ const STYLES: Array<{ id: DemoStyleId; label: string; swatch: string }> = [
   { id: 'elegant', label: 'Elegante', swatch: 'linear-gradient(135deg,#faf8f4 50%,#9b7142 50%)' },
   { id: 'fresh', label: 'Fresco', swatch: 'linear-gradient(135deg,#f5fbf7 50%,#1b9a52 50%)' },
   { id: 'noir', label: 'Noturno', swatch: 'linear-gradient(135deg,#0a0f1f 50%,#6d8dff 50%)' },
+];
+
+const LAYOUTS: Array<{ id: DemoLayoutId; label: string }> = [
+  { id: 'classic', label: 'Clássico' },
+  { id: 'editorial', label: 'Editorial' },
+  { id: 'immersive', label: 'Imersivo' },
+  { id: 'centered', label: 'Centrado' },
+  { id: 'magazine', label: 'Revista' },
+  { id: 'bento', label: 'Bento' },
 ];
 
 const STEPS = [
@@ -89,11 +98,12 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
     }
   };
 
-  const changeStyle = async (style: DemoStyleId) => {
-    if (!state?.site || state.site.style === style) return;
+  const changeLook = async (change: { style?: DemoStyleId; layout?: DemoLayoutId }) => {
+    if (!state?.site) return;
+    if ((change.style && state.site.style === change.style) || (change.layout && state.site.layout === change.layout)) return;
     setBusy('style');
     setError(null);
-    try { setState(await setDemoSiteStyle(business.id, style)); }
+    try { setState(await setDemoSiteStyle(business.id, change)); }
     catch (err: any) { setError(err?.message || 'Não foi possível trocar o estilo.'); }
     finally { setBusy(null); }
   };
@@ -193,12 +203,30 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => changeStyle(item.id)}
+                  onClick={() => changeLook({ style: item.id })}
                   disabled={busy !== null}
                   aria-pressed={site.style === item.id}
                   className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition disabled:opacity-60 ${site.style === item.id ? 'border-[#ff7a45] bg-[#ff5a12]/15 text-white' : 'border-white/[0.1] text-[#c4c9d1] hover:border-white/25'}`}
                 >
                   <span className="h-3.5 w-3.5 rounded-full border border-white/20" style={{ background: item.swatch }} />{item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a4aab4]">Estrutura do layout</p>
+            <div className="flex flex-wrap gap-1.5">
+              {LAYOUTS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => changeLook({ layout: item.id })}
+                  disabled={busy !== null}
+                  aria-pressed={site.layout === item.id}
+                  className={`inline-flex h-8 items-center rounded-lg border px-2.5 text-[11px] font-medium transition disabled:opacity-60 ${site.layout === item.id ? 'border-[#ff7a45] bg-[#ff5a12]/15 text-white' : 'border-white/[0.1] text-[#c4c9d1] hover:border-white/25'}`}
+                >
+                  {item.label}
                 </button>
               ))}
             </div>

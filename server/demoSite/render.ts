@@ -1,4 +1,4 @@
-import type { DemoImage, DemoSiteData, IconId, StyleId } from './types.js';
+import { LAYOUT_IDS, type DemoImage, type DemoSiteData, type IconId, type LayoutId, type StyleId } from './types.js';
 
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -206,6 +206,71 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-bet
 .wa svg{width:30px;height:30px}
 .rate{display:inline-flex;gap:8px;align-items:center;font-weight:700}
 @media(max-width:560px){body{font-size:16px}.badge{left:8px}.btn{width:100%}.hero .cta{flex-direction:column}}
+
+/* ---- layout variants ---- */
+.ed .wrap{padding:clamp(34px,6vw,72px) 0 0}
+.ed-top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:clamp(22px,4vw,40px);padding-bottom:16px;border-bottom:1px solid var(--line)}
+.ed-top span{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ed h1{font-size:clamp(2.8rem,10.5vw,8.6rem);line-height:.95;letter-spacing:-.045em;max-width:15ch}
+.ed-row{display:grid;gap:24px;margin-top:clamp(24px,4vw,44px);align-items:end}
+@media(min-width:900px){.ed-row{grid-template-columns:1.2fr .8fr;gap:60px}.ed-row .cta{justify-content:flex-end;margin-top:0}}
+.ed-media{margin-top:clamp(34px,6vw,70px)}
+.ed-media img,.ed-media .art{width:100%;aspect-ratio:21/9;object-fit:cover;border-radius:var(--r)}
+.stack-media img,.stack-media .art{width:100%;aspect-ratio:21/8;object-fit:cover;border-radius:0 0 calc(var(--r) * 1.6) calc(var(--r) * 1.6)}
+.stack-media{width:min(1320px,100%);margin-inline:auto}
+.stack-text{display:grid;gap:26px;padding:clamp(34px,6vw,70px) 0;align-items:end}
+@media(min-width:900px){.stack-text{grid-template-columns:1.15fr .85fr;gap:70px}}
+.tiles{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.tile{border-radius:var(--r);padding:22px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;gap:12px;min-height:150px}
+.tile b{font-family:var(--hf);font-size:2.1rem;line-height:1}
+.tile .ic{color:var(--accent)}
+.tile.img{grid-column:span 2;padding:0;overflow:hidden;min-height:260px;border:0;position:relative}
+.tile.img img,.tile.img .art{width:100%;height:100%;object-fit:cover;aspect-ratio:auto;border-radius:0;min-height:260px}
+.tile.ac{background:var(--accent);color:var(--on);border:0}.tile.ac .ic{color:inherit}
+.rows{list-style:none;padding:0;border-top:1px solid var(--line)}
+.rows li{display:grid;grid-template-columns:auto 1fr;gap:6px 22px;padding:26px 0;border-bottom:1px solid var(--line);align-items:start;transition:padding .25s,background .25s}
+.rows li:hover{padding-left:14px;background:linear-gradient(90deg,rgba(var(--accent-rgb),.08),transparent)}
+.rows .n{font-family:var(--hf);font-size:1.1rem;color:var(--accent);padding-top:6px;min-width:2.4ch}
+.rows h3{font-size:clamp(1.3rem,3vw,2rem)}
+.rows p{grid-column:2;color:var(--muted);max-width:60ch}
+.bento{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+@media(min-width:900px){.bento{grid-template-columns:repeat(4,1fr)}.bento .card:nth-child(1){grid-column:span 2;grid-row:span 2;background:var(--accent);color:var(--on);border:0}.bento .card:nth-child(1) p,.bento .card:nth-child(1) .ico{color:inherit}.bento .card:nth-child(1) .ico{background:rgba(255,255,255,.18)}.bento .card:nth-child(4){grid-column:span 2}}
+.bento .card:nth-child(1) h3{font-size:clamp(1.5rem,3vw,2.2rem)}
+.icons{display:grid;gap:clamp(26px,4vw,48px) 34px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.icons article{display:grid;gap:10px;justify-items:start;padding-top:20px;border-top:2px solid var(--accent)}
+.icons .ic{width:30px;height:30px;color:var(--accent)}.icons p{color:var(--muted);font-size:.98rem}
+.about.rev>:first-child{order:2}
+@media(max-width:899px){.about.rev>:first-child{order:0}}
+.sticky2{display:grid;gap:34px}
+@media(min-width:900px){.sticky2{grid-template-columns:.8fr 1.2fr;gap:80px}.sticky2>:first-child{position:sticky;top:110px;align-self:start}}
+.sticky2 .pics{margin-top:30px}.sticky2 .pics img,.sticky2 .pics .art{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:var(--r)}
+.sticky2 p{color:var(--muted);margin-top:16px}
+.widewrap{position:relative}
+.widewrap>img,.widewrap>.art{width:100%;aspect-ratio:21/9;object-fit:cover;border-radius:calc(var(--r) * 1.4)}
+.widecard{position:relative;width:min(760px,100% - 24px);margin:-60px auto 0;padding:clamp(24px,4vw,44px);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 30px 70px -40px rgba(0,0,0,.5)}
+.widecard p{color:var(--muted);margin-top:14px}
+.timeline{position:relative;max-width:760px;display:grid;gap:34px;padding-left:44px}
+.timeline::before{content:"";position:absolute;left:15px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.timeline .st{position:relative}
+.timeline .st::before{content:attr(data-n);position:absolute;left:-44px;top:0;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on);font-weight:800;font-size:.9rem}
+.timeline p{color:var(--muted);margin-top:6px}
+.rail{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));counter-reset:r}
+.rail div{counter-increment:r;padding-top:26px;border-top:2px solid var(--line);position:relative}
+.rail div::before{content:counter(r);position:absolute;top:-17px;left:0;width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--on);display:grid;place-items:center;font-weight:800;font-size:.9rem}
+.rail p{color:var(--muted);margin-top:8px}
+.faq2{display:grid;gap:30px}
+@media(min-width:900px){.faq2{grid-template-columns:.7fr 1.3fr;gap:80px}.faq2>:first-child{position:sticky;top:110px;align-self:start}}
+.cta-split{display:grid;gap:26px;align-items:center;padding:clamp(30px,5vw,60px);border-radius:calc(var(--r) * 1.3);background:var(--surface);border:1px solid var(--line)}
+@media(min-width:800px){.cta-split{grid-template-columns:1.4fr .6fr}.cta-split .btn{justify-self:end}}
+.cta-split p{color:var(--muted);margin-top:12px}
+.cta-plain{text-align:center;padding:clamp(20px,4vw,50px) 0}
+.cta-plain h2{font-size:clamp(2.4rem,8vw,6rem);line-height:1;max-width:14ch;margin-inline:auto}
+.cta-plain p{color:var(--muted);margin:20px auto 30px;max-width:48ch}
+header.cen .wrap{flex-direction:column;padding:16px 0;gap:10px}
+header.cen nav.links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 24px}
+header.cen .btn{display:none}
+.shape-arch{border-radius:999px 999px var(--r) var(--r)!important}
+.art svg.bg{position:absolute;inset:0;width:100%;height:100%}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 `;
 }
@@ -220,7 +285,18 @@ function img(image: DemoImage, sizes: string, eager = false, alt = '', h?: numbe
   const height = Math.round(width * image.height / image.width);
   return `<img src="${url(800)}" srcset="${WIDTHS.map((w) => `${url(w)} ${w}w`).join(', ')}" sizes="${sizes}" width="${width}" height="${h || height}" alt="${esc(alt || image.alt)}" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">`;
 }
-const art = (iconId: IconId) => `<div class="art" role="img" aria-hidden="true">${icon(iconId)}</div>`;
+let artSeed = 0;
+/** Art-directed vector visual used when no photo is available. Varies by seed so pages do not look alike. */
+const art = (iconId: IconId) => {
+  const v = artSeed++ % 4;
+  const layers = [
+    '<circle cx="78" cy="26" r="34" fill="currentColor" opacity=".16"/><circle cx="26" cy="84" r="46" fill="currentColor" opacity=".10"/><circle cx="62" cy="66" r="14" fill="currentColor" opacity=".22"/>',
+    '<path d="M0 70 C20 52 40 88 60 68 S90 50 100 62 V100 H0Z" fill="currentColor" opacity=".16"/><path d="M0 82 C25 66 45 98 70 80 S92 74 100 80 V100 H0Z" fill="currentColor" opacity=".14"/><circle cx="76" cy="24" r="12" fill="currentColor" opacity=".25"/>',
+    '<g fill="none" stroke="currentColor" opacity=".22" stroke-width=".6">' + Array.from({ length: 9 }, (_, i) => `<circle cx="70" cy="40" r="${6 + i * 8}"/>`).join('') + '</g>',
+    '<g fill="currentColor" opacity=".2">' + Array.from({ length: 30 }, (_, i) => `<rect x="${(i % 6) * 17 + 2}" y="${Math.floor(i / 6) * 20 + 2}" width="13" height="${6 + ((i * 7) % 12)}" rx="2"/>`).join('') + '</g>',
+  ][v];
+  return `<div class="art" role="img" aria-hidden="true"><svg class="bg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">${layers}</svg>${icon(iconId)}</div>`;
+};
 
 const HOURS_MAP: Array<[RegExp, string]> = [
   [/\bMo\b/g, 'Seg'], [/\bTu\b/g, 'Ter'], [/\bWe\b/g, 'Qua'], [/\bTh\b/g, 'Qui'], [/\bFr\b/g, 'Sex'],
@@ -235,69 +311,164 @@ function waNumber(digits: string) {
   return digits.length <= 11 ? `55${digits}` : digits;
 }
 
+function hashOf(value: string) {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i += 1) { h ^= value.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return Math.abs(h);
+}
+
+export function layoutFor(data: DemoSiteData): LayoutId {
+  const chosen = data.copy.layout;
+  if (chosen && (LAYOUT_IDS as readonly string[]).includes(chosen)) return chosen;
+  // Deterministic per business so every site gets its own structure, not just its own colors.
+  return LAYOUT_IDS[hashOf(`${data.business.name}|${data.business.category}`) % LAYOUT_IDS.length];
+}
+
+interface Parts {
+  hero: 'split' | 'full' | 'center' | 'editorial' | 'stack' | 'tiles';
+  services: 'cards' | 'rows' | 'bento' | 'icons';
+  about: 'side' | 'sideR' | 'sticky' | 'wide';
+  process: 'cols' | 'timeline' | 'rail';
+  faq: 'one' | 'two';
+  cta: 'band' | 'split' | 'plain';
+  header: 'bar' | 'center';
+  galleryAfter: 'about' | 'services';
+}
+
+const LAYOUTS: Record<LayoutId, Parts> = {
+  classic: { hero: 'split', services: 'cards', about: 'side', process: 'cols', faq: 'one', cta: 'band', header: 'bar', galleryAfter: 'about' },
+  editorial: { hero: 'editorial', services: 'rows', about: 'sticky', process: 'rail', faq: 'two', cta: 'plain', header: 'bar', galleryAfter: 'about' },
+  immersive: { hero: 'full', services: 'bento', about: 'wide', process: 'timeline', faq: 'one', cta: 'split', header: 'bar', galleryAfter: 'services' },
+  centered: { hero: 'center', services: 'icons', about: 'sideR', process: 'timeline', faq: 'two', cta: 'band', header: 'bar', galleryAfter: 'about' },
+  magazine: { hero: 'stack', services: 'rows', about: 'sticky', process: 'cols', faq: 'one', cta: 'split', header: 'center', galleryAfter: 'services' },
+  bento: { hero: 'tiles', services: 'bento', about: 'side', process: 'rail', faq: 'two', cta: 'band', header: 'bar', galleryAfter: 'about' },
+};
+
 export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { preview?: boolean } = {}): string {
+  artSeed = hashOf(data.business.name) % 4;
   const { business: b, copy, images, brand } = data;
   const theme = THEMES[style] || THEMES.clean;
+  const layoutId = layoutFor(data);
+  const L = LAYOUTS[layoutId];
   const accent = theme.accents[copy.variant] || theme.accents[0];
   const wa = waNumber(b.phoneDigits);
   const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Vi o site da ${b.name} e gostaria de mais informações.`)}` : '';
   const primaryHref = waLink || '#contato';
+  const relAttr = waLink ? ' rel="noopener"' : '';
   const where = [b.neighborhood, b.city].filter(Boolean).join(', ');
   const mapsHref = b.mapsUrl || (b.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${b.name} ${b.address}`)}` : '');
   const mainIcon: IconId = copy.services[0]?.icon || 'sparkle';
   const initials = esc(b.name.trim().charAt(0).toUpperCase() || 'S');
-  const hasRating = b.rating && b.reviewCount;
+  const hasRating = Boolean(b.rating && b.reviewCount);
+  const ratingText = hasRating ? String(b.rating).replace('.', ',') : '';
 
-  // Hero
-  const heroText = `
+  const ctas = `<div class="cta"><a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a><a class="btn ghost" href="#servicos">${esc(copy.secondaryCta)}</a></div>`;
+  const heroText = () => `
     <p class="eyebrow">${esc(copy.eyebrow || [b.category, where].filter(Boolean).join(' · '))}</p>
     <h1>${esc(copy.headline)}</h1>
-    <p class="lead">${esc(copy.subheadline)}</p>
-    <div class="cta"><a class="btn" href="${esc(primaryHref)}"${waLink ? ' rel="noopener"' : ''}>${esc(copy.primaryCta)}</a><a class="btn ghost" href="#servicos">${esc(copy.secondaryCta)}</a></div>`;
-  const heroMedia = images.hero ? img(images.hero, '(min-width:900px) 520px, 92vw', true, `${b.name}: ${b.category}`) : art(mainIcon);
+    <p class="lead">${esc(copy.subheadline)}</p>${ctas}`;
+  const photo = (image: DemoImage | null, sizes: string, eager: boolean, alt: string, fallbackIcon: IconId) =>
+    image ? img(image, sizes, eager, alt) : art(fallbackIcon);
+  const heroAlt = `${b.name}: ${b.category}`;
   const badge = hasRating
-    ? `<div class="badge">${icon('star')}<div><b>${esc(String(b.rating).replace('.', ','))}</b>${esc(b.reviewCount)} avaliações no Google</div></div>`
+    ? `<div class="badge">${icon('star')}<div><b>${esc(ratingText)}</b>${esc(b.reviewCount)} avaliações no Google</div></div>`
     : `<div class="badge">${icon('pin')}<div><b>${esc(b.neighborhood || b.city || 'Local')}</b>Atendimento na região</div></div>`;
+  const shape = style === 'fresh' || style === 'elegant' ? 'shape-arch' : '';
 
   let hero = '';
-  if (theme.hero === 'split') {
-    hero = `<section class="hero"><div class="wrap split"><div>${heroText}</div><div class="frame">${heroMedia}${badge}</div></div></section>`;
-  } else if (theme.hero === 'full') {
-    hero = `<section class="hero full">${images.hero ? img(images.hero, '100vw', true, `${b.name}: ${b.category}`, undefined) : art(mainIcon)}<div class="wrap">${heroText}</div></section>`;
-  } else {
-    const mosaic = images.hero
-      ? `<div class="mosaic">${[images.hero, ...images.gallery.slice(0, 2)].map((image, i) => img(image, i === 0 ? '(min-width:760px) 50vw, 92vw' : '(min-width:760px) 25vw, 92vw', i === 0)).join('')}</div>`
-      : `<div class="mosaic">${[0, 1, 2].map((i) => art(copy.services[i]?.icon || mainIcon)).join('')}</div>`;
-    hero = `<section class="hero center"><div class="wrap">${heroText}${mosaic}</div></section>`;
+  switch (L.hero) {
+    case 'split': {
+      let media = photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon);
+      if (shape) media = media.startsWith('<img ') ? media.replace('<img ', `<img class="${shape}" `) : media.replace('class="art"', `class="art ${shape}"`);
+      hero = `<section class="hero"><div class="wrap split"><div>${heroText()}</div><div class="frame">${media}${badge}</div></div></section>`;
+      break;
+    }
+    case 'full':
+      hero = `<section class="hero full">${photo(images.hero, '100vw', true, heroAlt, mainIcon)}<div class="wrap">${heroText()}</div></section>`;
+      break;
+    case 'center': {
+      const mosaic = images.hero
+        ? `<div class="mosaic">${[images.hero, ...images.gallery.slice(0, 2)].map((image, i) => img(image, i === 0 ? '(min-width:760px) 50vw, 92vw' : '(min-width:760px) 25vw, 92vw', i === 0)).join('')}</div>`
+        : `<div class="mosaic">${[0, 1, 2].map((i) => art(copy.services[i]?.icon || mainIcon)).join('')}</div>`;
+      hero = `<section class="hero center"><div class="wrap">${heroText()}${mosaic}</div></section>`;
+      break;
+    }
+    case 'editorial':
+      hero = `<section class="hero ed"><div class="wrap"><div class="ed-top"><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><span>${esc(where || b.category)}</span></div><h1>${esc(copy.headline)}</h1><div class="ed-row"><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div><div class="ed-media">${photo(images.hero, '(min-width:1200px) 1160px, 94vw', true, heroAlt, mainIcon)}</div></div></section>`;
+      break;
+    case 'stack':
+      hero = `<section class="hero"><div class="stack-media">${photo(images.hero, '(min-width:1320px) 1320px, 100vw', true, heroAlt, mainIcon)}</div><div class="wrap stack-text"><div><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><h1 style="margin-top:20px">${esc(copy.headline)}</h1></div><div><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div></div></section>`;
+      break;
+    case 'tiles':
+      hero = `<section class="hero"><div class="wrap split"><div>${heroText()}</div><div class="tiles"><div class="tile img">${photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon)}</div>
+        <div class="tile">${icon(hasRating ? 'star' : 'pin')}<div><b>${esc(hasRating ? ratingText : (b.neighborhood || b.city || 'Local'))}</b><span style="color:var(--muted);font-size:.9rem">${hasRating ? `${esc(b.reviewCount)} avaliações no Google` : 'Atendimento na região'}</span></div></div>
+        <a class="tile ac" href="${esc(primaryHref)}"${relAttr}>${icon(wa ? 'phone' : 'sparkle')}<b style="font-size:1.35rem">${esc(copy.primaryCta)} →</b></a></div></div></section>`;
+      break;
   }
 
-  // Trust strip (only real information)
   const strip = [
-    hasRating ? `<div>${icon('star')}<span class="rate">${esc(String(b.rating).replace('.', ','))} · ${esc(b.reviewCount)} avaliações no Google</span></div>` : '',
+    hasRating ? `<div>${icon('star')}<span class="rate">${esc(ratingText)} · ${esc(b.reviewCount)} avaliações no Google</span></div>` : '',
     where ? `<div>${icon('pin')}<span>${esc(where)}</span></div>` : '',
     b.hours ? `<div>${icon('clock')}<span>${esc(humanHours(b.hours))}</span></div>` : '',
     wa ? `<div>${icon('phone')}<span>Atendimento pelo WhatsApp</span></div>` : '',
   ].filter(Boolean).join('');
 
-  const services = copy.services.map((service) =>
-    `<article class="card"><div class="ico">${icon(service.icon)}</div><h3>${esc(service.title)}</h3><p>${esc(service.text)}</p></article>`).join('');
+  const head = (kicker: string, title: string) => `<div class="head"><p class="eyebrow">${kicker}</p><h2>${esc(title)}</h2></div>`;
 
-  const aboutMedia = images.about ? img(images.about, '(min-width:900px) 46vw, 92vw') : art(copy.services[1]?.icon || mainIcon);
-  const highlights = copy.highlights.map((item) =>
-    `<div>${icon('check')}<p style="margin:0"><b>${esc(item.title)}</b><span>${esc(item.text)}</span></p></div>`).join('');
+  // Services
+  const card = (s: { title: string; text: string; icon: IconId }) =>
+    `<article class="card"><div class="ico">${icon(s.icon)}</div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></article>`;
+  let services = '';
+  if (L.services === 'cards') services = `<div class="grid">${copy.services.map(card).join('')}</div>`;
+  else if (L.services === 'rows') services = `<ol class="rows">${copy.services.map((s, i) => `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></li>`).join('')}</ol>`;
+  else if (L.services === 'bento') services = `<div class="bento">${copy.services.slice(0, 5).map(card).join('')}</div>`;
+  else services = `<div class="icons">${copy.services.map((s) => `<article>${icon(s.icon)}<h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></article>`).join('')}</div>`;
+  const servicesSec = `<section class="sec" id="servicos"><div class="wrap">${head('Serviços', L.services === 'rows' ? 'O que fazemos' : 'O que fazemos por você')}${services}</div></section>`;
+
+  // About
+  const highlights = `<div class="hl">${copy.highlights.map((h) => `<div>${icon('check')}<p style="margin:0"><b>${esc(h.title)}</b><span>${esc(h.text)}</span></p></div>`).join('')}</div>`;
+  const aboutParas = copy.aboutParagraphs.map((p) => `<p>${esc(p)}</p>`).join('');
+  const aboutPhoto = photo(images.about, '(min-width:900px) 46vw, 92vw', false, `${b.name} no dia a dia`, copy.services[1]?.icon || mainIcon);
+  let about = '';
+  if (L.about === 'side' || L.about === 'sideR') {
+    about = `<section class="sec alt" id="sobre"><div class="wrap about${L.about === 'sideR' ? ' rev' : ''}"><div>${aboutPhoto}</div><div><p class="eyebrow">Sobre</p><h2>${esc(copy.aboutTitle)}</h2>${aboutParas}${highlights}</div></div></section>`;
+  } else if (L.about === 'sticky') {
+    about = `<section class="sec alt" id="sobre"><div class="wrap sticky2"><div><p class="eyebrow">Sobre</p><h2 style="margin-top:14px">${esc(copy.aboutTitle)}</h2></div><div>${aboutParas}${highlights}<div class="pics">${aboutPhoto}</div></div></div></section>`;
+  } else {
+    about = `<section class="sec alt" id="sobre"><div class="wrap"><div class="widewrap">${aboutPhoto}</div><div class="widecard"><p class="eyebrow">Sobre</p><h2 style="margin-top:12px;font-size:clamp(1.6rem,3.4vw,2.4rem)">${esc(copy.aboutTitle)}</h2>${aboutParas}</div><div style="max-width:760px;margin:26px auto 0">${highlights}</div></div></section>`;
+  }
 
   const gallery = images.gallery.length >= 2
-    ? `<section class="sec" id="galeria"><div class="wrap"><div class="head"><p class="eyebrow">Galeria</p><h2>${esc(b.name)} em imagens</h2></div><div class="gallery">${images.gallery.map((image) => img(image, '(min-width:720px) 38vw, 92vw')).join('')}</div></div></section>`
+    ? `<section class="sec" id="galeria"><div class="wrap">${head('Galeria', `${b.name} em imagens`)}<div class="gallery">${images.gallery.map((image) => img(image, '(min-width:720px) 38vw, 92vw')).join('')}</div></div></section>`
     : '';
 
-  const steps = copy.process.map((step) => `<div class="step"><h3>${esc(step.title)}</h3><p>${esc(step.text)}</p></div>`).join('');
-  const faq = copy.faq.map((item) => `<details><summary>${esc(item.q)}</summary><p>${esc(item.a)}</p></details>`).join('');
+  // Process
+  let process = '';
+  if (L.process === 'cols') process = `<div class="steps">${copy.process.map((s) => `<div class="step"><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
+  else if (L.process === 'timeline') process = `<div class="timeline">${copy.process.map((s, i) => `<div class="st" data-n="${i + 1}"><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
+  else process = `<div class="rail">${copy.process.map((s) => `<div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
+  const processSec = `<section class="sec" id="como-funciona"><div class="wrap">${head('Como funciona', 'Simples do primeiro contato ao atendimento')}${process}</div></section>`;
+
+  // FAQ
+  const faqItems = copy.faq.map((item) => `<details><summary>${esc(item.q)}</summary><p>${esc(item.a)}</p></details>`).join('');
+  const faqSec = L.faq === 'two'
+    ? `<section class="sec alt" id="perguntas"><div class="wrap faq2"><div><p class="eyebrow">Perguntas frequentes</p><h2 style="margin-top:14px">Tire suas dúvidas</h2></div><div class="faq">${faqItems}</div></div></section>`
+    : `<section class="sec alt" id="perguntas"><div class="wrap">${head('Perguntas frequentes', 'Tire suas dúvidas')}<div class="faq">${faqItems}</div></div></section>`;
+
+  // CTA
+  const ctaBtn = `<a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a>`;
+  const ctaSec = L.cta === 'band'
+    ? `<section class="sec"><div class="wrap"><div class="cta-band"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></div></section>`
+    : L.cta === 'split'
+      ? `<section class="sec"><div class="wrap"><div class="cta-split"><div><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p></div>${ctaBtn}</div></div></section>`
+      : `<section class="sec"><div class="wrap cta-plain"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></section>`;
 
   const contactCards = [
     b.address ? `<div class="card">${icon('pin')}<div><b>Endereço</b>${esc(b.address)}${mapsHref ? `<br><a href="${esc(mapsHref)}" rel="noopener" style="color:var(--accent);font-weight:700">Como chegar →</a>` : ''}</div></div>` : '',
     wa ? `<div class="card">${icon('phone')}<div><b>WhatsApp</b><a href="${esc(waLink)}" rel="noopener">Chamar agora →</a></div></div>` : '',
     b.hours ? `<div class="card">${icon('clock')}<div><b>Horários</b>${esc(humanHours(b.hours))}</div></div>` : '',
   ].filter(Boolean).join('') || `<div class="card">${icon('phone')}<div><b>Contato</b>Informações de contato em breve.</div></div>`;
+  const contactSec = `<section class="sec alt" id="contato"><div class="wrap">${head('Contato', 'Onde estamos')}<div class="contact">${contactCards}</div></div></section>`;
 
   const credits = [...new Map([images.hero, images.about, ...images.gallery]
     .filter((image): image is DemoImage => Boolean(image && image.credit))
@@ -311,6 +482,12 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
 
   const fontHref = `https://fonts.googleapis.com/css2?family=${theme.fonts}&display=swap`;
   const title = `${b.name} — ${copy.headline}`.slice(0, 70);
+  const body = [
+    hero,
+    strip && L.hero !== 'tiles' ? `<div class="strip"><div class="wrap">${strip}</div></div>` : '',
+    ...(L.galleryAfter === 'services' ? [servicesSec, gallery, about] : [servicesSec, about, gallery]),
+    processSec, faqSec, ctaSec, contactSec,
+  ].join('\n');
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(copy.subheadline.slice(0, 155))}">
@@ -319,19 +496,11 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${images.hero ? '<link rel="preconnect" href="https://images.unsplash.com">' : ''}
 <link rel="stylesheet" href="${fontHref}"><style>${css(theme, accent)}</style></head><body>
 ${demoBar}
-<header class="top"><div class="wrap"><a class="brand" href="#topo"><i>${initials}</i>${esc(b.name)}</a>
+<header class="top${L.header === 'center' ? ' cen' : ''}"><div class="wrap"><a class="brand" href="#topo"><i>${initials}</i>${esc(b.name)}</a>
 <nav class="links" aria-label="Principal"><a href="#servicos">Serviços</a><a href="#sobre">Sobre</a><a href="#como-funciona">Como funciona</a><a href="#perguntas">Perguntas</a><a href="#contato">Contato</a></nav>
-<a class="btn" href="${esc(primaryHref)}"${waLink ? ' rel="noopener"' : ''}>${esc(copy.primaryCta)}</a></div></header>
+<a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a></div></header>
 <main id="topo">
-${hero}
-${strip ? `<div class="strip"><div class="wrap">${strip}</div></div>` : ''}
-<section class="sec" id="servicos"><div class="wrap"><div class="head"><p class="eyebrow">Serviços</p><h2>O que fazemos por você</h2></div><div class="grid">${services}</div></div></section>
-<section class="sec alt" id="sobre"><div class="wrap about"><div>${aboutMedia}</div><div><p class="eyebrow">Sobre</p><h2>${esc(copy.aboutTitle)}</h2>${copy.aboutParagraphs.map((p) => `<p>${esc(p)}</p>`).join('')}<div class="hl">${highlights}</div></div></div></section>
-${gallery}
-<section class="sec ${gallery ? 'alt' : ''}" id="como-funciona"><div class="wrap"><div class="head"><p class="eyebrow">Como funciona</p><h2>Simples do primeiro contato ao atendimento</h2></div><div class="steps">${steps}</div></div></section>
-<section class="sec ${gallery ? '' : 'alt'}" id="perguntas"><div class="wrap"><div class="head"><p class="eyebrow">Perguntas frequentes</p><h2>Tire suas dúvidas</h2></div><div class="faq">${faq}</div></div></section>
-<section class="sec"><div class="wrap"><div class="cta-band"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p><a class="btn" href="${esc(primaryHref)}"${waLink ? ' rel="noopener"' : ''}>${esc(copy.primaryCta)}</a></div></div></section>
-<section class="sec alt" id="contato"><div class="wrap"><div class="head"><p class="eyebrow">Contato</p><h2>Onde estamos</h2></div><div class="contact">${contactCards}</div></div></section>
+${body}
 </main>
 <footer><div class="wrap"><span>© ${esc(b.name)} · ${esc(b.category)}${where ? ` · ${esc(where)}` : ''}</span><span>Rascunho de site${brand.name ? ` criado por ${esc(brand.name)}` : ''}${credits.length ? ` · Fotos: ${credits.map(([name, href]) => `<a href="${esc(href)}" rel="noopener" target="_blank" style="text-decoration:underline">${esc(name)}</a>`).join(', ')} / <a href="https://unsplash.com/?utm_source=scoutly&utm_medium=referral" rel="noopener" target="_blank" style="text-decoration:underline">Unsplash</a>` : ''}</span></div></footer>
 ${waLink ? `<a class="wa" href="${esc(waLink)}" rel="noopener" aria-label="Chamar no WhatsApp">${WHATSAPP_SVG}</a>` : ''}

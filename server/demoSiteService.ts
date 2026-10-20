@@ -3,8 +3,8 @@ import { appDataRequest, dbValue } from './appDataService.js';
 import { getSubscriptionAccess } from './subscriptionAccessService.js';
 import { getUserProfile } from './userProfileService.js';
 import { buildFacts, fetchImages, generateCopy, styleForCategory } from './demoSite/generate.js';
-import { renderDemoSite } from './demoSite/render.js';
-import { STYLE_IDS, type DemoSiteData, type StyleId } from './demoSite/types.js';
+import { layoutFor, renderDemoSite } from './demoSite/render.js';
+import { LAYOUT_IDS, STYLE_IDS, type DemoSiteData, type LayoutId, type StyleId } from './demoSite/types.js';
 
 type Plan = 'free' | 'go' | 'pro' | 'agency';
 const MONTHLY_LIMIT: Record<Plan, number> = { free: 1, go: 10, pro: 40, agency: 150 };
@@ -28,6 +28,7 @@ export interface DemoSiteSummary {
   slug: string;
   path: string;
   style: StyleId;
+  layout: LayoutId;
   businessName: string;
   views: number;
   lastViewedAt: string | null;
@@ -56,6 +57,7 @@ function summary(row: DemoSiteRow): DemoSiteSummary {
     slug: row.slug,
     path: `/demo/${row.slug}`,
     style: row.style,
+    layout: layoutFor(row.data),
     businessName: row.business_name,
     views: row.views || 0,
     lastViewedAt: row.last_viewed_at,
@@ -139,6 +141,11 @@ export async function createOrRegenerateDemoSite(userUid: string, input: any) {
   const variation = existing ? Math.min(9, Number(input?.variation || 1)) : 0;
   const requestedStyle = (STYLE_IDS as readonly string[]).includes(input?.style) ? input.style as StyleId : null;
   const copy = await generateCopy(facts, brand, { variation, style: requestedStyle });
+  // A new version also changes the page structure, not just the words.
+  if (existing) {
+    const current = layoutFor(existing.data);
+    copy.layout = LAYOUT_IDS[(LAYOUT_IDS.indexOf(current) + 1) % LAYOUT_IDS.length];
+  }
   const images = await fetchImages(copy, facts, variation);
   const data: DemoSiteData = { business: facts, copy, images, brand, generatedAt: new Date().toISOString() };
 
@@ -168,11 +175,14 @@ export async function createOrRegenerateDemoSite(userUid: string, input: any) {
   }
 }
 
-export async function changeDemoSiteStyle(userUid: string, businessId: string, style: string, variant?: number) {
-  if (!(STYLE_IDS as readonly string[]).includes(style)) httpError('Estilo inválido.', 400, 'DEMO_INVALID');
+export async function changeDemoSiteStyle(userUid: string, businessId: string, change: { style?: string; layout?: string; variant?: number }) {
   const row = await findByBusiness(userUid, businessId);
   if (!row) httpError('Site não encontrado.', 404, 'DEMO_NOT_FOUND');
-  const data = { ...row.data, copy: { ...row.data.copy, style, variant: variant === 1 ? 1 : variant === 0 ? 0 : row.data.copy.variant } };
+  const style = change.style && (STYLE_IDS as readonly string[]).includes(change.style) ? change.style as StyleId : row.style;
+  const layout = change.layout && (LAYOUT_IDS as readonly string[]).includes(change.layout) ? change.layout as LayoutId : layoutFor(row.data);
+  if (change.style && style !== change.style) httpError('Estilo inválido.', 400, 'DEMO_INVALID');
+  const variant = change.variant === 1 ? 1 : change.variant === 0 ? 0 : row.data.copy.variant;
+  const data = { ...row.data, copy: { ...row.data.copy, style, layout, variant } };
   const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
     method: 'PATCH', headers: { Prefer: 'return=representation' },
     body: JSON.stringify({ style, data, updated_at: new Date().toISOString() }),
