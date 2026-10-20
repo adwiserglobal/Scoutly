@@ -11,7 +11,7 @@ import {
   changeDemoSiteStyle, checkDemoSlug, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
   publishDemoDraft, renameDemoSite, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
 } from '../server/demoSiteService.js';
-import { DEMO_CSP } from '../shared/demoSite/render.js';
+import { DEMO_CSP, renderDemoNotFound } from '../shared/demoSite/render.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -306,7 +306,7 @@ async function servePublicDemo(req: VercelRequest, res: VercelResponse) {
   if (!html) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(404).send('<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Página não encontrada</title><body style="font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#0d0e11;color:#eee"><p>Esta proposta de site não está mais disponível.</p>');
+    return res.status(404).send(renderDemoNotFound());
   }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   // Views are counted per request, so keep the edge cache short.

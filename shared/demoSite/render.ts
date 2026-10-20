@@ -642,3 +642,30 @@ export const DEMO_CSP = [
   "form-action 'none'",
   "frame-ancestors 'self'",
 ].join('; ');
+
+/** Page shown at /demo/<slug> when the site was moved (address changed), unpublished or deleted. */
+export function renderDemoNotFound(image = { src: '/not-found.webp', width: 560, height: 569 }): string {
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>404 · Site não encontrado</title><meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="#ffffff">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap">
+<style>
+*{box-sizing:border-box;margin:0}
+body{min-height:100vh;display:grid;place-items:center;padding:32px 20px;background:#fff;color:#14161a;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+main{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;max-width:520px}
+img{width:min(78vw,340px);height:auto;margin-bottom:8px}
+.code{font-size:clamp(3.4rem,14vw,5.6rem);font-weight:800;line-height:1;letter-spacing:-.04em;color:#ff5a12}
+h1{font-size:clamp(1.25rem,4.4vw,1.6rem);font-weight:800;letter-spacing:-.02em;margin-top:6px}
+p{color:#5b6270;font-size:1rem;line-height:1.6;margin-top:6px}
+a.btn{display:inline-flex;align-items:center;justify-content:center;margin-top:22px;min-height:48px;padding:0 26px;border-radius:12px;background:#ff5a12;color:#fff;font-weight:600;text-decoration:none;box-shadow:0 10px 26px -12px rgba(255,90,18,.7);transition:transform .15s,filter .15s}
+a.btn:hover{transform:translateY(-2px);filter:brightness(1.06)}
+small{margin-top:18px;color:#8a909c;font-size:.8rem}
+</style></head><body><main>
+<img src="${image.src}" width="${image.width}" height="${image.height}" alt="Pessoa procurando com um binóculo" decoding="async">
+<span class="code">404</span>
+<h1>Este site foi movido ou não existe mais</h1>
+<p>O endereço pode ter sido alterado, o site pode ter sido tirado do ar ou o link pode estar incompleto. Se você recebeu este link de alguém, peça um novo.</p>
+<a class="btn" href="/">Conhecer a Scoutly</a>
+<small>Página não encontrada</small>
+</main></body></html>`;
+}
