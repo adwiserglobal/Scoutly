@@ -40,6 +40,8 @@ export interface DemoImages {
   hero: DemoImage | null;
   about: DemoImage | null;
   gallery: DemoImage[];
+  /** Why there are no photos (shown to the owner of the site, never on the public page). */
+  note?: string;
 }
 
 export interface DemoBusinessFacts {

@@ -34,6 +34,7 @@ export interface DemoSiteSummary {
   createdAt: string;
   updatedAt: string;
   hasPhotos: boolean;
+  photoNote: string | null;
 }
 
 function httpError(message: string, statusCode: number, code: string): never {
@@ -61,6 +62,7 @@ function summary(row: DemoSiteRow): DemoSiteSummary {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     hasPhotos: Boolean(row.data?.images?.hero),
+    photoNote: row.data?.images?.note || null,
   };
 }
 

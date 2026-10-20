@@ -197,14 +197,18 @@ export async function generateCopy(
 
 const UTM = 'utm_source=scoutly&utm_medium=referral';
 
-async function searchUnsplash(query: string, key: string, perPage = 8): Promise<DemoImage[]> {
+async function searchUnsplash(query: string, key: string, errors: string[], perPage = 8): Promise<DemoImage[]> {
   if (!query) return [];
   try {
     const response = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&content_filter=high&per_page=${perPage}`,
       { headers: { Authorization: `Client-ID ${key}`, 'Accept-Version': 'v1' }, signal: AbortSignal.timeout(6000) },
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      errors.push(`HTTP ${response.status}${body ? ` ${body.slice(0, 60)}` : ''}`);
+      return [];
+    }
     const data = await response.json();
     return (Array.isArray(data?.results) ? data.results : [])
       .filter((photo: any) => photo?.urls?.raw && photo.width && photo.height)
@@ -218,7 +222,8 @@ async function searchUnsplash(query: string, key: string, perPage = 8): Promise<
         downloadLocation: String(photo.links?.download_location || ''),
       }))
       .filter((image: DemoImage) => /^https:\/\/images\.unsplash\.com\//.test(image.src));
-  } catch {
+  } catch (error: any) {
+    errors.push(String(error?.message || error).slice(0, 60));
     return [];
   }
 }
@@ -233,14 +238,15 @@ function trackDownloads(images: DemoImage[], key: string) {
 
 export async function fetchImages(copy: DemoCopy, facts: DemoBusinessFacts, variation = 0): Promise<DemoImages> {
   const key = String(process.env.UNSPLASH_ACCESS_KEY || '').trim();
-  if (!key) return { hero: null, about: null, gallery: [] };
+  if (!key) return { hero: null, about: null, gallery: [], note: 'UNSPLASH_ACCESS_KEY não configurada neste deploy.' };
 
+  const errors: string[] = [];
   const { hero, about, gallery } = copy.imageQueries;
   const fallback = `${facts.category} business`;
   const [heroHits, aboutHits, ...galleryHits] = await Promise.all([
-    searchUnsplash(hero || fallback, key),
-    searchUnsplash(about || `${facts.category} team working`, key),
-    ...[0, 1, 2].map((index) => searchUnsplash(gallery[index] || `${facts.category} ${['detail', 'service', 'customer'][index]}`, key)),
+    searchUnsplash(hero || fallback, key, errors),
+    searchUnsplash(about || `${facts.category} team working`, key, errors),
+    ...[0, 1, 2].map((index) => searchUnsplash(gallery[index] || `${facts.category} ${['detail', 'service', 'customer'][index]}`, key, errors)),
   ]);
 
   const used = new Set<string>();
@@ -257,7 +263,9 @@ export async function fetchImages(copy: DemoCopy, facts: DemoBusinessFacts, vari
   const chosen = [heroImage, aboutImage, ...galleryImages].filter((image): image is DemoImage => Boolean(image));
   trackDownloads(chosen, key);
   // The tracking endpoint is not needed afterwards; keep stored data lean.
+  if (!heroImage) console.warn('[DemoSite] no Unsplash photos:', errors[0] || 'sem resultados');
   return {
+    note: heroImage ? undefined : `Unsplash: ${errors[0] || 'nenhum resultado para os termos de busca'}`,
     hero: heroImage ? { ...heroImage, downloadLocation: undefined } : null,
     about: aboutImage ? { ...aboutImage, downloadLocation: undefined } : null,
     gallery: galleryImages.map((image) => ({ ...image, downloadLocation: undefined })),

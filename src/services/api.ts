@@ -808,6 +808,7 @@ export interface DemoSiteSummary {
   createdAt: string;
   updatedAt: string;
   hasPhotos: boolean;
+  photoNote: string | null;
 }
 
 export interface DemoSiteState {

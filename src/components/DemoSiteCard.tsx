@@ -218,7 +218,7 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
               </button>
             </span>
           </div>
-          {!site.hasPhotos && <p className="text-[10px] leading-relaxed text-[#9aa0aa]">Esta versão usa ilustrações no lugar de fotos.</p>}
+          {!site.hasPhotos && <p className="text-[10px] leading-relaxed text-[#9aa0aa]">Esta versão usa ilustrações no lugar de fotos.{site.photoNote ? ` Motivo: ${site.photoNote}` : ''}</p>}
         </div>
       )}
 

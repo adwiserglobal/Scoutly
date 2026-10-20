@@ -143,6 +143,8 @@ header .btn{min-height:44px;padding:0 20px;font-size:.92rem}
 .full .wrap{position:relative;z-index:2;padding:clamp(90px,14vw,170px) 0 clamp(46px,7vw,84px)}
 .full .lead{color:rgba(255,255,255,.86)}
 .full .eyebrow{color:#fff}
+.full>.art{justify-items:end;align-items:start;padding:clamp(70px,12vw,150px) 10% 0 0}
+.full>.art .ic{width:clamp(120px,22vw,300px);opacity:.28}
 .full .btn.ghost{color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
 .center{padding:clamp(48px,8vw,96px) 0 0;text-align:center}
 .center .lead{margin-inline:auto}.center .cta{justify-content:center}
