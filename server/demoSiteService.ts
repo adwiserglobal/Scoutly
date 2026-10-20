@@ -332,3 +332,48 @@ export async function setDemoLogo(userUid: string, businessId: string, logoInput
   });
   return { site: summary(rows[0]) };
 }
+
+// ---------------------------------------------------------------------------
+// Site address (slug) chosen by the owner
+// ---------------------------------------------------------------------------
+
+export function normalizeSlugInput(value: unknown) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    .replace(/[\s_.]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/g, '');
+}
+
+export async function checkDemoSlug(userUid: string, businessId: string, input: unknown) {
+  const slug = normalizeSlugInput(input);
+  if (slug.length < 3) return { slug, available: false, reason: 'O endereço precisa ter pelo menos 3 letras ou números.' };
+  if (RESERVED_SLUGS.has(slug)) return { slug, available: false, reason: 'Este nome é reservado. Escolha outro.' };
+  const row = await requireRow(userUid, businessId);
+  if (row.slug === slug) return { slug, available: true, current: true };
+  let taken: Array<{ id: string }> = [];
+  try {
+    taken = await appDataRequest<Array<{ id: string }>>(`demo_sites?slug=eq.${dbValue(slug)}&select=id&limit=1`);
+  } catch (error) { throw migrationError(error); }
+  if (!taken.length) return { slug, available: true };
+  const alternatives = Array.from({ length: 6 }, (_, i) => `${slug.slice(0, 37)}-${i + 2}`);
+  const used = await appDataRequest<Array<{ slug: string }>>(
+    `demo_sites?slug=in.(${alternatives.map((item) => dbValue(item)).join(',')})&select=slug`,
+  ).catch(() => []);
+  const usedSet = new Set(used.map((item) => item.slug));
+  return { slug, available: false, reason: 'Este endereço já está em uso.', suggestion: alternatives.find((item) => !usedSet.has(item)) };
+}
+
+export async function renameDemoSite(userUid: string, businessId: string, input: unknown) {
+  const check = await checkDemoSlug(userUid, businessId, input);
+  if (!check.available) httpError(check.reason || 'Endereço indisponível.', 409, 'DEMO_INVALID');
+  const row = await requireRow(userUid, businessId);
+  if (row.slug === check.slug) return { site: summary(row) };
+  try {
+    const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ slug: check.slug, updated_at: new Date().toISOString() }),
+    });
+    return { site: summary(rows[0]) };
+  } catch (error: any) {
+    if (/23505|duplicate key/i.test(String(error?.message || ''))) httpError('Este endereço acabou de ser usado por outro site.', 409, 'DEMO_INVALID');
+    throw error;
+  }
+}

@@ -7,6 +7,8 @@ import {
 import { defaultSections } from '../../../shared/demoSite/render';
 import { AddButton, Field, Group, ItemCard, inputClass } from './editorUi';
 import { prepareLogo, preparePhoto } from './imageTools';
+import SiteAddressField from './SiteAddressField';
+import type { DemoSiteSummary } from '../../services/api';
 
 export type Updater = (mutate: (draft: DemoSiteData) => void) => void;
 
@@ -14,7 +16,8 @@ interface PanelProps {
   data: DemoSiteData;
   update: Updater;
   focusSection: (id: string) => void;
-  notify: (message: string) => void;
+  notify: (message: string, tone?: 'ok' | 'error') => void;
+  address?: { businessId: string; site: DemoSiteSummary | null; onRenamed: (site: DemoSiteSummary) => void };
 }
 
 const STYLE_LABEL: Record<StyleId, { label: string; swatch: string }> = {
@@ -66,7 +69,7 @@ const randomId = () => `x-${Math.random().toString(36).slice(2, 9)}`;
 // ---------------------------------------------------------------------------
 // Content
 // ---------------------------------------------------------------------------
-export function ContentPanel({ data, update, focusSection, notify }: PanelProps) {
+export function ContentPanel({ data, update, focusSection, notify, address }: PanelProps) {
   const [open, setOpen] = useState<string>('identity');
   const logoInput = useRef<HTMLInputElement>(null);
   const toggle = (id: string, section?: string) => {
@@ -114,6 +117,12 @@ export function ContentPanel({ data, update, focusSection, notify }: PanelProps)
           <p className="text-[10.5px] text-[#8b929e]">PNG, JPG, WebP ou SVG. Fundo transparente funciona melhor.</p>
         </div>
       </Group>
+
+      {address && (
+        <Group title="Endereço do site" open={open === 'address'} onToggle={() => toggle('address')}>
+          <SiteAddressField businessId={address.businessId} site={address.site} onRenamed={address.onRenamed} notify={notify} />
+        </Group>
+      )}
 
       <Group title="Topo da página" open={open === 'hero'} onToggle={() => toggle('hero', 'hero')}>
         <Field label="Texto acima do título" value={copy.eyebrow} max={60} onChange={(v) => update((d) => { d.copy.eyebrow = v; })} onFocus={() => focusSection('hero')} />

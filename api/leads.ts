@@ -8,8 +8,8 @@ import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import {
-  changeDemoSiteStyle, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
-  publishDemoDraft, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
+  changeDemoSiteStyle, checkDemoSlug, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
+  publishDemoDraft, renameDemoSite, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
 } from '../server/demoSiteService.js';
 import { DEMO_CSP } from '../shared/demoSite/render.js';
 
@@ -594,6 +594,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'demo-site-logo') {
       return res.status(200).json(await setDemoLogo(identity.uid, String(req.body?.businessId || ''), req.body?.logo));
+    }
+
+    if (action === 'demo-site-slug-check') {
+      return res.status(200).json(await checkDemoSlug(identity.uid, String(req.body?.businessId || ''), req.body?.slug));
+    }
+
+    if (action === 'demo-site-rename') {
+      return res.status(200).json(await renameDemoSite(identity.uid, String(req.body?.businessId || ''), req.body?.slug));
     }
 
     if (action === 'demo-site-delete') {

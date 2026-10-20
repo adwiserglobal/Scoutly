@@ -878,3 +878,7 @@ export const discardDemoDraft = (businessId: string) =>
   demoRequest<{ site: DemoSiteSummary; data: DemoDraftResponse['data'] }>('demo-site-discard', { businessId });
 export const setDemoLogo = (businessId: string, logo: string | null) =>
   demoRequest<{ site: DemoSiteSummary }>('demo-site-logo', { businessId, logo }, 40000);
+
+export interface DemoSlugCheck { slug: string; available: boolean; current?: boolean; reason?: string; suggestion?: string }
+export const checkDemoSlug = (businessId: string, slug: string) => demoRequest<DemoSlugCheck>('demo-site-slug-check', { businessId, slug }, 10000);
+export const renameDemoSite = (businessId: string, slug: string) => demoRequest<{ site: DemoSiteSummary }>('demo-site-rename', { businessId, slug });

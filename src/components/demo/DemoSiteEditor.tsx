@@ -298,7 +298,7 @@ export default function DemoSiteEditor({ businessId, businessName, onClose }: De
               ))}
             </nav>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              {tab === 'content' && <ContentPanel data={data} update={update} focusSection={focusSection} notify={(m) => flash(m, 'error')} />}
+              {tab === 'content' && <ContentPanel data={data} update={update} focusSection={focusSection} notify={flash} address={{ businessId, site, onRenamed: setSite }} />}
               {tab === 'design' && <DesignPanel data={data} update={update} focusSection={focusSection} notify={(m) => flash(m, 'error')} />}
               {tab === 'sections' && <SectionsPanel data={data} update={update} focusSection={focusSection} notify={(m) => flash(m, 'error')} />}
             </div>
