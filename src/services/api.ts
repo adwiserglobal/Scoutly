@@ -811,6 +811,9 @@ export interface DemoSiteSummary {
   updatedAt: string;
   hasPhotos: boolean;
   photoNote: string | null;
+  unpublished: boolean;
+  publishedAt: string | null;
+  hasLogo: boolean;
 }
 
 export interface DemoSiteState {
@@ -846,3 +849,32 @@ export const setDemoSiteStyle = (businessId: string, change: { style?: DemoStyle
 export async function deleteDemoSite(businessId: string) {
   await demoAction('demo-site-delete', { businessId });
 }
+
+// Demo site editor (drafts are saved to the cloud; "publish" makes them public)
+export interface DemoDraftResponse {
+  site: DemoSiteSummary;
+  data: import('../../shared/demoSite/types').DemoSiteData;
+  draftSavedAt: string | null;
+}
+
+async function demoRequest<T>(action: string, payload: Record<string, unknown>, timeoutMs = 25000): Promise<T> {
+  const res = await authenticatedFetch('/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...payload }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data?.error || 'Não foi possível concluir esta ação.'), { code: data?.code, status: res.status });
+  return data as T;
+}
+
+export const getDemoDraft = (businessId: string) => demoRequest<DemoDraftResponse>('demo-site-draft-get', { businessId });
+export const saveDemoDraft = (businessId: string, data: unknown) =>
+  demoRequest<{ site: DemoSiteSummary; savedAt: string }>('demo-site-draft-save', { businessId, data }, 40000);
+export const publishDemoDraft = (businessId: string) =>
+  demoRequest<{ site: DemoSiteSummary; publishedAt: string | null }>('demo-site-publish', { businessId });
+export const discardDemoDraft = (businessId: string) =>
+  demoRequest<{ site: DemoSiteSummary; data: DemoDraftResponse['data'] }>('demo-site-discard', { businessId });
+export const setDemoLogo = (businessId: string, logo: string | null) =>
+  demoRequest<{ site: DemoSiteSummary }>('demo-site-logo', { businessId, logo }, 40000);

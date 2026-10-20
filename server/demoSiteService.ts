@@ -3,8 +3,9 @@ import { appDataRequest, dbValue } from './appDataService.js';
 import { getSubscriptionAccess } from './subscriptionAccessService.js';
 import { getUserProfile } from './userProfileService.js';
 import { buildFacts, fetchImages, generateCopy, styleForCategory } from './demoSite/generate.js';
-import { layoutFor, renderDemoSite } from './demoSite/render.js';
-import { LAYOUT_IDS, STYLE_IDS, type DemoSiteData, type LayoutId, type StyleId } from './demoSite/types.js';
+import { cleanLogo, sanitizeDemoData } from './demoSite/sanitize.js';
+import { layoutFor, renderDemoSite } from '../shared/demoSite/render.js';
+import { LAYOUT_IDS, STYLE_IDS, type DemoSiteData, type LayoutId, type StyleId } from '../shared/demoSite/types.js';
 
 type Plan = 'free' | 'go' | 'pro' | 'agency';
 const MONTHLY_LIMIT: Record<Plan, number> = { free: 1, go: 10, pro: 40, agency: 150 };
@@ -18,6 +19,9 @@ interface DemoSiteRow {
   business_name: string;
   style: StyleId;
   data: DemoSiteData;
+  draft: DemoSiteData | null;
+  draft_updated_at: string | null;
+  published_at: string | null;
   views: number;
   last_viewed_at: string | null;
   created_at: string;
@@ -36,6 +40,9 @@ export interface DemoSiteSummary {
   updatedAt: string;
   hasPhotos: boolean;
   photoNote: string | null;
+  unpublished: boolean;
+  publishedAt: string | null;
+  hasLogo: boolean;
 }
 
 function httpError(message: string, statusCode: number, code: string): never {
@@ -65,6 +72,9 @@ function summary(row: DemoSiteRow): DemoSiteSummary {
     updatedAt: row.updated_at,
     hasPhotos: Boolean(row.data?.images?.hero),
     photoNote: row.data?.images?.note || null,
+    unpublished: Boolean(row.draft),
+    publishedAt: row.published_at,
+    hasLogo: Boolean((row.draft || row.data)?.logo),
   };
 }
 
@@ -147,7 +157,7 @@ export async function createOrRegenerateDemoSite(userUid: string, input: any) {
     copy.layout = LAYOUT_IDS[(LAYOUT_IDS.indexOf(current) + 1) % LAYOUT_IDS.length];
   }
   const images = await fetchImages(copy, facts, variation);
-  const data: DemoSiteData = { business: facts, copy, images, brand, generatedAt: new Date().toISOString() };
+  const data: DemoSiteData = { business: facts, copy, images, brand, generatedAt: new Date().toISOString(), logo: existing?.draft?.logo ?? existing?.data?.logo ?? null };
 
   const payload = {
     user_uid: userUid,
@@ -155,6 +165,10 @@ export async function createOrRegenerateDemoSite(userUid: string, input: any) {
     business_name: facts.name,
     style: copy.style || styleForCategory(facts.category, facts.name),
     data,
+    // A new version replaces unpublished edits.
+    draft: null,
+    draft_updated_at: null,
+    published_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
@@ -182,10 +196,12 @@ export async function changeDemoSiteStyle(userUid: string, businessId: string, c
   const layout = change.layout && (LAYOUT_IDS as readonly string[]).includes(change.layout) ? change.layout as LayoutId : layoutFor(row.data);
   if (change.style && style !== change.style) httpError('Estilo inválido.', 400, 'DEMO_INVALID');
   const variant = change.variant === 1 ? 1 : change.variant === 0 ? 0 : row.data.copy.variant;
-  const data = { ...row.data, copy: { ...row.data.copy, style, layout, variant } };
+  const apply = (source: DemoSiteData): DemoSiteData => ({ ...source, copy: { ...source.copy, style, layout, variant } });
   const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
     method: 'PATCH', headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ style, data, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({
+      style, data: apply(row.data), ...(row.draft ? { draft: apply(row.draft) } : {}), updated_at: new Date().toISOString(),
+    }),
   });
   return summary(rows[0]);
 }
@@ -215,4 +231,66 @@ export async function renderPublicDemoSite(slug: string, options: { countView: b
     }).catch(() => undefined);
   }
   return renderDemoSite(row.data, row.style, { preview: !options.countView });
+}
+
+// ---------------------------------------------------------------------------
+// Editor: drafts live in the cloud, "publish" copies the draft to the public version
+// ---------------------------------------------------------------------------
+
+async function requireRow(userUid: string, businessId: string) {
+  const row = await findByBusiness(userUid, businessId);
+  if (!row) httpError('Site não encontrado.', 404, 'DEMO_NOT_FOUND');
+  return row;
+}
+
+export async function getDemoDraft(userUid: string, businessId: string) {
+  const row = await requireRow(userUid, businessId);
+  return { site: summary(row), data: row.draft || row.data, draftSavedAt: row.draft_updated_at };
+}
+
+export async function saveDemoDraft(userUid: string, businessId: string, input: unknown) {
+  const row = await requireRow(userUid, businessId);
+  const clean = sanitizeDemoData(input, row.draft || row.data);
+  const now = new Date().toISOString();
+  const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ draft: clean, draft_updated_at: now }),
+  });
+  return { site: summary(rows[0]), savedAt: now };
+}
+
+export async function publishDemoDraft(userUid: string, businessId: string) {
+  const row = await requireRow(userUid, businessId);
+  if (!row.draft) return { site: summary(row), publishedAt: row.published_at };
+  const now = new Date().toISOString();
+  const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      data: row.draft, style: row.draft.copy?.style || row.style, draft: null, draft_updated_at: null, published_at: now, updated_at: now,
+    }),
+  });
+  return { site: summary(rows[0]), publishedAt: now };
+}
+
+export async function discardDemoDraft(userUid: string, businessId: string) {
+  const row = await requireRow(userUid, businessId);
+  const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ draft: null, draft_updated_at: null }),
+  });
+  return { site: summary(rows[0]), data: rows[0].data };
+}
+
+/** Logo upload from the card: applies to the live page and to any open draft. */
+export async function setDemoLogo(userUid: string, businessId: string, logoInput: unknown) {
+  const row = await requireRow(userUid, businessId);
+  const logo = cleanLogo(logoInput);
+  const rows = await appDataRequest<DemoSiteRow[]>(`demo_sites?id=eq.${dbValue(row.id)}&select=*`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      data: { ...row.data, logo },
+      ...(row.draft ? { draft: { ...row.draft, logo } } : {}),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return { site: summary(rows[0]) };
 }

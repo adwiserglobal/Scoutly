@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Eye, Globe, Loader2, RefreshCw, Sparkles, Trash2, ExternalLink } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Check, Copy, Eye, Globe, ImagePlus, Loader2, Pencil, RefreshCw, Sparkles, Trash2, ExternalLink } from 'lucide-react';
 import type { Business } from '../types';
+import { prepareLogo } from './demo/imageTools';
 import {
-  createDemoSite, deleteDemoSite, getDemoSite, setDemoSiteStyle,
+  createDemoSite, deleteDemoSite, getDemoSite, setDemoLogo, setDemoSiteStyle,
   type DemoLayoutId, type DemoSiteState, type DemoStyleId,
 } from '../services/api';
+
+const DemoSiteEditor = lazy(() => import('./demo/DemoSiteEditor'));
 
 const STYLES: Array<{ id: DemoStyleId; label: string; swatch: string }> = [
   { id: 'clean', label: 'Clean', swatch: 'linear-gradient(135deg,#fff 50%,#0b78d6 50%)' },
@@ -48,6 +51,9 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const variationRef = useRef(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +112,31 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
     try { setState(await setDemoSiteStyle(business.id, change)); }
     catch (err: any) { setError(err?.message || 'Não foi possível trocar o estilo.'); }
     finally { setBusy(null); }
+  };
+
+  const uploadLogo = async (file: File | undefined) => {
+    if (!file || !state?.site) return;
+    setLogoBusy(true);
+    setError(null);
+    setErrorDetail(null);
+    try {
+      const prepared = await prepareLogo(file);
+      const result = await setDemoLogo(business.id, prepared.dataUrl);
+      setState((current) => (current ? { ...current, site: result.site } : current));
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível enviar a logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    setLogoBusy(true);
+    try {
+      const result = await setDemoLogo(business.id, null);
+      setState((current) => (current ? { ...current, site: result.site } : current));
+    } catch (err: any) { setError(err?.message || 'Não foi possível remover a logo.'); }
+    finally { setLogoBusy(false); }
   };
 
   const remove = async () => {
@@ -196,6 +227,23 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
             </button>
           </div>
 
+          <button type="button" onClick={() => setEditorOpen(true)} disabled={busy !== null} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#ff7a45]/45 bg-[#ff5a12]/[0.08] text-[12px] font-bold text-white transition hover:bg-[#ff5a12]/[0.16] disabled:opacity-50">
+            <Pencil className="h-4 w-4 text-[#ff9869]" /> Abrir no editor
+            {site.unpublished && <span className="rounded bg-[#ff5a12]/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#ffb089]">não publicado</span>}
+          </button>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.09] bg-black/20 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-white/[0.07] text-[#b5bac3]">{logoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}</span>
+              <span className="min-w-0 text-[11px] leading-snug text-[#c8ccd3]"><b className="block text-[12px] text-white">Logo do cliente</b>{site.hasLogo ? 'Aparece no topo do site' : 'Opcional, aparece no topo do site'}</span>
+            </div>
+            <div className="flex flex-none items-center gap-1">
+              <button type="button" onClick={() => logoInput.current?.click()} disabled={logoBusy} className="h-7 rounded-lg bg-white/[0.08] px-2.5 text-[11px] font-semibold text-white hover:bg-white/[0.14] disabled:opacity-50">{site.hasLogo ? 'Trocar' : 'Enviar'}</button>
+              {site.hasLogo && <button type="button" onClick={() => void removeLogo()} disabled={logoBusy} className="h-7 rounded-lg px-2 text-[11px] text-[#ff9c9c] hover:bg-rose-500/10 disabled:opacity-50">Remover</button>}
+            </div>
+            <input ref={logoInput} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(event) => { void uploadLogo(event.target.files?.[0]); event.target.value = ''; }} />
+          </div>
+
           <div>
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#a4aab4]">Estilo visual</p>
             <div className="flex flex-wrap gap-1.5">
@@ -238,7 +286,7 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
               {site.views > 0 ? `${site.views} visualizaç${site.views === 1 ? 'ão' : 'ões'}` : 'Ainda não aberto pelo lead'}
             </span>
             <span className="flex items-center gap-1">
-              <button type="button" onClick={() => create(true)} disabled={busy !== null} className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 font-semibold text-[#ff9869] hover:bg-white/[0.06] disabled:opacity-50" title="Gera novos textos e imagens mantendo o mesmo link">
+              <button type="button" onClick={() => { if (site.unpublished && !window.confirm('Há alterações não publicadas no editor. Gerar uma nova versão vai substituí-las. Continuar?')) return; void create(true); }} disabled={busy !== null} className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 font-semibold text-[#ff9869] hover:bg-white/[0.06] disabled:opacity-50" title="Gera novos textos e imagens mantendo o mesmo link">
                 <RefreshCw className="h-3.5 w-3.5" /> Nova versão
               </button>
               <button type="button" onClick={remove} disabled={busy !== null} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#9aa0aa] hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50" aria-label="Excluir site">
@@ -255,6 +303,18 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
           <p>{error}</p>
           {errorDetail && <p className="mt-1.5 break-words text-[10px] text-rose-200/70">Detalhes técnicos: {errorDetail}</p>}
         </div>
+      )}
+      {editorOpen && (
+        <Suspense fallback={null}>
+          <DemoSiteEditor
+            businessId={business.id}
+            businessName={business.name}
+            onClose={(latest) => {
+              setEditorOpen(false);
+              if (latest) setState((current) => (current ? { ...current, site: latest } : current));
+            }}
+          />
+        </Suspense>
       )}
     </section>
   );

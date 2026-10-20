@@ -1,4 +1,4 @@
-import { LAYOUT_IDS, type DemoImage, type DemoSiteData, type IconId, type LayoutId, type StyleId } from './types.js';
+import { FONT_OPTIONS, LAYOUT_IDS, type DemoDesign, type DemoImage, type DemoSiteData, type FontName, type IconId, type LayoutId, type SectionRef, type StyleId } from './types.js';
 
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -87,6 +87,51 @@ const hexRgb = (hex: string) => {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 };
 
+const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+const luminance = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+};
+
+/** Applies the owner's overrides (colors, fonts, corners) on top of the preset style. */
+function resolveTheme(base: Theme, design: DemoDesign | undefined, accentFromVariant: string): { theme: Theme; accent: string } {
+  const theme: Theme = { ...base };
+  let accent = accentFromVariant;
+  if (design) {
+    if (isHex(design.accent)) { accent = design.accent; theme.onAccent = luminance(accent) > 0.42 ? '#0d0e11' : '#ffffff'; }
+    const bg = isHex(design.bg) ? design.bg : null;
+    const ink = isHex(design.ink) ? design.ink : null;
+    if (bg) {
+      theme.bg = bg;
+      theme.dark = luminance(bg) < 0.25;
+      if (!ink) theme.ink = theme.dark ? '#f4f4f2' : '#14181f';
+    }
+    if (ink) theme.ink = ink;
+    if (bg || ink) {
+      theme.surface = `color-mix(in srgb, ${theme.bg} 93%, ${theme.ink})`;
+      theme.surface2 = `color-mix(in srgb, ${theme.bg} 86%, ${theme.ink})`;
+      theme.muted = `color-mix(in srgb, ${theme.ink} 64%, ${theme.bg})`;
+      theme.line = `color-mix(in srgb, ${theme.ink} 15%, ${theme.bg})`;
+    }
+    const pick = (name: unknown): FontName | null => (typeof name === 'string' && name in FONT_OPTIONS ? name as FontName : null);
+    const heading = pick(design.fontHeading);
+    const body = pick(design.fontBody);
+    if (heading || body) {
+      const unquote = (value: string) => value.replace(/['"]/g, '');
+      const headingName = heading || pick(unquote(base.heading));
+      const bodyName = body || pick(unquote(base.body));
+      if (heading) theme.heading = `'${heading}'`;
+      if (body) theme.body = `'${body}'`;
+      const families = [...new Set([headingName, bodyName].filter((name): name is FontName => Boolean(name)))];
+      theme.fonts = families.map((name) => FONT_OPTIONS[name].query).join('&family=');
+    }
+    if (design.radius === 'sharp') theme.radius = 4;
+    else if (design.radius === 'round') theme.radius = 28;
+  }
+  return { theme, accent };
+}
+
 function css(theme: Theme, accent: string) {
   const r = theme.radius;
   return `
@@ -131,7 +176,7 @@ header .btn{min-height:44px;padding:0 20px;font-size:.92rem}
 .frame{position:relative}
 .frame::before{content:"";position:absolute;inset:-14px -14px 14px 14px;border-radius:var(--r);background:var(--accent);opacity:.16}
 .frame img,.frame .art{position:relative;width:100%;aspect-ratio:4/4.4;object-fit:cover;border-radius:var(--r);box-shadow:0 30px 70px -30px rgba(0,0,0,.45)}
-.art{background:radial-gradient(120% 90% at 20% 10%,rgba(var(--accent-rgb),.55),transparent 60%),linear-gradient(160deg,var(--surface2),var(--surface));display:grid;place-items:center;color:var(--accent);overflow:hidden}
+.art{position:relative;background:radial-gradient(120% 90% at 20% 10%,rgba(var(--accent-rgb),.55),transparent 60%),linear-gradient(160deg,var(--surface2),var(--surface));display:grid;place-items:center;color:var(--accent);overflow:hidden}
 .art .ic{width:34%;height:auto;opacity:.9;stroke-width:1.1}
 .art::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(var(--accent-rgb),.28) 1.2px,transparent 1.4px);background-size:22px 22px;mask-image:linear-gradient(160deg,#000,transparent 70%)}
 .badge{position:absolute;left:-10px;bottom:26px;z-index:2;display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg);border:1px solid var(--line);border-radius:calc(var(--r) * .8);box-shadow:0 18px 40px -18px rgba(0,0,0,.5);font-size:.9rem;line-height:1.25}
@@ -271,6 +316,27 @@ header.cen nav.links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 
 header.cen .btn{display:none}
 .shape-arch{border-radius:999px 999px var(--r) var(--r)!important}
 .art svg.bg{position:absolute;inset:0;width:100%;height:100%}
+.brand img.logo{height:38px;width:auto;max-width:180px;object-fit:contain;border-radius:6px}
+.prose{max-width:760px}.prose p{color:var(--muted);margin-top:14px}
+.stats{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.stat{padding:26px;border-radius:var(--r);background:var(--bg);border:1px solid var(--line)}
+.stat b{display:block;font-family:var(--hf);font-size:clamp(2rem,5vw,3.2rem);line-height:1;color:var(--accent)}
+.stat span{display:block;margin-top:10px;color:var(--muted);font-size:.95rem}
+.quotes{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.quote{padding:28px;border-radius:var(--r);background:var(--bg);border:1px solid var(--line)}
+.quote p{font-size:1.08rem;line-height:1.6}.quote p::before{content:"“";display:block;font-family:var(--hf);font-size:3rem;line-height:.6;color:var(--accent);margin-bottom:8px}
+.quote small{display:block;margin-top:16px;color:var(--muted);font-weight:700}
+.pricing{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));align-items:stretch}
+.plan{display:flex;flex-direction:column;gap:12px;padding:30px;border-radius:var(--r);background:var(--bg);border:1px solid var(--line)}
+.plan:nth-child(2):not(:only-child){border-color:var(--accent);box-shadow:0 24px 60px -34px rgba(var(--accent-rgb),.7)}
+.plan b{font-family:var(--hf);font-size:1.3rem}.plan .price{font-family:var(--hf);font-size:2.4rem;font-weight:800;color:var(--accent);line-height:1}
+.plan p{color:var(--muted);font-size:.96rem}.plan ul{list-style:none;padding:0;display:grid;gap:8px;font-size:.95rem;flex:1}
+.plan li{display:flex;gap:10px}.plan li::before{content:"✓";color:var(--accent);font-weight:800}
+.plan .btn{width:100%}
+.promo{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between;padding:clamp(24px,4vw,40px) clamp(22px,4vw,44px);border-radius:var(--r);background:var(--accent);color:var(--on)}
+.promo p{font-family:var(--hf);font-size:clamp(1.3rem,3vw,2rem);font-weight:${theme.headingWeight};line-height:1.2;max-width:34ch}
+.promo .btn{background:var(--on);color:var(--accent);box-shadow:none}
+body.ed section[id]{cursor:pointer}body.ed section[id]:hover{outline:2px dashed rgba(var(--accent-rgb),.7);outline-offset:-3px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 `;
 }
@@ -280,6 +346,9 @@ header.cen .btn{display:none}
 // ---------------------------------------------------------------------------
 const WIDTHS = [480, 800, 1280];
 function img(image: DemoImage, sizes: string, eager = false, alt = '', h?: number) {
+  if (image.src.startsWith('data:')) {
+    return `<img src="${esc(image.src)}" width="${image.width}" height="${h || image.height}" alt="${esc(alt || image.alt)}" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">`;
+  }
   const url = (w: number) => `${esc(image.src)}${image.src.includes('?') ? '&' : '?'}auto=format&fit=crop&q=72&w=${w}`;
   const width = Math.min(1280, image.width);
   const height = Math.round(width * image.height / image.width);
@@ -344,13 +413,24 @@ const LAYOUTS: Record<LayoutId, Parts> = {
   bento: { hero: 'tiles', services: 'bento', about: 'side', process: 'rail', faq: 'two', cta: 'band', header: 'bar', galleryAfter: 'about' },
 };
 
-export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { preview?: boolean } = {}): string {
+export function defaultSections(data: DemoSiteData): SectionRef[] {
+  const after = LAYOUTS[layoutFor(data)].galleryAfter;
+  const ids = after === 'services'
+    ? ['servicos', 'galeria', 'sobre', 'como-funciona', 'perguntas', 'cta', 'contato']
+    : ['servicos', 'sobre', 'galeria', 'como-funciona', 'perguntas', 'cta', 'contato'];
+  return ids.map((id) => ({ id, type: 'core' as const }));
+}
+
+const CORE_NAV: Record<string, string> = { servicos: 'Serviços', sobre: 'Sobre', galeria: 'Galeria', 'como-funciona': 'Como funciona', perguntas: 'Perguntas', contato: 'Contato' };
+const EXTRA_NAV: Record<string, string> = { pricing: 'Planos', testimonials: 'Depoimentos', stats: '', text: '', banner: '' };
+
+export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { preview?: boolean; editor?: boolean } = {}): string {
   artSeed = hashOf(data.business.name) % 4;
   const { business: b, copy, images, brand } = data;
-  const theme = THEMES[style] || THEMES.clean;
+  const baseTheme = THEMES[style] || THEMES.clean;
   const layoutId = layoutFor(data);
   const L = LAYOUTS[layoutId];
-  const accent = theme.accents[copy.variant] || theme.accents[0];
+  const { theme, accent } = resolveTheme(baseTheme, data.design, baseTheme.accents[copy.variant] || baseTheme.accents[0]);
   const wa = waNumber(b.phoneDigits);
   const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`Olá! Vi o site da ${b.name} e gostaria de mais informações.`)}` : '';
   const primaryHref = waLink || '#contato';
@@ -380,27 +460,27 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
     case 'split': {
       let media = photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon);
       if (shape) media = media.startsWith('<img ') ? media.replace('<img ', `<img class="${shape}" `) : media.replace('class="art"', `class="art ${shape}"`);
-      hero = `<section class="hero"><div class="wrap split"><div>${heroText()}</div><div class="frame">${media}${badge}</div></div></section>`;
+      hero = `<section id="hero" class="hero"><div class="wrap split"><div>${heroText()}</div><div class="frame">${media}${badge}</div></div></section>`;
       break;
     }
     case 'full':
-      hero = `<section class="hero full">${photo(images.hero, '100vw', true, heroAlt, mainIcon)}<div class="wrap">${heroText()}</div></section>`;
+      hero = `<section id="hero" class="hero full">${photo(images.hero, '100vw', true, heroAlt, mainIcon)}<div class="wrap">${heroText()}</div></section>`;
       break;
     case 'center': {
       const mosaic = images.hero
         ? `<div class="mosaic">${[images.hero, ...images.gallery.slice(0, 2)].map((image, i) => img(image, i === 0 ? '(min-width:760px) 50vw, 92vw' : '(min-width:760px) 25vw, 92vw', i === 0)).join('')}</div>`
         : `<div class="mosaic">${[0, 1, 2].map((i) => art(copy.services[i]?.icon || mainIcon)).join('')}</div>`;
-      hero = `<section class="hero center"><div class="wrap">${heroText()}${mosaic}</div></section>`;
+      hero = `<section id="hero" class="hero center"><div class="wrap">${heroText()}${mosaic}</div></section>`;
       break;
     }
     case 'editorial':
-      hero = `<section class="hero ed"><div class="wrap"><div class="ed-top"><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><span>${esc(where || b.category)}</span></div><h1>${esc(copy.headline)}</h1><div class="ed-row"><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div><div class="ed-media">${photo(images.hero, '(min-width:1200px) 1160px, 94vw', true, heroAlt, mainIcon)}</div></div></section>`;
+      hero = `<section id="hero" class="hero ed"><div class="wrap"><div class="ed-top"><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><span>${esc(where || b.category)}</span></div><h1>${esc(copy.headline)}</h1><div class="ed-row"><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div><div class="ed-media">${photo(images.hero, '(min-width:1200px) 1160px, 94vw', true, heroAlt, mainIcon)}</div></div></section>`;
       break;
     case 'stack':
-      hero = `<section class="hero"><div class="stack-media">${photo(images.hero, '(min-width:1320px) 1320px, 100vw', true, heroAlt, mainIcon)}</div><div class="wrap stack-text"><div><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><h1 style="margin-top:20px">${esc(copy.headline)}</h1></div><div><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div></div></section>`;
+      hero = `<section id="hero" class="hero"><div class="stack-media">${photo(images.hero, '(min-width:1320px) 1320px, 100vw', true, heroAlt, mainIcon)}</div><div class="wrap stack-text"><div><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><h1 style="margin-top:20px">${esc(copy.headline)}</h1></div><div><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div></div></section>`;
       break;
     case 'tiles':
-      hero = `<section class="hero"><div class="wrap split"><div>${heroText()}</div><div class="tiles"><div class="tile img">${photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon)}</div>
+      hero = `<section id="hero" class="hero"><div class="wrap split"><div>${heroText()}</div><div class="tiles"><div class="tile img">${photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon)}</div>
         <div class="tile">${icon(hasRating ? 'star' : 'pin')}<div><b>${esc(hasRating ? ratingText : (b.neighborhood || b.city || 'Local'))}</b><span style="color:var(--muted);font-size:.9rem">${hasRating ? `${esc(b.reviewCount)} avaliações no Google` : 'Atendimento na região'}</span></div></div>
         <a class="tile ac" href="${esc(primaryHref)}"${relAttr}>${icon(wa ? 'phone' : 'sparkle')}<b style="font-size:1.35rem">${esc(copy.primaryCta)} →</b></a></div></div></section>`;
       break;
@@ -423,7 +503,7 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
   else if (L.services === 'rows') services = `<ol class="rows">${copy.services.map((s, i) => `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></li>`).join('')}</ol>`;
   else if (L.services === 'bento') services = `<div class="bento">${copy.services.slice(0, 5).map(card).join('')}</div>`;
   else services = `<div class="icons">${copy.services.map((s) => `<article>${icon(s.icon)}<h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></article>`).join('')}</div>`;
-  const servicesSec = `<section class="sec" id="servicos"><div class="wrap">${head('Serviços', L.services === 'rows' ? 'O que fazemos' : 'O que fazemos por você')}${services}</div></section>`;
+  const servicesSec = `<section class="sec%ALT%" id="servicos"><div class="wrap">${head('Serviços', L.services === 'rows' ? 'O que fazemos' : 'O que fazemos por você')}${services}</div></section>`;
 
   // About
   const highlights = `<div class="hl">${copy.highlights.map((h) => `<div>${icon('check')}<p style="margin:0"><b>${esc(h.title)}</b><span>${esc(h.text)}</span></p></div>`).join('')}</div>`;
@@ -431,15 +511,15 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
   const aboutPhoto = photo(images.about, '(min-width:900px) 46vw, 92vw', false, `${b.name} no dia a dia`, copy.services[1]?.icon || mainIcon);
   let about = '';
   if (L.about === 'side' || L.about === 'sideR') {
-    about = `<section class="sec alt" id="sobre"><div class="wrap about${L.about === 'sideR' ? ' rev' : ''}"><div>${aboutPhoto}</div><div><p class="eyebrow">Sobre</p><h2>${esc(copy.aboutTitle)}</h2>${aboutParas}${highlights}</div></div></section>`;
+    about = `<section class="sec%ALT%" id="sobre"><div class="wrap about${L.about === 'sideR' ? ' rev' : ''}"><div>${aboutPhoto}</div><div><p class="eyebrow">Sobre</p><h2>${esc(copy.aboutTitle)}</h2>${aboutParas}${highlights}</div></div></section>`;
   } else if (L.about === 'sticky') {
-    about = `<section class="sec alt" id="sobre"><div class="wrap sticky2"><div><p class="eyebrow">Sobre</p><h2 style="margin-top:14px">${esc(copy.aboutTitle)}</h2></div><div>${aboutParas}${highlights}<div class="pics">${aboutPhoto}</div></div></div></section>`;
+    about = `<section class="sec%ALT%" id="sobre"><div class="wrap sticky2"><div><p class="eyebrow">Sobre</p><h2 style="margin-top:14px">${esc(copy.aboutTitle)}</h2></div><div>${aboutParas}${highlights}<div class="pics">${aboutPhoto}</div></div></div></section>`;
   } else {
-    about = `<section class="sec alt" id="sobre"><div class="wrap"><div class="widewrap">${aboutPhoto}</div><div class="widecard"><p class="eyebrow">Sobre</p><h2 style="margin-top:12px;font-size:clamp(1.6rem,3.4vw,2.4rem)">${esc(copy.aboutTitle)}</h2>${aboutParas}</div><div style="max-width:760px;margin:26px auto 0">${highlights}</div></div></section>`;
+    about = `<section class="sec%ALT%" id="sobre"><div class="wrap"><div class="widewrap">${aboutPhoto}</div><div class="widecard"><p class="eyebrow">Sobre</p><h2 style="margin-top:12px;font-size:clamp(1.6rem,3.4vw,2.4rem)">${esc(copy.aboutTitle)}</h2>${aboutParas}</div><div style="max-width:760px;margin:26px auto 0">${highlights}</div></div></section>`;
   }
 
   const gallery = images.gallery.length >= 2
-    ? `<section class="sec" id="galeria"><div class="wrap">${head('Galeria', `${b.name} em imagens`)}<div class="gallery">${images.gallery.map((image) => img(image, '(min-width:720px) 38vw, 92vw')).join('')}</div></div></section>`
+    ? `<section class="sec%ALT%" id="galeria"><div class="wrap">${head('Galeria', `${b.name} em imagens`)}<div class="gallery">${images.gallery.map((image) => img(image, '(min-width:720px) 38vw, 92vw')).join('')}</div></div></section>`
     : '';
 
   // Process
@@ -447,28 +527,28 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
   if (L.process === 'cols') process = `<div class="steps">${copy.process.map((s) => `<div class="step"><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
   else if (L.process === 'timeline') process = `<div class="timeline">${copy.process.map((s, i) => `<div class="st" data-n="${i + 1}"><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
   else process = `<div class="rail">${copy.process.map((s) => `<div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div>`).join('')}</div>`;
-  const processSec = `<section class="sec" id="como-funciona"><div class="wrap">${head('Como funciona', 'Simples do primeiro contato ao atendimento')}${process}</div></section>`;
+  const processSec = `<section class="sec%ALT%" id="como-funciona"><div class="wrap">${head('Como funciona', 'Simples do primeiro contato ao atendimento')}${process}</div></section>`;
 
   // FAQ
   const faqItems = copy.faq.map((item) => `<details><summary>${esc(item.q)}</summary><p>${esc(item.a)}</p></details>`).join('');
   const faqSec = L.faq === 'two'
-    ? `<section class="sec alt" id="perguntas"><div class="wrap faq2"><div><p class="eyebrow">Perguntas frequentes</p><h2 style="margin-top:14px">Tire suas dúvidas</h2></div><div class="faq">${faqItems}</div></div></section>`
-    : `<section class="sec alt" id="perguntas"><div class="wrap">${head('Perguntas frequentes', 'Tire suas dúvidas')}<div class="faq">${faqItems}</div></div></section>`;
+    ? `<section class="sec%ALT%" id="perguntas"><div class="wrap faq2"><div><p class="eyebrow">Perguntas frequentes</p><h2 style="margin-top:14px">Tire suas dúvidas</h2></div><div class="faq">${faqItems}</div></div></section>`
+    : `<section class="sec%ALT%" id="perguntas"><div class="wrap">${head('Perguntas frequentes', 'Tire suas dúvidas')}<div class="faq">${faqItems}</div></div></section>`;
 
   // CTA
   const ctaBtn = `<a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a>`;
   const ctaSec = L.cta === 'band'
-    ? `<section class="sec"><div class="wrap"><div class="cta-band"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></div></section>`
+    ? `<section class="sec" id="cta"><div class="wrap"><div class="cta-band"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></div></section>`
     : L.cta === 'split'
-      ? `<section class="sec"><div class="wrap"><div class="cta-split"><div><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p></div>${ctaBtn}</div></div></section>`
-      : `<section class="sec"><div class="wrap cta-plain"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></section>`;
+      ? `<section class="sec" id="cta"><div class="wrap"><div class="cta-split"><div><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p></div>${ctaBtn}</div></div></section>`
+      : `<section class="sec" id="cta"><div class="wrap cta-plain"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p>${ctaBtn}</div></section>`;
 
   const contactCards = [
     b.address ? `<div class="card">${icon('pin')}<div><b>Endereço</b>${esc(b.address)}${mapsHref ? `<br><a href="${esc(mapsHref)}" rel="noopener" style="color:var(--accent);font-weight:700">Como chegar →</a>` : ''}</div></div>` : '',
     wa ? `<div class="card">${icon('phone')}<div><b>WhatsApp</b><a href="${esc(waLink)}" rel="noopener">Chamar agora →</a></div></div>` : '',
     b.hours ? `<div class="card">${icon('clock')}<div><b>Horários</b>${esc(humanHours(b.hours))}</div></div>` : '',
   ].filter(Boolean).join('') || `<div class="card">${icon('phone')}<div><b>Contato</b>Informações de contato em breve.</div></div>`;
-  const contactSec = `<section class="sec alt" id="contato"><div class="wrap">${head('Contato', 'Onde estamos')}<div class="contact">${contactCards}</div></div></section>`;
+  const contactSec = `<section class="sec%ALT%" id="contato"><div class="wrap">${head('Contato', 'Onde estamos')}<div class="contact">${contactCards}</div></div></section>`;
 
   const credits = [...new Map([images.hero, images.about, ...images.gallery]
     .filter((image): image is DemoImage => Boolean(image && image.credit))
@@ -482,29 +562,76 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
 
   const fontHref = `https://fonts.googleapis.com/css2?family=${theme.fonts}&display=swap`;
   const title = `${b.name} — ${copy.headline}`.slice(0, 70);
+  // Extra (pre-made) sections
+  const paragraphs = (text: string) => String(text || '').split(/\n{1,}/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${esc(line)}</p>`).join('');
+  const renderExtra = (section: SectionRef) => {
+    const props = section.props || {};
+    const items = props.items || [];
+    const title = props.title ? head('', props.title).replace('<p class="eyebrow"></p>', '') : '';
+    const open = `<section class="sec%ALT%" id="${esc(section.id)}"><div class="wrap">`;
+    if (section.type === 'text') return `${open}<div class="prose">${props.title ? `<h2>${esc(props.title)}</h2>` : ''}${paragraphs(props.body || '')}</div></div></section>`;
+    if (section.type === 'stats') return `${open}${title}<div class="stats">${items.map((item) => `<div class="stat"><b>${esc(item.a)}</b><span>${esc(item.b)}</span></div>`).join('')}</div></div></section>`;
+    if (section.type === 'testimonials') return `${open}${title}<div class="quotes">${items.map((item) => `<figure class="quote"><p>${esc(item.a)}</p><small>${esc(item.b)}</small></figure>`).join('')}</div></div></section>`;
+    if (section.type === 'pricing') return `${open}${title}<div class="pricing">${items.map((item) => `<article class="plan"><b>${esc(item.a)}</b><span class="price">${esc(item.b)}</span><p>${esc(item.c)}</p><ul>${String(item.d || '').split(/\n/).map((line) => line.trim()).filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul><a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a></article>`).join('')}</div></div></section>`;
+    if (section.type === 'banner') return `${open}<div class="promo"><p>${esc(props.body || '')}</p>${props.button ? `<a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(props.button)}</a>` : ''}</div></div></section>`;
+    return '';
+  };
+
+  const coreHtml: Record<string, string> = {
+    servicos: servicesSec, sobre: about, galeria: gallery, 'como-funciona': processSec, perguntas: faqSec, cta: ctaSec, contato: contactSec,
+  };
+  const known = new Set(Object.keys(coreHtml));
+  const configured = (data.sections && data.sections.length ? data.sections : defaultSections(data))
+    .filter((section) => section.type === 'core' ? known.has(section.id) : true);
+  const sectionList = [...configured];
+  for (const section of defaultSections(data)) if (!sectionList.some((item) => item.id === section.id)) sectionList.push(section);
+
+  let altIndex = 0;
+  const visible = sectionList.filter((section) => !section.hidden);
+  const sectionHtml = visible.map((section) => {
+    const html = section.type === 'core' ? (coreHtml[section.id] || '') : renderExtra(section);
+    if (!html) return '';
+    if (section.id === 'cta') return html;
+    const alt = altIndex % 2 === 1;
+    altIndex += 1;
+    return html.replace('%ALT%', alt ? ' alt' : '');
+  }).join('\n');
+
+  const navItems = visible
+    .filter((section) => section.id !== 'cta' && (section.type === 'core' ? CORE_NAV[section.id] : EXTRA_NAV[section.type]))
+    .map((section) => `<a href="#${esc(section.id)}">${esc(section.type === 'core' ? CORE_NAV[section.id] : EXTRA_NAV[section.type])}</a>`)
+    .slice(0, 6).join('');
+
+  const logoHtml = data.logo && data.logo.startsWith('data:image/')
+    ? `<img class="logo" src="${esc(data.logo)}" alt="${esc(b.name)}" height="38">`
+    : `<i>${initials}</i>${esc(b.name)}`;
+
   const body = [
     hero,
     strip && L.hero !== 'tiles' ? `<div class="strip"><div class="wrap">${strip}</div></div>` : '',
-    ...(L.galleryAfter === 'services' ? [servicesSec, gallery, about] : [servicesSec, about, gallery]),
-    processSec, faqSec, ctaSec, contactSec,
+    sectionHtml,
   ].join('\n');
+
+  const editorScript = options.editor
+    ? `<script>(function(){addEventListener('scroll',function(){parent.postMessage({t:'scroll',y:scrollY},'*')},{passive:true});addEventListener('message',function(e){var d=e.data||{};if(d.t==='restore')scrollTo(0,d.y);if(d.t==='goto'){var el=document.getElementById(d.id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}});document.addEventListener('click',function(e){var t=e.target;var s=t.closest&&t.closest('section[id]');parent.postMessage({t:'select',id:s?s.id:'hero'},'*');if(t.closest&&t.closest('a'))e.preventDefault()},true)})()</script>`
+    : '';
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(copy.subheadline.slice(0, 155))}">
 <meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="${theme.bg}">
 <meta property="og:title" content="${esc(b.name)} — proposta de site"><meta property="og:description" content="${esc(copy.subheadline.slice(0, 155))}">${images.hero ? `<meta property="og:image" content="${esc(images.hero.src)}${images.hero.src.includes('?') ? '&' : '?'}auto=format&fit=crop&q=72&w=1200">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${images.hero ? '<link rel="preconnect" href="https://images.unsplash.com">' : ''}
-<link rel="stylesheet" href="${fontHref}"><style>${css(theme, accent)}</style></head><body>
+<link rel="stylesheet" href="${fontHref}"><style>${css(theme, accent)}</style></head><body${options.editor ? ' class="ed"' : ''}>
 ${demoBar}
-<header class="top${L.header === 'center' ? ' cen' : ''}"><div class="wrap"><a class="brand" href="#topo"><i>${initials}</i>${esc(b.name)}</a>
-<nav class="links" aria-label="Principal"><a href="#servicos">Serviços</a><a href="#sobre">Sobre</a><a href="#como-funciona">Como funciona</a><a href="#perguntas">Perguntas</a><a href="#contato">Contato</a></nav>
+<header class="top${L.header === 'center' ? ' cen' : ''}"><div class="wrap"><a class="brand" href="#topo">${logoHtml}</a>
+<nav class="links" aria-label="Principal">${navItems}</nav>
 <a class="btn" href="${esc(primaryHref)}"${relAttr}>${esc(copy.primaryCta)}</a></div></header>
 <main id="topo">
 ${body}
 </main>
 <footer><div class="wrap"><span>© ${esc(b.name)} · ${esc(b.category)}${where ? ` · ${esc(where)}` : ''}</span><span>Rascunho de site${brand.name ? ` criado por ${esc(brand.name)}` : ''}${credits.length ? ` · Fotos: ${credits.map(([name, href]) => `<a href="${esc(href)}" rel="noopener" target="_blank" style="text-decoration:underline">${esc(name)}</a>`).join(', ')} / <a href="https://unsplash.com/?utm_source=scoutly&utm_medium=referral" rel="noopener" target="_blank" style="text-decoration:underline">Unsplash</a>` : ''}</span></div></footer>
 ${waLink ? `<a class="wa" href="${esc(waLink)}" rel="noopener" aria-label="Chamar no WhatsApp">${WHATSAPP_SVG}</a>` : ''}
-</body></html>`;
+${editorScript}</body></html>`;
 }
 
 export const DEMO_CSP = [

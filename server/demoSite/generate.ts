@@ -2,7 +2,7 @@ import { generateText } from '../llmChain.js';
 import {
   ICON_IDS, STYLE_IDS,
   type DemoBrand, type DemoBusinessFacts, type DemoCopy, type DemoImage, type DemoImages, type IconId, type StyleId,
-} from './types.js';
+} from '../../shared/demoSite/types.js';
 
 const STYLE_GUIDE: Record<StyleId, string> = {
   clean: 'clean — claro, confiável e moderno (clínicas, consultórios, serviços profissionais, escolas)',

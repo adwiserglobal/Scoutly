@@ -8,9 +8,10 @@ import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import {
-  changeDemoSiteStyle, createOrRegenerateDemoSite, deleteDemoSite, getDemoSiteForBusiness, renderPublicDemoSite,
+  changeDemoSiteStyle, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
+  publishDemoDraft, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
 } from '../server/demoSiteService.js';
-import { DEMO_CSP } from '../server/demoSite/render.js';
+import { DEMO_CSP } from '../shared/demoSite/render.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -309,7 +310,7 @@ async function servePublicDemo(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   // Views are counted per request, so keep the edge cache short.
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=60');
   return res.status(200).send(html);
 }
 
@@ -573,6 +574,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         variant: req.body?.variant,
       });
       return res.status(200).json(await getDemoSiteForBusiness(identity.uid, businessId));
+    }
+
+    if (action === 'demo-site-draft-get') {
+      return res.status(200).json(await getDemoDraft(identity.uid, String(req.body?.businessId || '')));
+    }
+
+    if (action === 'demo-site-draft-save') {
+      return res.status(200).json(await saveDemoDraft(identity.uid, String(req.body?.businessId || ''), req.body?.data));
+    }
+
+    if (action === 'demo-site-publish') {
+      return res.status(200).json(await publishDemoDraft(identity.uid, String(req.body?.businessId || '')));
+    }
+
+    if (action === 'demo-site-discard') {
+      return res.status(200).json(await discardDemoDraft(identity.uid, String(req.body?.businessId || '')));
+    }
+
+    if (action === 'demo-site-logo') {
+      return res.status(200).json(await setDemoLogo(identity.uid, String(req.body?.businessId || ''), req.body?.logo));
     }
 
     if (action === 'demo-site-delete') {
