@@ -1,3 +1,4 @@
+import { generateText } from './llmChain.js';
 import { hasPeopleSearchAccess, revealDecisionMaker, searchDecisionMakers } from './peopleSearchService.js';
 type FocusedLead = {
   id: string;
@@ -31,6 +32,37 @@ function websiteHostname(raw?: string | null) {
   } catch {
     return '';
   }
+}
+
+/**
+ * A focused lead only makes web research sense for questions *about that lead*
+ * (owner, social profiles, contact, approach). Requests like "find similar businesses"
+ * are searches and must go through the regular Agentic business search.
+ */
+export function wantsSimilarBusinesses(message: string) {
+  const text = String(message || '').toLocaleLowerCase('pt-BR');
+  const find = /(encontr|ach[ae]|busc|list|mostr|procur|quero|preciso|quais|\bver\b)/.test(text);
+  const similar = /(semelhante|similar|parecid|concorrente|mesmo (tipo|segmento|ramo|nicho|perfil)|do mesmo|como (esse|este|ele)|neg[oó]cios|empresas|outr[oa]s?\b|\bmais\b)/.test(text);
+  const aboutLead = /(dono|s[oó]cio|fundador|propriet[aá]rio|respons[aá]vel|decisor|linkedin|instagram|facebook|e-?mail|abordagem|mensagem|pitch)/.test(text);
+  return find && similar && !aboutLead;
+}
+
+export function similarSearchQuery(leadInput: any, message: string) {
+  const category = clean(leadInput?.category, 80);
+  const address = clean(leadInput?.address, 200);
+  const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+  const stateIndex = parts.findIndex((part) => /-\s*[A-Z]{2}\b/.test(part));
+  const locality = stateIndex >= 0
+    ? parts.slice(Math.max(0, stateIndex - 1), stateIndex + 1).join(', ')
+    : parts.slice(-2).join(', ');
+  const text = String(message || '').toLocaleLowerCase('pt-BR');
+  const extras = [
+    /sem (site|website)/.test(text) ? 'sem site' : '',
+    /(com|tem) (whatsapp|telefone)/.test(text) ? 'com whatsapp' : '',
+    /sem (instagram|rede social|redes sociais)/.test(text) ? 'sem instagram' : '',
+  ].filter(Boolean).join(' ');
+  const count = text.match(/\b(\d{1,2})\b/)?.[1];
+  return [count, category || 'empresas', extras, locality ? `em ${locality}` : ''].filter(Boolean).join(' ');
 }
 
 export async function researchFocusedLead(leadInput: any, message: string) {
@@ -123,7 +155,7 @@ export async function researchFocusedLead(leadInput: any, message: string) {
     ? `"${lead.name}" (fundador OR sócio OR proprietário OR CEO) site:linkedin.com/in ${lead.address || ''}`
     : social
       ? `"${lead.name}" ${question} ${lead.address || ''}`
-      : `"${lead.name}" ${question} ${domain || lead.address || ''}`;
+      : `"${lead.name}" ${domain || lead.address || ''}`;
 
   try {
     const response = await fetch('https://google.serper.dev/search', {
@@ -153,6 +185,34 @@ export async function researchFocusedLead(leadInput: any, message: string) {
     const caution = linkedin
       ? 'Os links acima são **candidatos de pesquisa**, não confirmação da identidade do proprietário. Compare cargo, empresa e fontes oficiais antes de atribuir um perfil à pessoa.'
       : 'Os resultados vêm de páginas públicas indexadas. Confira os links antes de usar as informações comercialmente.';
+
+    if (!linkedin) {
+      try {
+        const answer = await generateText({
+          messages: [
+            {
+              role: 'system',
+              content: 'Você é o Scoutly Agentic, assistente de prospecção. Responda em português do Brasil, curto e direto, usando APENAS os resultados de pesquisa fornecidos. Se eles não falam da empresa informada (podem ser homônimos ou páginas de outra pessoa), diga isso claramente e não os use. Nunca invente dados. Não use tabelas.',
+            },
+            {
+              role: 'user',
+              content: `Empresa: ${lead.name}${lead.category ? ` (${lead.category})` : ''}${lead.address ? `, ${lead.address}` : ''}\nPergunta do usuário: ${question}\n\nResultados:\n${hits.map((hit, index) => `${index + 1}. ${hit.title} — ${hit.snippet} (${hit.link})`).join('\n')}`,
+            },
+          ],
+          temperature: 0.2,
+          maxTokens: 450,
+          budgetMs: 20_000,
+          title: 'Scoutly Agentic',
+        });
+        return {
+          text: `${context}\n\n${answer.text}\n\n**Fontes consultadas**\n${references}`,
+          matchedBusinessIds: [lead.id],
+          modelUsed: answer.model,
+        };
+      } catch (error: any) {
+        console.warn('[Lead Research] summary unavailable:', error?.message || error);
+      }
+    }
     return {
       text: `${context}\n\n**Resultados da pesquisa pública**\n${references}\n\n${caution}`,
       matchedBusinessIds: [lead.id],

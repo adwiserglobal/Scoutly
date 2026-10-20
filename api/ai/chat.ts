@@ -3,7 +3,7 @@ import { handleScoutlyAgenticChat } from '../../server/agenticSearchService.js';
 import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { ensureAppUser } from '../../server/appDataService.js';
 import { consumeAiConversation } from '../../server/entitlementService.js';
-import { researchFocusedLead } from '../../server/leadResearchService.js';
+import { researchFocusedLead, similarSearchQuery, wantsSimilarBusinesses } from '../../server/leadResearchService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -22,16 +22,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { workspaceId } = await ensureAppUser(identity);
     const access = await consumeAiConversation(identity.uid, workspaceId);
 
-    if (focusedLead && typeof focusedLead === 'object' && focusedLead.id && focusedLead.name) {
-      // A focused lead is an explicit user-selected context; do not reinterpret a
-      // request about its owner as a generic category search.
+    const hasFocusedLead = focusedLead && typeof focusedLead === 'object' && focusedLead.id && focusedLead.name;
+    const similarRequest = hasFocusedLead && wantsSimilarBusinesses(message);
+
+    if (hasFocusedLead && !similarRequest) {
+      // Questions about the focused lead itself (owner, profiles, approach) are researched
+      // for that lead; searches for other businesses fall through to the regular Agentic.
       const research = await researchFocusedLead(focusedLead, message.trim());
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ ...research, access });
     }
 
+    const searchMessage = similarRequest ? similarSearchQuery(focusedLead, message) : message.trim();
     const response = await handleScoutlyAgenticChat({
-      message: message.trim(),
+      message: searchMessage,
       history: Array.isArray(history) ? history : [],
       businesses: Array.isArray(businesses) ? businesses : [],
       currentRegionName:
@@ -44,6 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           : null,
     });
 
+    if (similarRequest && Array.isArray(response.matchedBusinessIds)) {
+      response.matchedBusinessIds = response.matchedBusinessIds.filter((id: string) => id !== focusedLead.id);
+    }
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ...response, access });
   } catch (err: any) {
