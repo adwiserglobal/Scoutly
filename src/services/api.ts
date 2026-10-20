@@ -828,7 +828,7 @@ async function demoAction(action: string, payload: Record<string, unknown>, time
     throw error;
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data?.error || 'Não foi possível concluir esta ação.'), { code: data?.code, status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data?.error || 'Não foi possível concluir esta ação.'), { code: data?.code, detail: data?.detail, status: res.status });
   return data as DemoSiteState;
 }
 

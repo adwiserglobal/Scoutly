@@ -40,8 +40,11 @@ export interface LlmResult {
 export class LlmUnavailableError extends Error {
   statusCode = 503;
   code = 'LLM_UNAVAILABLE';
-  constructor(message = 'A IA está com muita demanda agora. Tente novamente em instantes.') {
+  /** Short, secret-free reasons per attempt (provider/model: cause) for diagnostics. */
+  failures: string[];
+  constructor(message = 'A IA está com muita demanda agora. Tente novamente em instantes.', failures: string[] = []) {
     super(message);
+    this.failures = failures;
   }
 }
 
@@ -160,6 +163,12 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
   const hedgeMs = request.hedgeMs ?? 0;
   const started = Date.now();
   const queue = candidates();
+  const failures: string[] = [];
+  const note = (candidate: Candidate, error: any) =>
+    failures.push(`${candidate.provider}/${candidate.model}: ${String(error?.message || error).slice(0, 80)}`);
+  if (queue.length === 0) {
+    throw new LlmUnavailableError('Nenhum provedor de IA está configurado neste ambiente.', ['sem AI_GATEWAY_API_KEY, GEMINI_API_KEY ou OPENROUTER_API_KEY']);
+  }
   let attempts = 0;
 
   if (hedgeMs <= 0) {
@@ -171,10 +180,11 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
         const text = await attempt(candidate, request, Math.min(attemptMs, remaining));
         return { text, model: candidate.model, provider: candidate.provider, attempts };
       } catch (error: any) {
+        note(candidate, error);
         console.warn(`[LLM] ${candidate.provider}/${candidate.model} failed:`, error?.message || error);
       }
     }
-    throw new LlmUnavailableError();
+    throw new LlmUnavailableError(undefined, failures);
   }
 
   // Hedged mode: launch the next candidate when the current ones are slow or have failed.
@@ -195,7 +205,7 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
       if (settled) return;
       const remaining = budgetMs - (Date.now() - started);
       if (next >= queue.length || remaining < 2_000) {
-        if (pending === 0) finish(() => reject(new LlmUnavailableError()));
+        if (pending === 0) finish(() => reject(new LlmUnavailableError(undefined, failures)));
         return;
       }
       const candidate = queue[next];
@@ -205,6 +215,7 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
       attempt(candidate, request, Math.min(attemptMs, remaining))
         .then((text) => finish(() => resolve({ text, model: candidate.model, provider: candidate.provider, attempts })))
         .catch((error: any) => {
+          note(candidate, error);
           console.warn(`[LLM] ${candidate.provider}/${candidate.model} failed:`, error?.message || error);
           pending -= 1;
           if (!settled) launch();

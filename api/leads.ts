@@ -287,7 +287,8 @@ function publicError(error: any, statusCode: number) {
   ]);
   const code = String(error?.code || '');
   if (safeCodes.has(code)) {
-    return { error: error?.message || 'Não foi possível concluir esta ação.', code };
+    const detail = Array.isArray(error?.failures) && error.failures.length ? error.failures.slice(0, 6).join(' | ') : undefined;
+    return { error: error?.message || 'Não foi possível concluir esta ação.', code, detail };
   }
   if (statusCode === 401) return { error: 'Sua sessão expirou. Entre novamente.' };
   if (statusCode >= 500) return { error: 'Não foi possível concluir esta ação agora. Tente novamente em instantes.' };

@@ -36,6 +36,7 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
   const [busy, setBusy] = useState<'create' | 'style' | 'delete' | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const variationRef = useRef(0);
 
@@ -75,12 +76,14 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
   const create = async (isNewVersion: boolean) => {
     setBusy('create');
     setError(null);
+    setErrorDetail(null);
     try {
       variationRef.current = isNewVersion ? variationRef.current + 1 : 0;
       const result = await createDemoSite(payload(), { variation: isNewVersion ? Math.max(1, variationRef.current) : 0 });
       setState(result);
     } catch (err: any) {
       setError(err?.message || 'Não foi possível criar o site agora.');
+      setErrorDetail(err?.detail || null);
     } finally {
       setBusy(null);
     }
@@ -219,7 +222,12 @@ export default function DemoSiteCard({ business, phone }: DemoSiteCardProps) {
         </div>
       )}
 
-      {error && <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{error}</p>}
+      {error && (
+        <div className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
+          <p>{error}</p>
+          {errorDetail && <p className="mt-1.5 break-words text-[10px] text-rose-200/70">Detalhes técnicos: {errorDetail}</p>}
+        </div>
+      )}
     </section>
   );
 }
