@@ -213,7 +213,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-bet
 // ---------------------------------------------------------------------------
 const WIDTHS = [480, 800, 1280];
 function img(image: DemoImage, sizes: string, eager = false, alt = '', h?: number) {
-  const url = (w: number) => `${esc(image.src)}?auto=compress&cs=tinysrgb&w=${w}`;
+  const url = (w: number) => `${esc(image.src)}${image.src.includes('?') ? '&' : '?'}auto=format&fit=crop&q=72&w=${w}`;
   const width = Math.min(1280, image.width);
   const height = Math.round(width * image.height / image.width);
   return `<img src="${url(800)}" srcset="${WIDTHS.map((w) => `${url(w)} ${w}w`).join(', ')}" sizes="${sizes}" width="${width}" height="${h || height}" alt="${esc(alt || image.alt)}" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">`;
@@ -297,7 +297,9 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
     b.hours ? `<div class="card">${icon('clock')}<div><b>Horários</b>${esc(humanHours(b.hours))}</div></div>` : '',
   ].filter(Boolean).join('') || `<div class="card">${icon('phone')}<div><b>Contato</b>Informações de contato em breve.</div></div>`;
 
-  const creditNames = [...new Set([images.hero, images.about, ...images.gallery].filter(Boolean).map((image) => (image as DemoImage).credit).filter(Boolean))];
+  const credits = [...new Map([images.hero, images.about, ...images.gallery]
+    .filter((image): image is DemoImage => Boolean(image && image.credit))
+    .map((image) => [image.credit, image.creditUrl || 'https://unsplash.com?utm_source=scoutly&utm_medium=referral'])).entries()].slice(0, 5);
   const brandPhone = String(brand.contactPhone || '').replace(/\D/g, '');
   const brandCta = brandPhone.length >= 10
     ? `https://wa.me/${waNumber(brandPhone)}?text=${encodeURIComponent(`Olá! Vi a proposta de site que você preparou para a ${b.name}.`)}`
@@ -311,8 +313,8 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(copy.subheadline.slice(0, 155))}">
 <meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="${theme.bg}">
-<meta property="og:title" content="${esc(b.name)} — proposta de site"><meta property="og:description" content="${esc(copy.subheadline.slice(0, 155))}">${images.hero ? `<meta property="og:image" content="${esc(images.hero.src)}?auto=compress&cs=tinysrgb&w=1200">` : ''}
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${images.hero ? '<link rel="preconnect" href="https://images.pexels.com">' : ''}
+<meta property="og:title" content="${esc(b.name)} — proposta de site"><meta property="og:description" content="${esc(copy.subheadline.slice(0, 155))}">${images.hero ? `<meta property="og:image" content="${esc(images.hero.src)}${images.hero.src.includes('?') ? '&' : '?'}auto=format&fit=crop&q=72&w=1200">` : ''}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${images.hero ? '<link rel="preconnect" href="https://images.unsplash.com">' : ''}
 <link rel="stylesheet" href="${fontHref}"><style>${css(theme, accent)}</style></head><body>
 ${demoBar}
 <header class="top"><div class="wrap"><a class="brand" href="#topo"><i>${initials}</i>${esc(b.name)}</a>
@@ -329,7 +331,7 @@ ${gallery}
 <section class="sec"><div class="wrap"><div class="cta-band"><h2>${esc(copy.ctaTitle)}</h2><p>${esc(copy.ctaText)}</p><a class="btn" href="${esc(primaryHref)}"${waLink ? ' rel="noopener"' : ''}>${esc(copy.primaryCta)}</a></div></div></section>
 <section class="sec alt" id="contato"><div class="wrap"><div class="head"><p class="eyebrow">Contato</p><h2>Onde estamos</h2></div><div class="contact">${contactCards}</div></div></section>
 </main>
-<footer><div class="wrap"><span>© ${esc(b.name)} · ${esc(b.category)}${where ? ` · ${esc(where)}` : ''}</span><span>Rascunho de site${brand.name ? ` criado por ${esc(brand.name)}` : ''}${creditNames.length ? ` · Fotos: Pexels (${esc(creditNames.slice(0, 3).join(', '))})` : ''}</span></div></footer>
+<footer><div class="wrap"><span>© ${esc(b.name)} · ${esc(b.category)}${where ? ` · ${esc(where)}` : ''}</span><span>Rascunho de site${brand.name ? ` criado por ${esc(brand.name)}` : ''}${credits.length ? ` · Fotos: ${credits.map(([name, href]) => `<a href="${esc(href)}" rel="noopener" target="_blank" style="text-decoration:underline">${esc(name)}</a>`).join(', ')} / <a href="https://unsplash.com/?utm_source=scoutly&utm_medium=referral" rel="noopener" target="_blank" style="text-decoration:underline">Unsplash</a>` : ''}</span></div></footer>
 ${waLink ? `<a class="wa" href="${esc(waLink)}" rel="noopener" aria-label="Chamar no WhatsApp">${WHATSAPP_SVG}</a>` : ''}
 </body></html>`;
 }

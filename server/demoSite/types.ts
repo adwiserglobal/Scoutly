@@ -32,6 +32,8 @@ export interface DemoImage {
   height: number;
   alt: string;
   credit: string;
+  creditUrl?: string;
+  downloadLocation?: string;
 }
 
 export interface DemoImages {

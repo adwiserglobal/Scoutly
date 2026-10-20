@@ -191,43 +191,57 @@ export async function generateCopy(
 }
 
 // ---------------------------------------------------------------------------
-// Images (Pexels). Without PEXELS_API_KEY the page uses art-directed vector visuals instead.
+// Images (Unsplash API). Without UNSPLASH_ACCESS_KEY the page uses art-directed vector visuals.
+// Guidelines followed: hotlink the Unsplash CDN urls, credit photographer + Unsplash with
+// referral links, and ping the photo's download endpoint when a photo is used.
 // ---------------------------------------------------------------------------
 
-async function searchPexels(query: string, key: string, perPage = 6): Promise<DemoImage[]> {
+const UTM = 'utm_source=scoutly&utm_medium=referral';
+
+async function searchUnsplash(query: string, key: string, perPage = 8): Promise<DemoImage[]> {
   if (!query) return [];
   try {
     const response = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=landscape&size=medium&per_page=${perPage}`,
-      { headers: { Authorization: key }, signal: AbortSignal.timeout(6000) },
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&content_filter=high&per_page=${perPage}`,
+      { headers: { Authorization: `Client-ID ${key}`, 'Accept-Version': 'v1' }, signal: AbortSignal.timeout(6000) },
     );
     if (!response.ok) return [];
     const data = await response.json();
-    return (Array.isArray(data?.photos) ? data.photos : [])
-      .filter((photo: any) => photo?.src?.original && photo.width && photo.height)
+    return (Array.isArray(data?.results) ? data.results : [])
+      .filter((photo: any) => photo?.urls?.raw && photo.width && photo.height)
       .map((photo: any) => ({
-        src: String(photo.src.original).split('?')[0],
+        src: String(photo.urls.raw),
         width: Number(photo.width),
         height: Number(photo.height),
-        alt: clip(photo.alt, 140),
-        credit: clip(photo.photographer, 60),
+        alt: clip(photo.alt_description || photo.description, 140),
+        credit: clip(photo.user?.name, 60),
+        creditUrl: `${String(photo.user?.links?.html || 'https://unsplash.com')}?${UTM}`,
+        downloadLocation: String(photo.links?.download_location || ''),
       }))
-      .filter((image: DemoImage) => /^https:\/\/images\.pexels\.com\//.test(image.src));
+      .filter((image: DemoImage) => /^https:\/\/images\.unsplash\.com\//.test(image.src));
   } catch {
     return [];
   }
 }
 
+/** Required by the Unsplash API guidelines whenever a photo is actually used. */
+function trackDownloads(images: DemoImage[], key: string) {
+  for (const image of images) {
+    if (!/^https:\/\/api\.unsplash\.com\//.test(image.downloadLocation || '')) continue;
+    void fetch(image.downloadLocation as string, { headers: { Authorization: `Client-ID ${key}` }, signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+  }
+}
+
 export async function fetchImages(copy: DemoCopy, facts: DemoBusinessFacts, variation = 0): Promise<DemoImages> {
-  const key = String(process.env.PEXELS_API_KEY || '').trim();
+  const key = String(process.env.UNSPLASH_ACCESS_KEY || '').trim();
   if (!key) return { hero: null, about: null, gallery: [] };
 
   const { hero, about, gallery } = copy.imageQueries;
   const fallback = `${facts.category} business`;
   const [heroHits, aboutHits, ...galleryHits] = await Promise.all([
-    searchPexels(hero || fallback, key),
-    searchPexels(about || `${facts.category} team working`, key),
-    ...[0, 1, 2].map((index) => searchPexels(gallery[index] || `${facts.category} ${['detail', 'service', 'customer'][index]}`, key)),
+    searchUnsplash(hero || fallback, key),
+    searchUnsplash(about || `${facts.category} team working`, key),
+    ...[0, 1, 2].map((index) => searchUnsplash(gallery[index] || `${facts.category} ${['detail', 'service', 'customer'][index]}`, key)),
   ]);
 
   const used = new Set<string>();
@@ -241,5 +255,12 @@ export async function fetchImages(copy: DemoCopy, facts: DemoBusinessFacts, vari
   const heroImage = pick(heroHits);
   const aboutImage = pick(aboutHits);
   const galleryImages = galleryHits.map(pick).filter((image): image is DemoImage => Boolean(image));
-  return { hero: heroImage, about: aboutImage, gallery: galleryImages };
+  const chosen = [heroImage, aboutImage, ...galleryImages].filter((image): image is DemoImage => Boolean(image));
+  trackDownloads(chosen, key);
+  // The tracking endpoint is not needed afterwards; keep stored data lean.
+  return {
+    hero: heroImage ? { ...heroImage, downloadLocation: undefined } : null,
+    about: aboutImage ? { ...aboutImage, downloadLocation: undefined } : null,
+    gallery: galleryImages.map((image) => ({ ...image, downloadLocation: undefined })),
+  };
 }
