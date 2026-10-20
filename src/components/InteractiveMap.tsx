@@ -1,4 +1,4 @@
-import { useEffect, useRef, memo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, memo, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 // @ts-ignore
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Business, VisitRouteStop } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
+const FlightMode = lazy(() => import('./FlightMode'));
 import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
@@ -48,6 +49,7 @@ interface InteractiveMapProps {
   isPinPlacementMode?: boolean;
   routeMode?: boolean;
   routeStops?: VisitRouteStop[];
+  onFlightModeChange?: (flying: boolean) => void;
 }
 
 function escapeHtml(str: string) {
@@ -75,6 +77,7 @@ function InteractiveMap({
   isPinPlacementMode = false,
   routeMode = false,
   routeStops = [],
+  onFlightModeChange,
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -86,6 +89,22 @@ function InteractiveMap({
     () => new Set(getRecentlyViewedBusinessIds())
   );
   const pinMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const [isFlying, setIsFlying] = useState(false);
+  const isFlyingRef = useRef(false);
+  isFlyingRef.current = isFlying;
+  const lastFlightBoundsRef = useRef(0);
+  const onFlightModeChangeRef = useRef(onFlightModeChange);
+  onFlightModeChangeRef.current = onFlightModeChange;
+  const startFlight = useCallback(() => {
+    setIsFlying(true);
+    onFlightModeChangeRef.current?.(true);
+  }, []);
+  const stopFlight = useCallback(() => {
+    setIsFlying(false);
+    onFlightModeChangeRef.current?.(false);
+  }, []);
+  const startFlightRef = useRef(startFlight);
+  startFlightRef.current = startFlight;
   const isPinPlacementModeRef = useRef(isPinPlacementMode);
   isPinPlacementModeRef.current = isPinPlacementMode;
   const routeModeRef = useRef(routeMode);
@@ -160,6 +179,23 @@ function InteractiveMap({
         'top-right'
       );
 
+      // Flight mode control (plane button under the zoom/geolocate controls)
+      map.addControl({
+        onAdd() {
+          const container = document.createElement('div');
+          container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.title = 'Modo voo: sobrevoe a cidade prospectando';
+          button.setAttribute('aria-label', 'Modo voo');
+          button.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="#ff5a12" style="margin:auto;display:block"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
+          button.addEventListener('click', () => startFlightRef.current());
+          container.appendChild(button);
+          return container;
+        },
+        onRemove() {},
+      }, 'top-right');
+
       // Create persistent hover popup
       const hoverPopup = new maplibregl.Popup({
         closeButton: false,
@@ -181,6 +217,12 @@ function InteractiveMap({
       const triggerBoundsUpdate = () => {
         const m = mapRef.current;
         if (!m) return;
+        if (isFlyingRef.current) {
+          // The camera moves every frame while flying; refresh data at a calm pace instead.
+          const now = Date.now();
+          if (now - lastFlightBoundsRef.current < 1400) return;
+          lastFlightBoundsRef.current = now;
+        }
         const currentZoom = m.getZoom();
         const b = m.getBounds();
         if (currentZoom < 12) {
@@ -837,6 +879,17 @@ function InteractiveMap({
   return (
     <div className="relative w-full h-full bg-[#FAF7F2]">
       <div ref={mapContainerRef} className="w-full h-full" id="interactive-prospect-map" />
+      {isFlying && isMapLoaded && mapRef.current && (
+        <Suspense fallback={null}>
+          <FlightMode
+            map={mapRef.current}
+            businesses={businesses}
+            selectedBusiness={selectedBusiness}
+            onSelectBusiness={onSelectBusiness}
+            onExit={stopFlight}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

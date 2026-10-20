@@ -134,6 +134,7 @@ export default function App() {
   const [filterOnlyInRadius, setFilterOnlyInRadius] = useState(false);
   const [isPinSearching, setIsPinSearching] = useState(false);
   const [isRouteMode, setIsRouteMode] = useState(false);
+  const [isFlightMode, setIsFlightMode] = useState(false);
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
   const routeHydratedRef = useRef(false);
   const routeSyncTimerRef = useRef<number | null>(null);
@@ -1429,6 +1430,7 @@ export default function App() {
     isRecommendationsOpen &&
     !recommendationsLocked &&
     currentTab === 'INICIO' &&
+    !isFlightMode &&
     !selectedBusiness &&
     !modalBusiness &&
     !isFiltersOpen &&
@@ -1491,11 +1493,12 @@ export default function App() {
             onBoundsChange={handleBoundsChange}
             routeMode={isRouteMode}
             routeStops={visitRouteStops}
+            onFlightModeChange={setIsFlightMode}
           />
       </div>
 
       {/* Top contrast veil: keeps map visible while improving toolbar legibility */}
-      {currentTab === 'INICIO' && (
+      {currentTab === 'INICIO' && !isFlightMode && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-32 bg-gradient-to-b from-black/[0.78] via-black/[0.34] to-transparent" />
       )}
 
@@ -1503,7 +1506,7 @@ export default function App() {
       <div className={`relative w-full h-full flex flex-col pointer-events-none ${isListOpen ? 'z-[60]' : 'z-10'}`}>
         
         {/* Only show Header & Filters on INICIO tab */}
-        {currentTab === 'INICIO' && (
+        {currentTab === 'INICIO' && !isFlightMode && (
           <>
             <div className="absolute top-4 left-4 right-4 z-30 pointer-events-none flex items-start justify-center">
               <div className="w-full flex flex-col items-center justify-between pointer-events-none">
@@ -1824,7 +1827,7 @@ export default function App() {
           </div>
         )}
 
-        {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && (
+        {!isAIChatOpen && !isFiltersOpen && !selectedBusiness && !isListOpen && currentTab === 'INICIO' && !isFlightMode && (
           <button
             type="button"
             onClick={() => setIsAIChatOpen(true)}
@@ -1841,7 +1844,7 @@ export default function App() {
         )}
 
         {/* View Businesses Button (floating below BottomMenu) */}
-        {currentTab === 'INICIO' && (
+        {currentTab === 'INICIO' && !isFlightMode && (
           <div className="absolute bottom-[18px] left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-transform duration-500">
             <button
               onClick={() => {
@@ -1909,15 +1912,17 @@ export default function App() {
         )}
       </div>
 
-      <BottomMenu
-        currentTab={currentTab}
-        onTabChange={navigateTab}
-        savedLeadsCount={favoritesCount}
-        pipelineDealsCount={pipelineDealsCount}
-      />
+      {!isFlightMode && (
+        <BottomMenu
+          currentTab={currentTab}
+          onTabChange={navigateTab}
+          savedLeadsCount={favoritesCount}
+          pipelineDealsCount={pipelineDealsCount}
+        />
+      )}
 
       {/* Map Loading Indicator */}
-      {currentTab === 'INICIO' && isBusinessesLoading && (
+      {currentTab === 'INICIO' && !isFlightMode && isBusinessesLoading && (
         <div className="fixed bottom-[90px] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 pointer-events-none transition-all duration-300 drop-shadow-md">
           <div className="w-4 h-4 border-[2.5px] border-[#FF4D00] border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs font-black text-white tracking-widest flex items-center drop-shadow-md">
