@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, X } from 'lucide-react';
+import { Loader2, Lock, Play, X } from 'lucide-react';
+import { getFlightStatus, type FlightStatus } from '../services/api';
 import { FLIGHT_MODELS, getFlightModel, type FlightModelId } from '../flight/models';
 
 const STORAGE_KEY = 'scoutly-flight-model';
@@ -10,7 +11,8 @@ export function loadFlightModel(): FlightModelId {
 }
 
 interface FlightSetupProps {
-  onPlay: (model: FlightModelId) => void;
+  /** Resolves with an error (to show here) or null when the flight started. */
+  onPlay: (model: FlightModelId) => Promise<{ error: string; code?: string } | null>;
   onClose: () => void;
 }
 
@@ -30,10 +32,27 @@ function StatBar({ label, value }: { label: string; value: number }) {
 export default function FlightSetup({ onPlay, onClose }: FlightSetupProps) {
   const [selected, setSelected] = useState<FlightModelId>(loadFlightModel);
 
-  const play = (id: FlightModelId) => {
+  const [status, setStatus] = useState<FlightStatus | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [problem, setProblem] = useState<{ error: string; code?: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getFlightStatus().then((result) => { if (!cancelled) setStatus(result); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const play = async (id: FlightModelId) => {
+    if (starting) return;
     try { localStorage.setItem(STORAGE_KEY, id); } catch { /* ignore */ }
-    onPlay(id);
+    setStarting(true);
+    setProblem(null);
+    const result = await onPlay(id);
+    if (result) { setProblem(result); setStarting(false); }
   };
+
+  const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.max(0, Math.floor(seconds % 60))).padStart(2, '0')}`;
+  const blocked = Boolean(status && !status.unlimited && (status.remainingSeconds ?? 0) <= 0);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -41,7 +60,7 @@ export default function FlightSetup({ onPlay, onClose }: FlightSetupProps) {
       if (event.key === 'Escape') onClose();
       else if (event.key === 'ArrowRight') setSelected(FLIGHT_MODELS[(index + 1) % FLIGHT_MODELS.length].id);
       else if (event.key === 'ArrowLeft') setSelected(FLIGHT_MODELS[(index + FLIGHT_MODELS.length - 1) % FLIGHT_MODELS.length].id);
-      else if (event.key === 'Enter') play(selected);
+      else if (event.key === 'Enter') void play(selected);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -69,7 +88,7 @@ export default function FlightSetup({ onPlay, onClose }: FlightSetupProps) {
                 key={model.id}
                 type="button"
                 onClick={() => setSelected(model.id)}
-                onDoubleClick={() => play(model.id)}
+                onDoubleClick={() => void play(model.id)}
                 aria-pressed={active}
                 className={`flex flex-col gap-2 rounded-2xl border p-3 text-left transition ${active ? 'border-[#ff7a45] bg-[#ff5a12]/10 shadow-[0_0_0_1px_#ff7a45]' : 'border-white/10 bg-white/[0.03] hover:border-white/25'}`}
               >
@@ -88,14 +107,32 @@ export default function FlightSetup({ onPlay, onClose }: FlightSetupProps) {
           })}
         </div>
 
+        {status && !status.unlimited && (
+          <div className={`mt-3.5 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-[12px] ${blocked ? 'border-rose-400/30 bg-rose-500/10 text-rose-200' : 'border-white/10 bg-white/[0.04] text-white/75'}`}>
+            <span>
+              {blocked
+                ? 'Seu tempo de voo grátis de hoje acabou.'
+                : <>Plano Free: <b className="text-white">5 min de voo por dia</b> · restam <b className="tabular-nums text-white">{formatTime(status.remainingSeconds ?? 0)}</b></>}
+            </span>
+            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('scoutly-open-plans'))} className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-white/15">
+              <Lock className="h-3 w-3" /> Voo ilimitado
+            </button>
+          </div>
+        )}
+
+        {problem && (
+          <p role="alert" className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3.5 py-2.5 text-[12px] leading-relaxed text-rose-200">{problem.error}</p>
+        )}
+
         <div className="mt-3.5 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
           <p className="hidden text-[11px] text-white/50 sm:block">← → escolhe · Enter voa · Esc fecha</p>
           <button
             type="button"
-            onClick={() => play(selected)}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#ff5a12] px-7 text-sm font-bold text-white shadow-lg shadow-[#ff5a12]/25 transition hover:bg-[#ff6b2b] active:scale-[0.98]"
+            onClick={() => void play(selected)}
+            disabled={starting || blocked}
+            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#ff5a12] px-7 text-sm font-bold text-white shadow-lg shadow-[#ff5a12]/25 transition hover:bg-[#ff6b2b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Play className="h-4 w-4 fill-current" /> Voar com {getFlightModel(selected).name}
+            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />} Voar com {getFlightModel(selected).name}
           </button>
         </div>
       </div>

@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type * as maplibregl from 'maplibre-gl';
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Globe, MousePointerClick, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Globe, MousePointerClick, Timer, X, Zap } from 'lucide-react';
 import type { Business } from '../types';
 import type { FlightState, PlaneFlight } from '../flight/PlaneFlight';
 import type { FlightModelId } from '../flight/models';
+import type { FlightLimit, FlightSummary } from '../flight/summary';
+import { tickFlightSession } from '../services/api';
 
 const NEARBY_METERS = 230;
 const FLYOVER_METERS = 140;
+const SEEN_METERS = 520;
+const HEARTBEAT_MS = 15_000;
 
 interface FlightModeProps {
   map: maplibregl.Map;
   businesses: Business[];
   selectedBusiness: Business | null;
   onSelectBusiness: (business: Business) => void;
-  onExit: () => void;
+  onExit: (summary: FlightSummary) => void;
   model: FlightModelId;
+  limit: FlightLimit;
 }
 
 function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -32,7 +37,7 @@ function bearingTo(lat1: number, lng1: number, lat2: number, lng2: number) {
 
 const HELP_KEY = 'scoutly-flight-help-seen';
 
-export default function FlightMode({ map, businesses, selectedBusiness, onSelectBusiness, onExit, model }: FlightModeProps) {
+export default function FlightMode({ map, businesses, selectedBusiness, onSelectBusiness, onExit, model, limit }: FlightModeProps) {
   const engineRef = useRef<PlaneFlight | null>(null);
   const stateRef = useRef<FlightState | null>(null);
   const businessesRef = useRef(businesses);
@@ -51,7 +56,63 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
     try { return localStorage.getItem(HELP_KEY) !== '1'; } catch { return true; }
   });
 
-  const exit = useCallback(() => onExit(), [onExit]);
+  // Flight session bookkeeping for the summary modal and the Free plan clock
+  const startedAtRef = useRef(Date.now());
+  const activeSecondsRef = useRef(0);
+  const openedRef = useRef<Map<string, Business>>(new Map());
+  const seenRef = useRef<Map<string, Business>>(new Map());
+  const noSiteRef = useRef(0);
+  const finishedRef = useRef(false);
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+  const limitRef = useRef(limit);
+  const remainingRef = useRef<number | null>(limit.unlimited ? null : limit.remainingSeconds ?? 0);
+  const [remaining, setRemaining] = useState<number | null>(remainingRef.current);
+
+  const finish = useCallback((endedBy: 'user' | 'limit') => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    if (!limitRef.current.unlimited) void tickFlightSession().catch(() => undefined); // settle the last seconds
+    onExitRef.current({
+      durationSeconds: Math.round(activeSecondsRef.current),
+      flownCount: flownRef.current.size,
+      noSiteCount: noSiteRef.current,
+      opened: [...openedRef.current.values()],
+      seen: [...seenRef.current.values()],
+      endedBy,
+    });
+  }, []);
+  const exit = useCallback(() => finish('user'), [finish]);
+
+  // Clock: counts only while flying (not while a business card is open). Free plan also pings the server.
+  useEffect(() => {
+    const second = window.setInterval(() => {
+      if (selectedRef.current) return;
+      activeSecondsRef.current += 1;
+      if (remainingRef.current !== null) {
+        remainingRef.current = Math.max(0, remainingRef.current - 1);
+        setRemaining(remainingRef.current);
+        if (remainingRef.current <= 0) finish('limit');
+      }
+    }, 1000);
+    let heartbeat = 0;
+    if (!limitRef.current.unlimited) {
+      heartbeat = window.setInterval(() => {
+        if (selectedRef.current) return;
+        tickFlightSession()
+          .then((status) => {
+            if (status.remainingSeconds !== null) {
+              // The server is the source of truth, but never let a slow response push the clock backwards a lot.
+              remainingRef.current = Math.min(status.remainingSeconds, remainingRef.current ?? status.remainingSeconds);
+              setRemaining(remainingRef.current);
+              if (remainingRef.current <= 0) finish('limit');
+            }
+          })
+          .catch(() => undefined);
+      }, HEARTBEAT_MS);
+    }
+    return () => { window.clearInterval(second); window.clearInterval(heartbeat); };
+  }, [finish]);
 
   // Hide floating app widgets (e.g. the credit pill) that would overlap the flight HUD
   useEffect(() => {
@@ -81,7 +142,10 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
 
   const interact = useCallback(() => {
     const target = nearestRef.current;
-    if (target) onSelectBusiness(target);
+    if (target) {
+      openedRef.current.set(target.id, target);
+      onSelectBusiness(target);
+    }
   }, [onSelectBusiness]);
 
   // Engine lifecycle (three.js is loaded lazily, only when someone actually flies)
@@ -108,8 +172,10 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
             if (!c) continue;
             const d = distanceMeters(state.lat, state.lng, c.lat, c.lng);
             if (d < bestDistance) { best = business; bestDistance = d; }
+            if (d < SEEN_METERS && !seenRef.current.has(business.id)) seenRef.current.set(business.id, business);
             if (d < FLYOVER_METERS && !flownRef.current.has(business.id)) {
               flownRef.current.add(business.id);
+              if (!business.website) noSiteRef.current += 1;
               setFlown((current) => ({
                 total: current.total + 1,
                 opportunities: current.opportunities + (business.website ? 0 : 1),
@@ -223,6 +289,15 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
             </p>
           </div>
         </div>
+        {remaining !== null && (
+          <div className={`pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-2xl border px-3.5 py-2.5 text-white shadow-xl backdrop-blur-md ${remaining <= 20 ? 'border-rose-400/50 bg-rose-950/70' : remaining <= 60 ? 'border-amber-400/40 bg-black/65' : 'border-white/10 bg-black/60'}`} aria-live="off">
+            <Timer className={`h-4 w-4 ${remaining <= 20 ? 'text-rose-300' : remaining <= 60 ? 'text-amber-300' : 'text-[#ff955f]'}`} />
+            <div className="leading-tight">
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">Tempo grátis hoje</p>
+              <p className={`text-[15px] font-extrabold tabular-nums ${remaining <= 20 ? 'text-rose-200' : 'text-white'}`}>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</p>
+            </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={exit}

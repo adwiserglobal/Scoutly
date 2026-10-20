@@ -7,6 +7,7 @@ import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
+import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
 import {
   changeDemoSiteStyle, checkDemoSlug, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
   publishDemoDraft, renameDemoSite, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
@@ -281,6 +282,8 @@ function publicError(error: any, statusCode: number) {
     'CREDIT_RESERVATION_FAILED',
     'PROFILE_MIGRATION_PENDING',
     'DEMO_MIGRATION_PENDING',
+    'FLIGHT_LIMIT_REACHED',
+    'FLIGHT_MIGRATION_PENDING',
     'DEMO_LIMIT_REACHED',
     'DEMO_NOT_FOUND',
     'DEMO_INVALID',
@@ -556,6 +559,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return res.status(200).json({ success: true, ...(await getUserProfile(identity.uid)) });
     }
+
+    if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
+    if (action === 'flight-start') return res.status(200).json(await startFlight(identity.uid));
+    if (action === 'flight-tick') return res.status(200).json(await tickFlight(identity.uid));
 
     if (action === 'demo-site-get') {
       return res.status(200).json(await getDemoSiteForBusiness(identity.uid, String(req.body?.businessId || '')));

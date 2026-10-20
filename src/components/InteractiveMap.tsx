@@ -9,6 +9,8 @@ import { createGeoJSONCircle } from '../utils/geoUtils';
 const FlightMode = lazy(() => import('./FlightMode'));
 const FlightSetup = lazy(() => import('./FlightSetup'));
 import type { FlightModelId } from '../flight/models';
+import type { FlightLimit, FlightSummary } from '../flight/summary';
+import { startFlightSession } from '../services/api';
 import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
@@ -52,6 +54,7 @@ interface InteractiveMapProps {
   routeMode?: boolean;
   routeStops?: VisitRouteStop[];
   onFlightModeChange?: (flying: boolean) => void;
+  onFlightEnd?: (summary: FlightSummary) => void;
 }
 
 function escapeHtml(str: string) {
@@ -80,6 +83,7 @@ function InteractiveMap({
   routeMode = false,
   routeStops = [],
   onFlightModeChange,
+  onFlightEnd,
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -102,15 +106,27 @@ function InteractiveMap({
   const openFlightSetup = useCallback(() => {
     setIsChoosingAircraft((open) => !open);
   }, []);
-  const startFlight = useCallback((model: FlightModelId) => {
+  const [flightLimit, setFlightLimit] = useState<FlightLimit>({ unlimited: true, remainingSeconds: null });
+  const onFlightEndRef = useRef(onFlightEnd);
+  onFlightEndRef.current = onFlightEnd;
+  const startFlight = useCallback(async (model: FlightModelId): Promise<{ error: string; code?: string } | null> => {
+    try {
+      // The server checks the daily limit (Free: 5 min) before the plane takes off.
+      const status = await startFlightSession();
+      setFlightLimit({ unlimited: status.unlimited, remainingSeconds: status.remainingSeconds });
+    } catch (error: any) {
+      return { error: error?.message || 'Não foi possível iniciar o voo agora.', code: error?.code };
+    }
     setFlightModel(model);
     setIsChoosingAircraft(false);
     setIsFlying(true);
     onFlightModeChangeRef.current?.(true);
+    return null;
   }, []);
-  const stopFlight = useCallback(() => {
+  const stopFlight = useCallback((summary?: FlightSummary) => {
     setIsFlying(false);
     onFlightModeChangeRef.current?.(false);
+    if (summary) onFlightEndRef.current?.(summary);
   }, []);
   const openFlightSetupRef = useRef(openFlightSetup);
   openFlightSetupRef.current = openFlightSetup;
@@ -897,6 +913,7 @@ function InteractiveMap({
             onSelectBusiness={onSelectBusiness}
             onExit={stopFlight}
             model={flightModel}
+            limit={flightLimit}
           />
         </Suspense>
       )}

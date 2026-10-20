@@ -1,5 +1,6 @@
 import './map3dSetup';
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import type { FlightSummary } from './flight/summary';
 import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './utils/startLocation';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
@@ -74,6 +75,8 @@ function loadSavedVisitRoute(): VisitRouteStop[] {
   }
 }
 
+const FlightSummaryModal = lazy(() => import('./components/FlightSummaryModal'));
+
 export default function App() {
   const { user, loading, signOut } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavigationTab>(() =>
@@ -136,6 +139,7 @@ export default function App() {
   const [isPinSearching, setIsPinSearching] = useState(false);
   const [isRouteMode, setIsRouteMode] = useState(false);
   const [isFlightMode, setIsFlightMode] = useState(false);
+  const [flightSummary, setFlightSummary] = useState<FlightSummary | null>(null);
   const [visitRouteStops, setVisitRouteStops] = useState<VisitRouteStop[]>(loadSavedVisitRoute);
   const routeHydratedRef = useRef(false);
   const routeSyncTimerRef = useRef<number | null>(null);
@@ -1443,6 +1447,20 @@ export default function App() {
 
   const recommendationsLocked = !hasRecommendationsAccess(billingStatus);
 
+  // Opportunities that passed near the flight path but were never opened (ranked like the recommendations card)
+  const missedOpportunities = useMemo(() => {
+    if (!flightSummary) return [] as Business[];
+    const openedIds = new Set(flightSummary.opened.map((business) => business.id));
+    const pool = flightSummary.seen.filter((business) =>
+      !openedIds.has(business.id) && !business.isFavorite && (!business.leadStatus || business.leadStatus === 'NOVO'));
+    return getRecommendedBusinesses(pool, 6);
+  }, [flightSummary]);
+
+  const isInPipeline = useCallback((business: Business) => {
+    const status = userLeadsMap[business.id]?.status || business.leadStatus;
+    return Boolean(status && status !== 'NOVO' && status !== 'ARQUIVADO');
+  }, [userLeadsMap]);
+
   // The card steps aside while another right-side surface (business panel, filters, list, AI) is open
   const showRecommendations =
     isRecommendationsOpen &&
@@ -1512,6 +1530,7 @@ export default function App() {
             routeMode={isRouteMode}
             routeStops={visitRouteStops}
             onFlightModeChange={setIsFlightMode}
+            onFlightEnd={setFlightSummary}
           />
       </div>
 
@@ -1962,6 +1981,21 @@ export default function App() {
             setIsAIChatOpen(true);
           }}
         />
+      )}
+
+      {flightSummary && currentTab === 'INICIO' && (
+        <Suspense fallback={null}>
+          <FlightSummaryModal
+            summary={flightSummary}
+            locked={recommendationsLocked}
+            missed={missedOpportunities}
+            isInPipeline={isInPipeline}
+            onAddToPipeline={(business) => handleUpdateStatus(business.id, 'CONTATADO', business.notes || '')}
+            onOpen={(business) => { setFlightSummary(null); handleMapBusinessSelect(business); }}
+            onClose={() => setFlightSummary(null)}
+            onUpgrade={() => setIsPlansOpen(true)}
+          />
+        </Suspense>
       )}
 
       <PlansModal

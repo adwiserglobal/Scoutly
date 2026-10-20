@@ -882,3 +882,15 @@ export const setDemoLogo = (businessId: string, logo: string | null) =>
 export interface DemoSlugCheck { slug: string; available: boolean; current?: boolean; reason?: string; suggestion?: string }
 export const checkDemoSlug = (businessId: string, slug: string) => demoRequest<DemoSlugCheck>('demo-site-slug-check', { businessId, slug }, 10000);
 export const renameDemoSite = (businessId: string, slug: string) => demoRequest<{ site: DemoSiteSummary }>('demo-site-rename', { businessId, slug });
+
+// Flight mode usage (Free: 5 min/day)
+export interface FlightStatus {
+  plan: 'free' | 'go' | 'pro' | 'agency';
+  unlimited: boolean;
+  limitSeconds: number | null;
+  usedSeconds: number;
+  remainingSeconds: number | null;
+}
+export const getFlightStatus = () => demoRequest<FlightStatus>('flight-status', {}, 10000);
+export const startFlightSession = () => demoRequest<FlightStatus>('flight-start', {}, 10000);
+export const tickFlightSession = () => demoRequest<FlightStatus>('flight-tick', {}, 10000);
