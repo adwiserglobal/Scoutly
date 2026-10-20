@@ -47,6 +47,18 @@ function BottomMenu({
   const [flashOpening, setFlashOpening] = useState(false);
   const [flashError, setFlashError] = useState('');
 
+  // Remember the plan so the Workspace item is there from the first paint, before the access request returns.
+  const agencyKey = user ? `scoutly-agency:${user.uid}` : '';
+  const [cachedAgency, setCachedAgency] = useState(() => {
+    try { return Boolean(user && localStorage.getItem(`scoutly-agency:${user.uid}`) === '1'); } catch { return false; }
+  });
+  useEffect(() => {
+    if (!access || !agencyKey) return;
+    const isAgency = access.plan === 'agency';
+    setCachedAgency(isAgency);
+    try { isAgency ? localStorage.setItem(agencyKey, '1') : localStorage.removeItem(agencyKey); } catch { /* ignore */ }
+  }, [access?.plan, agencyKey]);
+
   const refreshAccess = useCallback(async () => {
     if (!user) return;
     try {
@@ -154,7 +166,7 @@ function BottomMenu({
       icon: Columns3,
       badge: pipelineDealsCount > 0 ? pipelineDealsCount : null,
     },
-    ...(access?.plan === 'agency' ? [{ id: 'WORKSPACE' as NavigationTab, label: 'Workspace', icon: Users, badge: null as number | null }] : []),
+    ...((access ? access.plan === 'agency' : cachedAgency) ? [{ id: 'WORKSPACE' as NavigationTab, label: 'Workspace', icon: Users, badge: null as number | null }] : []),
   ];
 
   const navigate = (tab: NavigationTab) => {
