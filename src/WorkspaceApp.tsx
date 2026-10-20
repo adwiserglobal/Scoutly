@@ -1,5 +1,6 @@
 import './map3dSetup';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './utils/startLocation';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { searchAddressOrCity } from './services/geocoding';
@@ -151,11 +152,24 @@ export default function App() {
   const [listWebsiteFilter, setListWebsiteFilter] = useState<'TODOS' | 'COM_SITE' | 'SEM_SITE'>('TODOS');
   const [listContactFilter, setListContactFilter] = useState<'TODOS' | 'COM_CONTATO' | 'SEM_CONTATO'>('TODOS');
 
-  const [currentRegionName, setCurrentRegionName] = useState('São Paulo - Pinheiros');
+  const initialStart = useMemo(() => loadSavedStartLocation() || DEFAULT_START, []);
+  const [currentRegionName, setCurrentRegionName] = useState(initialStart.name);
   const [centerCoordinates, setCenterCoordinates] = useState({
-    lat: -23.5658,
-    lng: -46.6872,
+    lat: initialStart.lat,
+    lng: initialStart.lng,
   });
+  // Set as soon as the user picks a place themselves, so a late location answer never overrides it
+  const userPickedLocationRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveStartLocation().then((location) => {
+      if (cancelled || userPickedLocationRef.current) return;
+      setCenterCoordinates({ lat: location.lat, lng: location.lng });
+      setCurrentRegionName(location.name);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [agenticFocusedLead, setAgenticFocusedLead] = useState<Business | null>(null);
@@ -803,6 +817,7 @@ export default function App() {
           Number.isFinite(region.center.lng)
         ) {
           suppressNextBoundsFetchRef.current = true;
+          userPickedLocationRef.current = true;
           setCenterCoordinates({ lat: region.center.lat, lng: region.center.lng });
           setCurrentRegionName(region.name || cleanQuery);
         }
@@ -851,6 +866,7 @@ export default function App() {
 
     if (locationResult) {
       recordRecommendationSearch(cleanQuery, locationResult.name);
+      userPickedLocationRef.current = true;
       setCenterCoordinates({ lat: locationResult.lat, lng: locationResult.lng });
       setCurrentRegionName(locationResult.name);
       setIsListOpen(false);
@@ -889,6 +905,7 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        userPickedLocationRef.current = true;
         setCenterCoordinates({ lat: latitude, lng: longitude });
         setCurrentRegionName('Sua Localização Atual');
         setIsLocating(false);
@@ -903,6 +920,7 @@ export default function App() {
 
   // Preset region click
   const handleSelectPreset = (preset: { name: string; lat: number; lng: number }) => {
+    userPickedLocationRef.current = true;
     setCenterCoordinates({ lat: preset.lat, lng: preset.lng });
     setCurrentRegionName(preset.name);
   };
@@ -1239,7 +1257,7 @@ export default function App() {
     const normalizedCurrent = currentRegionName.trim();
     if (
       normalizedCurrent &&
-      normalizedCurrent !== 'São Paulo - Pinheiros' &&
+      normalizedCurrent !== DEFAULT_START.name &&
       normalizedCurrent !== 'Sua Localização Atual'
     ) {
       return normalizedCurrent;
@@ -1667,17 +1685,17 @@ export default function App() {
                 className="w-full flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-white/[0.035] rounded-t-[28px] transition"
               >
                 <div className="mb-2 h-1 w-12 rounded-full bg-white/[0.16]" />
-                <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-stone-500">
+                <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-300">
                   Ocultar Empresas <ChevronDown className="w-3 h-3" />
                 </span>
               </button>
 
               <div className="flex-1 overflow-y-auto px-3 pb-6 sm:px-5 md:px-6 custom-scrollbar">
                 <div className="mb-4 flex items-center justify-between gap-4 border-b border-white/[0.07] px-1 pb-3">
-                  <span className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-300">
+                  <span className="truncate text-[12px] font-semibold uppercase tracking-[0.1em] text-stone-100">
                     {businessListRegionName ? `Estabelecimentos em ${businessListRegionName}` : 'Estabelecimentos nesta área'}
                   </span>
-                  <span className="shrink-0 text-[11px] font-medium text-stone-500">
+                  <span className="shrink-0 text-[12px] font-medium text-stone-300">
                     {isBusinessesLoading ? (
                       <span className="font-semibold text-[#FF6A26] animate-pulse">Carregando dados...</span>
                     ) : (
@@ -1689,26 +1707,26 @@ export default function App() {
                 <div className="mb-4 rounded-[20px] border border-white/[0.08] bg-[#0d1014] p-2.5">
                   <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-600" />
+                      <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                       <input
                         type="text"
                         value={listSearchQuery}
                         onChange={(event) => setListSearchQuery(event.target.value)}
                         placeholder="Buscar nestes resultados"
-                        className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#090c10] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-700 focus:border-[#FF5A12]/45"
+                        className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#090c10] pl-10 pr-4 text-xs text-white outline-none placeholder:text-stone-400 focus:border-[#FF5A12]/45"
                       />
                     </div>
 
                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                      <div className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-stone-500">
+                      <div className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-stone-300">
                         <Filter className="h-3.5 w-3.5" />
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.08em]">Filtros</span>
+                        <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em]">Filtros</span>
                       </div>
 
                       <select
                         value={listCategoryFilter}
                         onChange={(event) => setListCategoryFilter(event.target.value)}
-                        className="h-10 min-w-[150px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                        className="h-10 min-w-[150px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[11px] font-medium text-stone-100 outline-none focus:border-[#FF5A12]/40"
                       >
                         <option value="TODAS">Todas as categorias</option>
                         {listAvailableCategories.map((category) => (
@@ -1721,7 +1739,7 @@ export default function App() {
                         onChange={(event) =>
                           setListWebsiteFilter(event.target.value as typeof listWebsiteFilter)
                         }
-                        className="h-10 min-w-[118px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                        className="h-10 min-w-[118px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[11px] font-medium text-stone-100 outline-none focus:border-[#FF5A12]/40"
                       >
                         <option value="TODOS">Qualquer site</option>
                         <option value="COM_SITE">Com site</option>
@@ -1733,7 +1751,7 @@ export default function App() {
                         onChange={(event) =>
                           setListContactFilter(event.target.value as typeof listContactFilter)
                         }
-                        className="h-10 min-w-[132px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[10px] font-medium text-stone-300 outline-none focus:border-[#FF5A12]/40"
+                        className="h-10 min-w-[132px] shrink-0 rounded-xl border border-white/[0.08] bg-[#090c10] px-3 text-[11px] font-medium text-stone-100 outline-none focus:border-[#FF5A12]/40"
                       >
                         <option value="TODOS">Qualquer contato</option>
                         <option value="COM_CONTATO">Com contato</option>
@@ -1749,7 +1767,7 @@ export default function App() {
                             setListWebsiteFilter('TODOS');
                             setListContactFilter('TODOS');
                           }}
-                          className="h-10 shrink-0 rounded-xl px-3 text-[10px] font-semibold text-stone-500 transition hover:bg-white/[0.05] hover:text-white"
+                          className="h-10 shrink-0 rounded-xl px-3 text-[11px] font-semibold text-stone-300 transition hover:bg-white/[0.05] hover:text-white"
                         >
                           Limpar
                         </button>
@@ -1776,7 +1794,7 @@ export default function App() {
                     <p className="mb-1 text-sm font-semibold text-stone-200">
                       Nenhum estabelecimento encontrado nesta área.
                     </p>
-                    <p className="max-w-md text-xs leading-relaxed text-stone-500">
+                    <p className="max-w-md text-xs leading-relaxed text-stone-300">
                       Tente outra combinação de negócio e região, mova o mapa ou ajuste os filtros acima.
                     </p>
                   </div>
@@ -1804,17 +1822,17 @@ export default function App() {
                             const batchSize = [30, 60, 100].includes(stored) ? stored : 30;
                             setVisibleCount((prev) => Math.min(prev + batchSize, listFilteredBusinesses.length));
                           }}
-                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-3 text-xs font-semibold text-stone-300 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.06] hover:text-white active:scale-[0.99] cursor-pointer"
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-3 text-xs font-semibold text-stone-100 transition hover:border-[#FF5A12]/35 hover:bg-[#FF5A12]/[0.06] hover:text-white active:scale-[0.99] cursor-pointer"
                         >
                           <span>Carregar mais 30 estabelecimentos</span>
-                          <span className="text-[11px] text-stone-400 font-normal">
+                          <span className="text-[12px] text-stone-300 font-normal">
                             ({displayedBusinesses.length} de {listFilteredBusinesses.length} visíveis)
                           </span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setVisibleCount(listFilteredBusinesses.length)}
-                          className="cursor-pointer text-[11px] font-medium text-stone-500 underline underline-offset-2 transition hover:text-stone-300"
+                          className="cursor-pointer text-[12px] font-medium text-stone-300 underline underline-offset-2 transition hover:text-stone-100"
                         >
                           Exibir todos ({listFilteredBusinesses.length})
                         </button>

@@ -163,7 +163,7 @@ function BusinessCard({
       }`}
     >
       <div className="flex min-w-0 items-start gap-3.5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111315] text-stone-400 sm:h-14 sm:w-14">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111315] text-stone-300 sm:h-14 sm:w-14">
           <Building2 className="h-5 w-5" strokeWidth={1.7} />
         </div>
 
@@ -173,7 +173,7 @@ function BusinessCard({
               <h3 className="truncate text-[14px] font-semibold tracking-[-0.015em] text-white sm:text-[15px]">
                 {business.name}
               </h3>
-              <p className="mt-0.5 truncate text-[10.5px] text-stone-400">
+              <p className="mt-0.5 truncate text-[11.5px] text-stone-300">
                 {translateCategory(business.category)}
               </p>
             </div>
@@ -187,7 +187,7 @@ function BusinessCard({
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition ${
                 isFavorited
                   ? 'bg-[#FF5A12]/12 text-[#FF6A26]'
-                  : 'text-stone-400 hover:bg-white/[0.06] hover:text-white'
+                  : 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
               }`}
               title={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
               aria-label={isFavorited ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
@@ -197,7 +197,7 @@ function BusinessCard({
           </div>
 
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className={`rounded-full px-2.5 py-1 text-[9.5px] font-semibold ${
+            <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${
               hasWebsite
                 ? 'bg-emerald-500/10 text-emerald-400'
                 : 'bg-[#FF5A12]/12 text-[#FF7A3D]'
@@ -206,18 +206,18 @@ function BusinessCard({
             </span>
 
             {business.openStatus === 'ABERTO_AGORA' && (
-              <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[9.5px] font-medium text-emerald-400">
+              <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[10.5px] font-medium text-emerald-400">
                 Aberto agora
               </span>
             )}
 
             {business.openStatus === 'FECHADO_AGORA' && (
-              <span className="rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[9.5px] font-medium text-rose-400">
+              <span className="rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[10.5px] font-medium text-rose-400">
                 Fechado
               </span>
             )}
 
-            <span className="flex min-w-0 items-center gap-1 text-[10px] text-stone-400">
+            <span className="flex min-w-0 items-center gap-1 text-[11px] text-stone-300">
               <MapPin className="h-3 w-3 shrink-0" />
               <span className="truncate">{shortLocation(business)}</span>
             </span>
@@ -227,7 +227,7 @@ function BusinessCard({
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
           <div className="text-right">
             <div className="text-[13px] font-semibold text-stone-200">{confidencePercent}%</div>
-            <div className="mt-0.5 text-[8px] font-medium uppercase tracking-[0.1em] text-stone-400">confiança</div>
+            <div className="mt-0.5 text-[9.5px] font-medium uppercase tracking-[0.1em] text-stone-300">confiança</div>
           </div>
           <img
             src={getTrustIcon(confidence)}
@@ -239,7 +239,7 @@ function BusinessCard({
       </div>
 
       <div className="mt-3 flex items-center gap-2 border-t border-white/[0.07] pt-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[9px] font-semibold uppercase tracking-[0.08em] text-stone-400">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-[10.5px] font-semibold uppercase tracking-[0.08em] text-stone-300">
           {hasWebsite && (
             <span className="flex items-center gap-1">
               <BrandIcon brand="website" className="h-3.5 w-3.5" alt="Site" />
@@ -263,7 +263,7 @@ function BusinessCard({
         <button
           type="button"
           onClick={showCreditsExhausted}
-          className="scoutly-business-credit-lock hidden h-8 items-center gap-1.5 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] px-3 text-[9.5px] font-semibold text-[#FF7A3D]"
+          className="scoutly-business-credit-lock hidden h-8 items-center gap-1.5 rounded-xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] px-3 text-[10.5px] font-semibold text-[#FF7A3D]"
           title="Seus créditos acabaram"
         >
           <Lock className="h-3.5 w-3.5" />
@@ -276,7 +276,7 @@ function BusinessCard({
               type="button"
               onClick={(event) => openExternalShortcut(event, googleBusinessUrl)}
               disabled={isUnlockingShortcut}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[9.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-60"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[10.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-75"
               title="Abrir no Google Maps"
             >
               <BrandIcon brand="googleMaps" className="h-3.5 w-3.5" alt="Google Maps" />
@@ -288,7 +288,7 @@ function BusinessCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(event) => event.stopPropagation()}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[10.5px] font-medium text-stone-100 transition hover:border-white/[0.16] hover:text-white"
               title="Abrir no Google"
             >
               <BrandIcon brand="googleMaps" className="h-3.5 w-3.5" alt="Google Maps" />
@@ -300,7 +300,7 @@ function BusinessCard({
             <button
               type="button"
               onClick={handleCopyPhone}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-[#FF5A12]/35 hover:text-white"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[10.5px] font-medium text-stone-100 transition hover:border-[#FF5A12]/35 hover:text-white"
               title={requiresCreditGate ? 'Abra os dados do negócio para acessar o telefone' : copiedPhone ? 'Número copiado' : 'Copiar telefone'}
             >
               {copiedPhone ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -314,7 +314,7 @@ function BusinessCard({
                 type="button"
                 onClick={(event) => openExternalShortcut(event, websiteUrl!)}
                 disabled={isUnlockingShortcut}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[9.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-60"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.10] bg-white/[0.05] px-2.5 text-[10.5px] font-semibold text-stone-200 transition hover:border-[#FF5A12]/35 hover:text-white disabled:opacity-75"
                 title="Abrir site"
               >
                 <BrandIcon brand="website" className="h-3.5 w-3.5" alt="Site" />
@@ -326,7 +326,7 @@ function BusinessCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
-                className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[9.5px] font-medium text-stone-300 transition hover:border-white/[0.16] hover:text-white"
+                className="inline-flex h-8 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-[10.5px] font-medium text-stone-100 transition hover:border-white/[0.16] hover:text-white"
               >
                 Site
               </a>
@@ -339,7 +339,7 @@ function BusinessCard({
                 type="button"
                 onClick={(event) => openExternalShortcut(event, whatsappUrl)}
                 disabled={isUnlockingShortcut}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.10] px-2.5 text-[9.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/[0.16] disabled:opacity-60"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.10] px-2.5 text-[10.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/[0.16] disabled:opacity-75"
                 title="WhatsApp confirmado por link explícito da fonte"
               >
                 <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
@@ -354,7 +354,7 @@ function BusinessCard({
                   event.stopPropagation();
                   recordRecommendationWhatsApp(business);
                 }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[9.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 text-[10.5px] font-semibold text-emerald-400 transition hover:bg-emerald-500/[0.12]"
               >
                 <BrandIcon brand="whatsapp" className="h-3.5 w-3.5" alt="WhatsApp" />
                 <span className="hidden md:inline">WhatsApp</span>
@@ -368,7 +368,7 @@ function BusinessCard({
               event.stopPropagation();
               onOpenDetails(business);
             }}
-            className="inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-[9.5px] font-semibold text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.08]"
+            className="inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-[10.5px] font-semibold text-[#FF6A26] transition hover:bg-[#FF5A12]/[0.08]"
           >
             Detalhes
             <ChevronRight className="h-3 w-3" />
