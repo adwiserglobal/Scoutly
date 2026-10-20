@@ -42,7 +42,7 @@ export default function BusinessDetailsModal({
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
   const [messageVariation, setMessageVariation] = useState(0);
-  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | 'template' | null>(null);
+  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | null>(null);
   const [messageModel, setMessageModel] = useState('');
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -550,12 +550,7 @@ export default function BusinessDetailsModal({
                       <Sparkles className="w-3.5 h-3.5" /> Mensagem Gerada
                     </span>
 
-                    {messageSource === 'template' ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#d3d7dd]">
-                        <AlertCircle className="w-3 h-3" />
-                        Fallback local
-                      </span>
-                    ) : messageSource ? (
+                    {messageSource ? (
                       <span
                         className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#d3d7dd]"
                         title={messageModel || undefined}

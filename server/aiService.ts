@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from './llmChain.js';
 import type { OverturePlace } from './overtureService.js';
 import { queryOvertureViaApi } from './overtureHttpService.js';
 import {
@@ -222,9 +222,6 @@ export async function handleAIChat({
   currentRegionName = 'São Paulo - SP',
   searchMode = 'default',
 }: AIChatRequest): Promise<AIChatResponse> {
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-
   const intent = interpretSearchIntent(message, currentRegionName);
   const locDetails = parseSearchLocation(message);
   const resolvedArea = await resolveGeographicArea(locDetails);
@@ -452,75 +449,26 @@ DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
 5. Ao final da sua resposta, você DEVE incluir a seguinte tag exata para que a interface renderize os cards corretamente:
 <<<MATCHED_BUSINESSES:[${deduplicatedResults.slice(0, 10).map((b) => `"${b.id}"`).join(', ')}]>>>`;
 
-  if (openRouterKey) {
-    const candidateModels = [
-      'meta-llama/llama-3.3-70b-instruct:free',
-      'google/gemini-2.0-flash-exp:free',
-      'mistralai/mistral-7b-instruct:free',
-      'openrouter/auto',
-    ];
-
-    const messagesPayload = [
-      { role: 'system', content: systemPrompt },
-      ...history.slice(-6).map((h) => ({ role: h.role, content: h.content })),
-      { role: 'user', content: message },
-    ];
-
-    for (const modelCandidate of candidateModels) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openRouterKey}`,
-            'HTTP-Referer': process.env.APP_URL || 'https://scoutly.app',
-            'X-Title': 'Scoutly Radar',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelCandidate,
-            messages: messagesPayload,
-            temperature: 0.2,
-            max_tokens: 1500,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const rawText = data.choices?.[0]?.message?.content || '';
-          if (rawText.trim()) {
-            const { cleanText, matchedIds } = extractMatchedIds(rawText, deduplicatedResults);
-            return {
-              text: cleanText,
-              matchedBusinessIds: matchedIds.length > 0 ? matchedIds : deduplicatedResults.slice(0, 6).map((b) => b.id),
-              newRegion: newRegionData,
-            };
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[OpenRouter ${modelCandidate} Error]:`, err.message);
-      }
-    }
-  }
-
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `${systemPrompt}\n\nUsuário: ${message}`,
-      });
-      const rawText = res.text || '';
-      if (rawText.trim()) {
-        const { cleanText, matchedIds } = extractMatchedIds(rawText, deduplicatedResults);
-        return {
-          text: cleanText,
-          matchedBusinessIds: matchedIds.length > 0 ? matchedIds : deduplicatedResults.slice(0, 6).map((b) => b.id),
-          newRegion: newRegionData,
-        };
-      }
-    } catch (gErr: any) {
-      console.warn('[Gemini Error]:', gErr.message);
-    }
+  try {
+    const generated = await generateText({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-6).map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+        { role: 'user', content: message },
+      ],
+      temperature: 0.2,
+      maxTokens: 1500,
+      budgetMs: 30_000,
+      title: 'Scoutly Radar',
+    });
+    const { cleanText, matchedIds } = extractMatchedIds(generated.text, deduplicatedResults);
+    return {
+      text: cleanText,
+      matchedBusinessIds: matchedIds.length > 0 ? matchedIds : deduplicatedResults.slice(0, 6).map((b) => b.id),
+      newRegion: newRegionData,
+    };
+  } catch (err: any) {
+    console.warn('[AI Chat] all models unavailable:', err?.message || err);
   }
 
   const categoryCounts: Record<string, number> = {};
@@ -620,9 +568,6 @@ export async function generateContextualSuggestions(
   recentSearches: string[] = [],
   currentRegionName: string = 'São Paulo'
 ): Promise<string[]> {
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-
   const cleanRegion = currentRegionName.split('-')[0].trim() || 'São Paulo';
   const historyText = recentSearches.length > 0 ? recentSearches.join('; ') : 'Nenhuma pesquisa prévia';
 
@@ -640,54 +585,21 @@ Exemplos de formato:
 Responda EXCLUSIVAMENTE em formato JSON (array de 4 strings):
 ["sugestão 1", "sugestão 2", "sugestão 3", "sugestão 4"]`;
 
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-      const text = res.text?.trim() || '';
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        if (Array.isArray(parsed) && parsed.length >= 3) {
-          return parsed.slice(0, 4);
-        }
-      }
-    } catch (err: any) {
-      console.warn('[AI Suggestions Gemini Error]:', err.message);
+  try {
+    const generated = await generateText({
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      maxTokens: 300,
+      budgetMs: 12_000,
+      title: 'Scoutly Suggestions',
+    });
+    const match = generated.text.match(/\[[\s\S]*\]/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed) && parsed.length >= 3) return parsed.slice(0, 4);
     }
-  }
-
-  if (openRouterKey) {
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-exp:free',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const raw = data.choices?.[0]?.message?.content || '';
-        const match = raw.match(/\[[\s\S]*\]/);
-        if (match) {
-          const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed) && parsed.length >= 3) {
-            return parsed.slice(0, 4);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn('[AI Suggestions OpenRouter Error]:', err.message);
-    }
+  } catch (err: any) {
+    console.warn('[AI Suggestions] models unavailable:', err?.message || err);
   }
 
   const lastSearch = recentSearches[recentSearches.length - 1] || '';

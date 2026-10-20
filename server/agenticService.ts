@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from './llmChain.js';
 import { appDataRequest, dbValue, ensureAppUser } from './appDataService.js';
 import type { FirebaseIdentity } from './firebaseTokenService.js';
 import { searchBusinessesAdaptive } from './adaptiveBusinessSearchService.js';
@@ -110,58 +110,25 @@ function extractJsonObject(raw: string): any | null {
 }
 
 async function callAgentModel(prompt: string, maxTokens = 700): Promise<{ text: string; model: string } | null> {
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  if (openRouterKey) {
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openRouterKey}`,
-          'HTTP-Referer': process.env.APP_URL || 'https://scoutly.pro',
-          'X-Title': 'Scoutly Agentic',
-          'Content-Type': 'application/json',
+  try {
+    const generated = await generateText({
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é o planner operacional da Scoutly. Seja preciso, conservador e nunca invente empresas ou dados.',
         },
-        body: JSON.stringify({
-          model: 'openrouter/auto',
-          temperature: 0.1,
-          max_tokens: maxTokens,
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é o planner operacional da Scoutly. Seja preciso, conservador e nunca invente empresas ou dados.',
-            },
-            { role: 'user', content: prompt },
-          ],
-        }),
-        signal: AbortSignal.timeout(9000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const text = String(data?.choices?.[0]?.message?.content || '').trim();
-        if (text) return { text, model: 'openrouter/auto' };
-      }
-    } catch (error: any) {
-      console.warn('[Scoutly Agentic] OpenRouter planner failed:', error?.message || error);
-    }
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.1,
+      maxTokens,
+      budgetMs: 20_000,
+      title: 'Scoutly Agentic',
+    });
+    return { text: generated.text, model: generated.model };
+  } catch (error: any) {
+    console.warn('[Scoutly Agentic] planner unavailable:', error?.message || error);
+    return null;
   }
-
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-      const text = String(response.text || '').trim();
-      if (text) return { text, model: 'gemini-2.5-flash' };
-    } catch (error: any) {
-      console.warn('[Scoutly Agentic] Gemini planner failed:', error?.message || error);
-    }
-  }
-
-  return null;
 }
 
 function buildFallbackPlan(run: AgentRunRecord): AgentPlan {

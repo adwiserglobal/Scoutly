@@ -564,7 +564,7 @@ export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
 
 export interface GenerateMessageResult {
   message: string;
-  source: 'gemini' | 'openrouter' | 'template';
+  source: 'gemini' | 'openrouter';
   model?: string;
   variationIndex?: number;
   access?: CreditAccessStatus;
@@ -583,6 +583,14 @@ export async function generateMessage(
       variationIndex: options?.variationIndex || 0,
       previousMessage: options?.previousMessage || '',
     }),
+    signal: AbortSignal.timeout(62000),
+  }).catch((error: any) => {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      const timeout: any = new Error('Nossa IA está com muita demanda neste momento. Tente gerar novamente em alguns instantes.');
+      timeout.code = 'LLM_UNAVAILABLE';
+      throw timeout;
+    }
+    throw error;
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -593,7 +601,7 @@ export async function generateMessage(
   }
   const result = {
     message: data.message || '',
-    source: data.source || 'template',
+    source: data.source || 'openrouter',
     model: data.model,
     variationIndex: data.variationIndex,
     access: data.access,

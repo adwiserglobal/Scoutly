@@ -108,6 +108,10 @@
   ],
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "api/ai/generate-message.ts": {
+      "maxDuration": 60,
+      "excludeFiles": "{data/**,scripts/**,supabase/**}"
+    },
     "api/**/*.ts": {
       "excludeFiles": "{data/**,scripts/**,supabase/**}"
     }

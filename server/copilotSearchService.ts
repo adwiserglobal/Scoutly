@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { generateText } from './llmChain.js';
 import { searchBusinessesAdaptive } from './adaptiveBusinessSearchService.js';
 import { fetchBusinessesFromSerper } from './serperService.js';
 import { interpretSearchIntent } from './searchInterpreter.js';
@@ -202,53 +202,21 @@ REGRAS:
 - Não exponha APIs, coordenadas, logs, CNPJ ou detalhes internos.
 - No máximo 2 parágrafos curtos e, quando útil, uma sugestão de próxima ação.`;
 
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  if (openRouterKey) {
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openRouterKey}`,
-          'HTTP-Referer': process.env.APP_URL || 'https://scoutly.pro',
-          'X-Title': 'Scoutly AI',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'openrouter/auto',
-          temperature: 0.15,
-          max_tokens: 500,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history.slice(-4).map((item) => ({ role: item.role, content: item.content })),
-            { role: 'user', content: message },
-          ],
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const text = String(data?.choices?.[0]?.message?.content || '').trim();
-        if (text) return { text, modelUsed: 'openrouter/auto' };
-      }
-    } catch (error: any) {
-      console.warn('[Scoutly AI] OpenRouter fallback:', error?.message || error);
-    }
-  }
-
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `${systemPrompt}\n\nUsuário: ${message}`,
-      });
-      const text = (response.text || '').trim();
-      if (text) return { text, modelUsed: 'gemini-2.5-flash' };
-    } catch (error: any) {
-      console.warn('[Scoutly AI] Gemini fallback:', error?.message || error);
-    }
+  try {
+    const generated = await generateText({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-4).map((item) => ({ role: item.role as 'user' | 'assistant', content: item.content })),
+        { role: 'user', content: message },
+      ],
+      temperature: 0.15,
+      maxTokens: 500,
+      budgetMs: 25_000,
+      title: 'Scoutly AI',
+    });
+    return { text: generated.text, modelUsed: generated.model };
+  } catch (error: any) {
+    console.warn('[Scoutly AI] all models unavailable:', error?.message || error);
   }
 
   if (shownCount === 0) {
