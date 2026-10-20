@@ -166,6 +166,8 @@ export async function generateText(request: LlmRequest): Promise<LlmResult> {
   const failures: string[] = [];
   const note = (candidate: Candidate, error: any) =>
     failures.push(`${candidate.provider}/${candidate.model}: ${String(error?.message || error).slice(0, 80)}`);
+  const counts = queue.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item.provider]: (acc[item.provider] || 0) + 1 }), {});
+  console.info(`[LLM] chain: ${Object.entries(counts).map(([name, n]) => `${name}x${n}`).join(' ') || 'EMPTY'}${request.title ? ` (${request.title})` : ''}`);
   if (queue.length === 0) {
     throw new LlmUnavailableError('Nenhum provedor de IA está configurado neste ambiente.', ['sem AI_GATEWAY_API_KEY, GEMINI_API_KEY ou OPENROUTER_API_KEY']);
   }
