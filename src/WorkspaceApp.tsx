@@ -45,6 +45,7 @@ const TAB_PATHS: Record<NavigationTab, string> = {
   INICIO: '/dashboard',
   FAVORITOS: '/favoritos',
   PIPELINE: '/pipeline',
+  WORKSPACE: '/workspace',
   CONFIGURACOES: '/configuracoes',
 };
 
@@ -52,6 +53,7 @@ function tabFromPath(pathname: string): NavigationTab {
   const normalized = pathname.replace(/\/+$/, '') || '/dashboard';
   if (normalized === '/favoritos') return 'FAVORITOS';
   if (normalized === '/pipeline') return 'PIPELINE';
+  if (normalized === '/workspace') return 'WORKSPACE';
   if (normalized === '/configuracoes') return 'CONFIGURACOES';
   return 'INICIO';
 }
@@ -75,6 +77,7 @@ function loadSavedVisitRoute(): VisitRouteStop[] {
   }
 }
 
+const WorkspacePage = lazy(() => import('./components/workspace/WorkspacePage'));
 const FlightSummaryModal = lazy(() => import('./components/FlightSummaryModal'));
 
 export default function App() {
@@ -112,6 +115,7 @@ export default function App() {
       INICIO: 'Scoutly — Dashboard',
       FAVORITOS: 'Scoutly — Favoritos',
       PIPELINE: 'Scoutly — Pipeline',
+      WORKSPACE: 'Scoutly — Workspace',
       CONFIGURACOES: 'Scoutly — Configurações',
     };
     document.title = titles[currentTab];
@@ -1922,6 +1926,14 @@ export default function App() {
               onNavigateToExplore={() => navigateTab('INICIO')}
               onOpenAIChat={() => setIsAIChatOpen(true)}
             />
+          </div>
+        )}
+
+        {currentTab === 'WORKSPACE' && (
+          <div className="absolute inset-0 z-20 bg-[#090c10] overflow-y-auto pointer-events-auto pb-24 pt-4 lg:pl-[190px]">
+            <Suspense fallback={null}>
+              <WorkspacePage onLeft={() => window.location.assign('/dashboard')} />
+            </Suspense>
           </div>
         )}
 

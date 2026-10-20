@@ -2,15 +2,18 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import LoadingScreen from './components/LoadingScreen';
 import LoginView from './components/LoginView';
+import { rememberInviteToken } from './services/teamApi';
 import MarketingSite from './components/MarketingSite';
 import CreditBalancePill from './components/CreditBalancePill';
 
 const WorkspaceApp = lazy(() => import('./WorkspaceApp'));
+const InviteAcceptModal = lazy(() => import('./components/workspace/InviteAcceptModal'));
 
 const PRODUCT_PATHS = new Set([
   '/dashboard',
   '/favoritos',
   '/pipeline',
+  '/workspace',
   '/configuracoes',
 ]);
 
@@ -41,6 +44,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const invite = pathname.match(/^\/convite\/([A-Za-z0-9_-]{16,128})$/);
+    if (invite) {
+      rememberInviteToken(invite[1]);
+      navigate('/dashboard', true);
+      return;
+    }
+
     if (loading) return;
 
     if (pathname === '/login' && user) {
@@ -88,6 +98,7 @@ export default function App() {
   return (
     <Suspense fallback={<LoadingScreen />}>
       <WorkspaceApp />
+      <InviteAcceptModal />
       <CreditBalancePill />
     </Suspense>
   );

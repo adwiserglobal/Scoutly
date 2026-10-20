@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Clock3, Columns3, HelpCircle, Home, Menu, Settings, Star, X, Zap } from 'lucide-react';
+import { Clock3, Columns3, HelpCircle, Home, Menu, Users, Settings, Star, X, Zap } from 'lucide-react';
 import { NavigationTab } from '../types';
 import SupportCenterPage from './SupportCenterPage';
 import { useAuth } from '../context/AuthContext';
@@ -154,6 +154,7 @@ function BottomMenu({
       icon: Columns3,
       badge: pipelineDealsCount > 0 ? pipelineDealsCount : null,
     },
+    ...(access?.plan === 'agency' ? [{ id: 'WORKSPACE' as NavigationTab, label: 'Workspace', icon: Users, badge: null as number | null }] : []),
   ];
 
   const navigate = (tab: NavigationTab) => {

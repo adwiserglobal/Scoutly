@@ -208,9 +208,10 @@ export default function PlansModal({ open, billing, onClose, onSignOut, forceOpe
               <div className="mt-3"><span className="text-[28px] font-semibold tracking-tight text-white">{formatBRL(SCOUTLY_PLANS.agency.monthlyPrice)}</span><span className="ml-1 text-xs text-stone-600">/mês</span></div>
               <div className="mt-3 flex-1 space-y-2">
                 <Feature>Tudo do Pro</Feature>
-                <Feature>5 usuários incluídos</Feature>
+                <Feature>5 usuários incluídos, com convite por e-mail</Feature>
                 <Feature>Prospecção e IA sem os limites do Go</Feature>
-                <Feature>Workspace preparado para operação em equipe</Feature>
+                <Feature>Pipeline compartilhado ou individual, você escolhe</Feature>
+                <Feature>Página Workspace com dados, insights e uso da equipe</Feature>
                 <Feature>{formatBRL(SCOUTLY_PLANS.agency.additionalSeatPrice || 0)} por usuário adicional</Feature>
               </div>
               <button type="button" onClick={() => handleSelectPlan('agency')} disabled={isRedirecting || (isActivePaid && billing.paidPlanId === 'agency')} className="mt-4 w-full rounded-xl border border-white/[0.10] bg-white/[0.04] px-4 py-2.5 text-[11px] font-semibold text-stone-200 hover:border-[#FF5A12]/30 hover:bg-[#FF5A12]/[0.07] disabled:opacity-50">

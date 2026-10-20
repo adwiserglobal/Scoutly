@@ -33,6 +33,7 @@ export type NavigationTab =
   | 'INICIO'
   | 'FAVORITOS'
   | 'PIPELINE'
+  | 'WORKSPACE'
   | 'CONFIGURACOES';
 
 export interface Business {
