@@ -91,6 +91,45 @@ async function deleteLedgerEvent(userUid: string, eventId: string) {
   ).catch(() => undefined);
 }
 
+/**
+ * Unlimited plans (Pro/Agency) are not metered, but we still log the usage so the Workspace page can
+ * show where the team's credits go. Best effort: a logging failure never blocks the user.
+ */
+async function recordUnmeteredUsage(options: {
+  userUid: string;
+  workspaceId: string;
+  ledgerQuery: string;
+  businessId?: string | null;
+  plan: ProductPlan;
+  source: string;
+}) {
+  try {
+    if (options.businessId) {
+      const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const recent = await appDataRequest<Array<{ id: string }>>(
+        `recommendation_events?user_uid=eq.${dbValue(options.userUid)}&event_type=eq.${dbValue(LEDGER_EVENT_TYPE)}` +
+          `&query=eq.${dbValue(options.ledgerQuery)}&business_id=eq.${dbValue(options.businessId)}` +
+          `&created_at=gte.${dbValue(since)}&select=id&limit=1`
+      );
+      if (recent.length) return;
+    }
+    await appDataRequest('recommendation_events', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        user_uid: options.userUid,
+        workspace_id: options.workspaceId,
+        event_type: LEDGER_EVENT_TYPE,
+        business_id: options.businessId || null,
+        query: options.ledgerQuery,
+        metadata: { plan: options.plan, source: options.source, scoutly_ledger: true, unmetered: true },
+      }),
+    });
+  } catch (error: any) {
+    console.warn('[Usage] could not log unmetered usage:', error?.message || error);
+  }
+}
+
 async function reserveLimitedEvent(options: {
   userUid: string;
   workspaceId: string;
@@ -281,6 +320,7 @@ export async function consumeBusinessCredit(
   const plan = normalizePlan(access.plan);
 
   if (plan === 'pro' || plan === 'agency') {
+    await recordUnmeteredUsage({ userUid, workspaceId, ledgerQuery: BUSINESS_UNLOCK_LEDGER_QUERY, businessId, plan, source: 'business_open' });
     return getCreditStatus(userUid);
   }
 
@@ -351,6 +391,7 @@ export async function consumeAiConversation(userUid: string, workspaceId: string
   }
 
   if (plan === 'pro' || plan === 'agency') {
+    await recordUnmeteredUsage({ userUid, workspaceId, ledgerQuery: AI_CONVERSATION_LEDGER_QUERY, plan, source: 'scoutly_ai' });
     return getCreditStatus(userUid);
   }
 

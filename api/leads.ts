@@ -9,6 +9,11 @@ import { getUserProfile, saveUserProfileData } from '../server/userProfileServic
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
 import {
+  acceptInvite, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, renewInvite,
+  revokeInvite, setExtraSeats, setPipelineMode,
+} from '../server/teamService.js';
+import { getWorkspaceInsights } from '../server/workspaceInsightsService.js';
+import {
   changeDemoSiteStyle, checkDemoSlug, createOrRegenerateDemoSite, deleteDemoSite, discardDemoDraft, getDemoDraft, getDemoSiteForBusiness,
   publishDemoDraft, renameDemoSite, renderPublicDemoSite, saveDemoDraft, setDemoLogo,
 } from '../server/demoSiteService.js';
@@ -56,6 +61,7 @@ async function createActiveRoute(userUid: string, workspaceId: string) {
 async function bootstrap(userUid: string, workspaceId: string) {
   const subscriptionAccess = await getSubscriptionAccess(userUid);
   const route = await getActiveRoute(userUid);
+  const team = await getTeamContext(userUid).catch(() => null);
 
   const [
     leadRows,
@@ -70,7 +76,9 @@ async function bootstrap(userUid: string, workspaceId: string) {
     access,
   ] = await Promise.all([
     appDataRequest<any[]>(
-      `user_leads?user_uid=eq.${dbValue(userUid)}&select=business_id,status,notes,business_snapshot,updated_at`
+      team?.pipelineMode === 'shared'
+        ? `user_leads?or=(workspace_id.eq.${dbValue(team.workspaceId)},user_uid.eq.${dbValue(userUid)})&select=user_uid,business_id,status,notes,business_snapshot,updated_at&order=updated_at.desc`
+        : `user_leads?user_uid=eq.${dbValue(userUid)}&select=user_uid,business_id,status,notes,business_snapshot,updated_at`
     ),
     appDataRequest<any[]>(
       `favorites?user_uid=eq.${dbValue(userUid)}&select=business_id,category,business_snapshot,created_at`
@@ -103,11 +111,14 @@ async function bootstrap(userUid: string, workspaceId: string) {
 
   const leads: Record<string, any> = {};
   for (const row of leadRows) {
+    // Shared pipelines come ordered by recency: the most recent row for a business wins.
+    if (leads[row.business_id]) continue;
     leads[row.business_id] = {
       status: row.status,
       notes: row.notes || '',
       updatedAt: row.updated_at,
       business: row.business_snapshot || null,
+      by: team?.pipelineMode === 'shared' ? row.user_uid : undefined,
     };
   }
 
@@ -123,6 +134,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
   return {
     user: profileRows[0] || null,
     workspaceId,
+    team: team ? { role: team.role, pipelineMode: team.pipelineMode, workspaceName: team.workspaceName, isTeam: team.role === 'member' || team.pipelineMode === 'shared' } : null,
     leads,
     favorites,
     favoriteBusinesses,
@@ -283,6 +295,20 @@ function publicError(error: any, statusCode: number) {
     'PROFILE_MIGRATION_PENDING',
     'DEMO_MIGRATION_PENDING',
     'FLIGHT_LIMIT_REACHED',
+    'TEAM_MIGRATION_PENDING',
+    'TEAM_NOT_FOUND',
+    'TEAM_FORBIDDEN',
+    'TEAM_REQUIRES_AGENCY',
+    'TEAM_INVALID',
+    'TEAM_INVALID_EMAIL',
+    'TEAM_ALREADY_MEMBER',
+    'TEAM_ALREADY_INVITED',
+    'TEAM_SEATS_FULL',
+    'TEAM_SEATS_IN_USE',
+    'TEAM_SEAT_BILLING_PENDING',
+    'TEAM_INVITE_INVALID',
+    'TEAM_INVITE_EXPIRED',
+    'TEAM_INVITE_EMAIL_MISMATCH',
     'FLIGHT_MIGRATION_PENDING',
     'DEMO_LIMIT_REACHED',
     'DEMO_NOT_FOUND',
@@ -434,6 +460,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const status = String(req.body?.status || 'NOVO');
       if (!businessId) return res.status(400).json({ error: 'businessId é obrigatório' });
       if (!LEAD_STATUSES.has(status)) return res.status(400).json({ error: 'status inválido' });
+      const team = await getTeamContext(identity.uid).catch(() => null);
+      if (team?.pipelineMode === 'shared') {
+        // Shared pipeline: if a teammate already tracks this business, update that lead instead of creating a duplicate.
+        const existing = await appDataRequest<Array<{ user_uid: string }>>(
+          `user_leads?workspace_id=eq.${dbValue(team.workspaceId)}&business_id=eq.${dbValue(businessId)}&select=user_uid&limit=1`
+        );
+        if (existing[0] && existing[0].user_uid !== identity.uid) {
+          const snapshot = req.body?.business && typeof req.body.business === 'object' ? req.body.business : undefined;
+          await appDataRequest(`user_leads?user_uid=eq.${dbValue(existing[0].user_uid)}&business_id=eq.${dbValue(businessId)}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              status,
+              notes: String(req.body?.notes || '').slice(0, 10000),
+              ...(snapshot ? { business_snapshot: snapshot } : {}),
+              updated_at: new Date().toISOString(),
+            }),
+          });
+          return res.status(200).json({ success: true });
+        }
+      }
       await appDataRequest('user_leads?on_conflict=user_uid,business_id', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -559,6 +606,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return res.status(200).json({ success: true, ...(await getUserProfile(identity.uid)) });
     }
+
+    if (action === 'team-overview') return res.status(200).json(await getTeamOverview(identity.uid));
+    if (action === 'team-invite') return res.status(200).json(await createInvite(identity, req.body?.email));
+    if (action === 'team-invite-renew') return res.status(200).json(await renewInvite(identity, String(req.body?.inviteId || '')));
+    if (action === 'team-invite-revoke') return res.status(200).json(await revokeInvite(identity.uid, String(req.body?.inviteId || '')));
+    if (action === 'team-invite-preview') return res.status(200).json(await previewInvite(identity, String(req.body?.token || '')));
+    if (action === 'team-invite-accept') return res.status(200).json(await acceptInvite(identity, String(req.body?.token || '')));
+    if (action === 'team-member-remove') return res.status(200).json(await removeMember(identity.uid, String(req.body?.memberUid || ''), req.body?.keepLeads !== false));
+    if (action === 'team-leave') return res.status(200).json(await leaveTeam(identity.uid));
+    if (action === 'team-settings') return res.status(200).json(await setPipelineMode(identity.uid, req.body?.pipelineMode));
+    if (action === 'team-seats') return res.status(200).json(await setExtraSeats(identity.uid, req.body?.extraSeats));
+    if (action === 'workspace-insights') return res.status(200).json(await getWorkspaceInsights(identity.uid, req.body?.days));
 
     if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
     if (action === 'flight-start') return res.status(200).json(await startFlight(identity.uid));

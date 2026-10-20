@@ -2,7 +2,7 @@ import type { FirebaseIdentity } from './firebaseTokenService.js';
 import { protectBusinessForClient } from './businessSealService.js';
 
 const DEFAULT_APP_DB_URL = 'https://fpyfphabdjutwqlwjwib.supabase.co';
-const DEFAULT_APP_URL = 'https://www.scoutly.pro';
+export const DEFAULT_APP_URL = 'https://www.scoutly.pro';
 const ACTIVITY_EVENT_THROTTLE_MS = 10 * 60 * 1000;
 const SNAPSHOT_TABLES = new Set([
   'user_leads',
@@ -249,7 +249,19 @@ export async function ensureAppUser(identity: FirebaseIdentity) {
     });
   }
 
-  return { workspaceId };
+  // Members of an Agency team work inside the owner's workspace: everything they create
+  // (events, leads, messages) carries the team's workspace id so the owner can see aggregates.
+  let effectiveWorkspaceId = workspaceId;
+  try {
+    const memberships = await appDataRequest<Array<{ workspace_id: string }>>(
+      `workspace_members?user_uid=eq.${dbValue(identity.uid)}&role=eq.member&select=workspace_id&limit=1`
+    );
+    if (memberships[0]?.workspace_id) effectiveWorkspaceId = memberships[0].workspace_id;
+  } catch {
+    /* before migration 018 there are no members */
+  }
+
+  return { workspaceId: effectiveWorkspaceId, personalWorkspaceId: workspaceId };
 }
 
 export async function incrementUsage(userUid: string, counter: 'analyses' | 'ai_messages' | 'recommendation_refreshes') {

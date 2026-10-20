@@ -6,8 +6,10 @@ export type SubscriptionAccess = {
   current_period_start: string | null;
   current_period_end: string | null;
   hasAccess: boolean;
-  reason: 'active' | 'free' | 'developer';
+  reason: 'active' | 'free' | 'developer' | 'team';
   isDeveloper: boolean;
+  /** Agency access inherited from the owner of the team the user belongs to. */
+  viaTeam?: boolean;
 };
 
 // Product-level developer grants are intentionally independent from Scoutly
@@ -58,7 +60,7 @@ async function getScoutlyDeveloperPlan(userUid: string): Promise<'pro' | 'agency
   return null;
 }
 
-export async function getSubscriptionAccess(userUid: string): Promise<SubscriptionAccess> {
+async function getOwnSubscriptionAccess(userUid: string): Promise<SubscriptionAccess> {
   // This allowlist is deliberately server-side and exact-match only. Never use
   // domains, prefixes or client-provided email values for developer access.
   const developerPlan = await getScoutlyDeveloperPlan(userUid);
@@ -91,6 +93,35 @@ export async function getSubscriptionAccess(userUid: string): Promise<Subscripti
   // Product access now falls back to the permanent Free tier without mutating
   // the existing database enum/check constraints.
   return freeAccess();
+}
+
+/**
+ * Members of an Agency team get Agency access through the owner's subscription, unless they already
+ * have an equal plan of their own. The owner's plan is read directly (no recursion into teams).
+ */
+export async function getSubscriptionAccess(userUid: string): Promise<SubscriptionAccess> {
+  const own = await getOwnSubscriptionAccess(userUid);
+  if (own.plan === 'agency') return own;
+
+  try {
+    const memberships = await appDataRequest<Array<{ workspace_id: string }>>(
+      `workspace_members?user_uid=eq.${dbValue(userUid)}&role=eq.member&select=workspace_id&limit=1`
+    );
+    const workspaceId = memberships[0]?.workspace_id;
+    if (!workspaceId) return own;
+    const workspaces = await appDataRequest<Array<{ owner_uid: string }>>(
+      `workspaces?id=eq.${dbValue(workspaceId)}&select=owner_uid&limit=1`
+    );
+    const ownerUid = workspaces[0]?.owner_uid;
+    if (!ownerUid || ownerUid === userUid) return own;
+    const ownerAccess = await getOwnSubscriptionAccess(ownerUid);
+    if (ownerAccess.plan === 'agency' && ownerAccess.hasAccess) {
+      return { ...ownerAccess, isDeveloper: false, reason: 'team', viaTeam: true };
+    }
+  } catch {
+    /* team tables missing: behave as a regular user */
+  }
+  return own;
 }
 
 export async function requireProductAccess(userUid: string): Promise<SubscriptionAccess> {

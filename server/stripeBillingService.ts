@@ -76,6 +76,9 @@ async function stripeRequest<T>(
   return data as T;
 }
 
+/** Generic Stripe call for other services (e.g. team seats). */
+export const stripeRequestRaw = <T = any>(path: string, init: RequestInit = {}) => stripeRequest<T>(path, init);
+
 export async function retrieveStripeCheckoutSession(sessionId: string) {
   return stripeRequest<any>(`checkout/sessions/${encodeURIComponent(sessionId)}`);
 }
@@ -215,6 +218,11 @@ export async function syncStripeSubscription(
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(row),
   });
+
+  if (plan === 'agency') {
+    const { syncExtraSeatsFromSubscription } = await import('./teamService.js');
+    await syncExtraSeatsFromSubscription(userUid, stripeSubscription);
+  }
 
   const hasPaidAccess = ['active', 'trialing', 'past_due'].includes(status);
   await appDataRequest(`workspaces?owner_uid=eq.${dbValue(userUid)}`, {
