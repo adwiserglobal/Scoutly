@@ -138,6 +138,7 @@ export default function CreditBalancePill() {
   return (
     <button
       type="button"
+      data-credit-pill
       onClick={handleClick}
       className={`fixed right-[78px] top-4 z-[30] isolate flex min-h-[58px] items-center gap-3 overflow-visible rounded-2xl border border-white/[0.11] bg-[#111418]/[0.98] py-1.5 pl-3 pr-4 text-left text-white shadow-[0_12px_34px_rgba(0,0,0,0.38)] backdrop-blur-2xl pointer-events-auto xl:right-[104px] ${clickable ? 'transition hover:border-[#FF5A12]/40 hover:bg-[#171a1f]' : 'cursor-default'}`}
       title={access.plan === 'free' ? 'Free: 5 créditos por dia, limitado a 25 por mês' : undefined}

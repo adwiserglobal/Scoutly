@@ -33,9 +33,9 @@ const LAYER_ID = 'scoutly-plane-layer';
 const BUILDINGS_ID = 'scoutly-flight-buildings';
 const MODEL_SCALE = 12; // model units -> meters (wingspan ~11 units => ~100 m, readable at zoom 16)
 const ALTITUDE_M = 55;
-const CRUISE = 150;
-const MIN_SPEED = 55;
-const MAX_SPEED = 420;
+const CRUISE = 90;
+const MIN_SPEED = 40;
+const MAX_SPEED = 230;
 const TRAIL_POINTS = 70;
 
 const ORANGE = 0xff5a12;
@@ -233,7 +233,6 @@ export class PlaneFlight {
     this.cameraZoom = this.map.getZoom();
     this.trailCount = 0;
     this.lockInteractions();
-    this.addBuildings();
     this.addLayer();
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.tick);
@@ -442,8 +441,8 @@ export class PlaneFlight {
 
     // Throttle + boost
     let target = state.speed;
-    if (this.input.throttle !== 0) target = state.speed + this.input.throttle * 220 * dt;
-    const cap = this.input.boost ? MAX_SPEED : MAX_SPEED * 0.62;
+    if (this.input.throttle !== 0) target = state.speed + this.input.throttle * 120 * dt;
+    const cap = this.input.boost ? MAX_SPEED : MAX_SPEED * 0.6;
     target = Math.min(cap, Math.max(MIN_SPEED, target));
     if (!this.input.boost && state.speed > cap) target = Math.max(cap, state.speed - 260 * dt);
     state.speed += (target - state.speed) * Math.min(1, dt * 5);
@@ -480,13 +479,13 @@ export class PlaneFlight {
 
     // Camera: chase with lag, zoom out a little with speed
     this.cameraBearing += angleDiff(state.heading, this.cameraBearing) * Math.min(1, dt * 2.6);
-    const targetZoom = 16.55 - Math.log2(Math.max(0.5, state.speed / CRUISE)) * 0.55;
+    const targetZoom = 16.1 - Math.log2(Math.max(0.5, state.speed / CRUISE)) * 0.55;
     this.cameraZoom += (targetZoom - this.cameraZoom) * Math.min(1, dt * 2.5);
     const height = this.map.getContainer().clientHeight || 700;
     this.map.jumpTo({
       center: [state.lng, state.lat],
       bearing: (this.cameraBearing + 360) % 360,
-      pitch: Math.min(this.map.getMaxPitch?.() ?? 60, 62),
+      pitch: Math.min(this.map.getMaxPitch?.() ?? 60, 56),
       zoom: this.cameraZoom,
       padding: { top: Math.round(height * 0.4), bottom: 0, left: 0, right: 0 },
     });

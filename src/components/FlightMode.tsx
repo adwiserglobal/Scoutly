@@ -52,6 +52,14 @@ export default function FlightMode({ map, businesses, selectedBusiness, onSelect
 
   const exit = useCallback(() => onExit(), [onExit]);
 
+  // Hide floating app widgets (e.g. the credit pill) that would overlap the flight HUD
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = 'button[data-credit-pill],[data-credit-pill]{display:none!important}';
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
+
   const syncInput = useCallback(() => {
     const keys = keysRef.current;
     const touch = touchRef.current;
