@@ -378,6 +378,8 @@ export class PlaneFlight {
   private running = false;
   private cameraBearing = 0;
   private cameraZoom = 16.2;
+  /** Mouse-wheel offset on top of the automatic chase zoom (negative = farther from the aircraft). */
+  private userZoom = 0;
   private roll = 0;
   private pitchTilt = 0;
   private prevSpeed = 0;
@@ -453,6 +455,16 @@ export class PlaneFlight {
   // ---------------------------------------------------------------------------
 
   private lockInteractions() {
+    this.userZoom = 0;
+    const onWheel = (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('[role="dialog"], [data-no-flight-zoom]')) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : 1;
+      this.userZoom = Math.min(2.4, Math.max(-1.8, this.userZoom - (event.deltaY * unit) * 0.0035));
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    this.restoreHandlers.push(() => window.removeEventListener('wheel', onWheel));
     const handlers: Array<[string, any]> = [
       ['dragPan', this.map.dragPan], ['scrollZoom', this.map.scrollZoom], ['boxZoom', this.map.boxZoom],
       ['dragRotate', this.map.dragRotate], ['keyboard', this.map.keyboard],
@@ -690,7 +702,7 @@ export class PlaneFlight {
     this.cameraBearing += angleDiff(state.heading, this.cameraBearing) * Math.min(1, dt * 2.6);
     const speedZoom = Math.log2(Math.max(0.5, state.speed / profile.cruise)) * 0.5;
     const altitudeZoom = Math.log2(Math.max(0.3, state.altitude / profile.altitude)) * 0.45;
-    const targetZoom = (isHeli ? 16.7 : 16.1) - speedZoom - altitudeZoom;
+    const targetZoom = (isHeli ? 16.7 : 16.1) - speedZoom - altitudeZoom + this.userZoom;
     this.cameraZoom += (targetZoom - this.cameraZoom) * Math.min(1, dt * 2.5);
     const height = this.map.getContainer().clientHeight || 700;
     this.map.jumpTo({
