@@ -233,7 +233,7 @@ function BottomMenu({
       <div className={`${mobile ? 'mt-2' : 'mb-3'} w-full rounded-2xl border border-[#FF5A12]/25 bg-[#111418]/[0.985] p-3 shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-2xl`}>
         <div className="flex items-start gap-2.5">
           <img
-            src="/credits-coin.png?v=verified-20260928"
+            src="/credits-coin-3d.webp?v=2"
             alt="Créditos Scoutly"
             width={32}
             height={32}

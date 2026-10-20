@@ -119,7 +119,7 @@ export default function PlansModal({ open, billing, onClose, onSignOut, forceOpe
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] bg-[#0b0e11]/98 px-5 py-4 backdrop-blur-2xl md:px-6">
           <div className="flex min-w-0 items-start gap-3.5">
             {creditExhausted ? (
-              <img src="/credits-coin.png?v=3" alt="" className="mt-0.5 h-10 w-10 shrink-0 object-contain" draggable={false} />
+              <img src="/credits-coin-3d.webp?v=2" alt="" width={44} height={44} className="mt-0 h-11 w-11 shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(255,90,18,0.35)]" draggable={false} />
             ) : (
               <div className="mt-1 h-[3px] w-10 shrink-0 rounded-full bg-[#FF5A12]" />
             )}
