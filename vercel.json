@@ -86,6 +86,14 @@
       "dest": "/$1/index.html"
     },
     {
+      "src": "/blog/?",
+      "dest": "/blog/index.html"
+    },
+    {
+      "src": "/blog/([a-z0-9-]+)/?",
+      "dest": "/blog/$1/index.html"
+    },
+    {
       "src": "/ajuda/?",
       "dest": "/ajuda/index.html"
     },

@@ -5,6 +5,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { HELP_ARTICLES } from '../src/data/helpArticles.data.mjs';
+import { BLOG_ARTICLES, BLOG_ROUTE, BLOG_AUTHOR } from '../src/data/blogArticles.data.mjs';
 
 const DOMAIN = 'https://www.scoutly.pro';
 const DIST = path.resolve('dist');
@@ -117,7 +118,7 @@ const publicLinks = [
   ['/recursos/', 'Recursos'],
   ['/dados-e-fontes/', 'Dados e fontes'],
   ['/perguntas-frequentes/', 'Perguntas frequentes'],
-  ['/ajuda/', 'Central de ajuda']
+  ['/blog/', 'Guias e artigos'], ['/ajuda/', 'Central de ajuda']
 ];
 const css = [
   ':root{font-family:Inter,Arial,sans-serif;color-scheme:dark}*{box-sizing:border-box}',
@@ -177,7 +178,7 @@ const structured = (graph) => '<script type="application/ld+json">' +
 const nav = (lang) => '<header class="seo-header"><nav class="seo-wrap seo-nav" aria-label="Scoutly">' +
   '<a class="seo-brand" href="/"><img src="/scoutly-mark.png" alt="" width="31" height="31">Scoutly<b>.</b></a>' +
   '<div class="seo-links"><a href="/prospeccao-local/">Prospecção local</a><a href="/recursos/">Recursos</a>' +
-  '<a href="/para-agencias/">Agências</a><a href="/perguntas-frequentes/">FAQ</a><a href="/ajuda/">Ajuda</a></div>' +
+  '<a href="/para-agencias/">Agências</a><a href="/perguntas-frequentes/">FAQ</a><a href="/blog/">Guias</a><a href="/ajuda/">Ajuda</a></div>' +
   '<a class="seo-cta" href="/login?mode=signup">' + (lang === 'en' ? 'Start free' : 'Começar grátis') +
   ' →</a></nav></header>';
 
@@ -394,6 +395,138 @@ function renderHelpArticle(article) {
 
 const helpPages = [renderHelpIndex(), ...HELP_ARTICLES.map(renderHelpArticle)];
 
+// ---------------------------------------------------------------------------
+// Blog / guides (public, indexable): /blog/ and /blog/<slug>/
+// Content comes from src/data/blogArticles.data.mjs.
+// ---------------------------------------------------------------------------
+const blogRoute = (article) => BLOG_ROUTE + article.id + '/';
+const blogCss = [
+  '.blog-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font-size:12px;color:#9aa1ac}',
+  '.blog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:8px}',
+  '.blog-card{display:flex;flex-direction:column;gap:8px;padding:22px;border:1px solid #ffffff1f;border-radius:14px;background:#0e1116;color:#e8eaee}',
+  '.blog-card:hover{border-color:#ff7a45;background:#11151b;color:#fff}',
+  '.blog-card small{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#ff955f}',
+  '.blog-card strong{font-size:18px;line-height:1.35;letter-spacing:-.02em}',
+  '.blog-card span{font-size:13px;line-height:1.6;color:#a9b0ba}',
+  '.blog-tldr{margin:0 0 28px;padding:22px 24px;border:1px solid #ff7a4533;border-radius:14px;background:#ff5a120d}',
+  '.blog-tldr h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#ff955f;margin:0 0 10px}',
+  '.blog-tldr ul{margin:0;padding-left:20px;color:#e1e5ea}.blog-tldr li{margin:8px 0}',
+  '.blog-toc{margin:0 0 30px;padding:18px 22px;border:1px solid #ffffff1f;border-radius:14px;background:#0e1116}',
+  '.blog-toc h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#9aa1ac;margin:0 0 8px}',
+  '.blog-toc ol{margin:0;padding-left:20px;color:#c2c8d1}.blog-toc li{margin:6px 0}',
+  '.blog-body section{padding:6px 0 10px}',
+  '.blog-body h2{font-size:clamp(22px,3vw,28px);letter-spacing:-.03em;line-height:1.25;margin:34px 0 12px;scroll-margin-top:90px}',
+  '.blog-body p{max-width:820px;color:#c9ced6}',
+  '.blog-body ul,.blog-body ol{max-width:820px;color:#c9ced6;padding-left:22px}.blog-body li{margin:8px 0}',
+  '.blog-tablewrap{overflow-x:auto;margin:18px 0;border:1px solid #ffffff1f;border-radius:12px}',
+  '.blog-body table{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}',
+  '.blog-body th{text-align:left;background:#12161c;color:#e8eaee;font-weight:700}',
+  '.blog-body th,.blog-body td{padding:11px 14px;border-bottom:1px solid #ffffff14;vertical-align:top;color:#c9ced6}',
+  '.blog-body th{color:#fff}.blog-body tr:last-child td{border-bottom:0}',
+  '.blog-example{margin:18px 0;padding:16px 20px;border-left:3px solid #ff5a12;background:#0e1116;border-radius:0 12px 12px 0;color:#e1e5ea;max-width:820px}',
+  '.blog-example b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ff955f;margin-bottom:6px}',
+  '.blog-faq details{border-bottom:1px solid #ffffff16;padding:14px 0}',
+  '.blog-faq summary{cursor:pointer;font-weight:700;color:#fff}',
+  '.blog-faq p{margin:10px 0 0}',
+  '.blog-sources li{font-size:13px}.blog-sources a{color:#ff955f;text-decoration:underline}',
+  '.blog-note{margin-top:30px;font-size:12px;color:#8f97a3}'
+].join('\n');
+
+const inline = (value) => escape(value)
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, '<a href="$2">$1</a>');
+const plain = (value) => String(value).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, '$1');
+
+function renderBlogSection(section) {
+  const paragraphs = (list) => (list || []).map((text) => '<p>' + inline(text) + '</p>').join('');
+  const list = (tag, items) => items && items.length
+    ? '<' + tag + '>' + items.map((item) => '<li>' + inline(item) + '</li>').join('') + '</' + tag + '>' : '';
+  const table = section.table
+    ? '<div class="blog-tablewrap"><table><thead><tr>' + section.table.head.map((cell) => '<th scope="col">' + inline(cell) + '</th>').join('') +
+      '</tr></thead><tbody>' + section.table.rows.map((row) => '<tr>' + row.map((cell) => '<td>' + inline(cell) + '</td>').join('') + '</tr>').join('') +
+      '</tbody></table></div>' : '';
+  const example = section.example ? '<blockquote class="blog-example"><b>Exemplo de mensagem</b>' + inline(section.example) + '</blockquote>' : '';
+  const examples = (section.examples || []).map(([label, text]) =>
+    '<blockquote class="blog-example"><b>' + inline(label) + '</b>' + inline(text) + '</blockquote>').join('');
+  return '<section id="' + section.id + '"><h2>' + inline(section.h) + '</h2>' + paragraphs(section.p) +
+    list('ul', section.ul) + list('ol', section.ol) + table + example + examples + paragraphs(section.p2) + '</section>';
+}
+
+function renderBlogIndex() {
+  const route = BLOG_ROUTE;
+  const page = {
+    route, name: 'Guias e artigos', extraCss: blogCss,
+    title: 'Guias de prospecção local, WhatsApp e LGPD | Scoutly',
+    description: 'Guias práticos para agências e freelancers: prospecção no Google Maps, WhatsApp sem banimento, LGPD, venda de sites e uso de IA para conseguir clientes.'
+  };
+  const graph = [
+    organization,
+    { '@type': 'CollectionPage', '@id': url(route) + '#webpage', url: url(route), name: page.title,
+      description: page.description, inLanguage: 'pt-BR', isPartOf: { '@id': DOMAIN + '/#website' },
+      mainEntity: { '@type': 'ItemList', itemListElement: BLOG_ARTICLES.map((article, index) => ({
+        '@type': 'ListItem', position: index + 1, url: url(blogRoute(article)), name: article.title
+      })) } },
+    helpCrumbs([['Scoutly', '/'], ['Guias e artigos', route]])
+  ];
+  const cards = BLOG_ARTICLES.map((article) =>
+    '<a class="blog-card" href="' + blogRoute(article) + '"><small>' + escape(article.tag) + '</small><strong>' +
+    escape(article.title) + '</strong><span>' + escape(article.tldr[0]) + '</span><span>' +
+    article.readMinutes + ' min de leitura</span></a>').join('');
+  const body = nav('pt') + '<main><section class="seo-hero"><div class="seo-wrap">' +
+    '<p class="seo-kicker"><a href="/">Scoutly</a> / Guias e artigos</p>' +
+    '<h1>Guias de prospecção local para agências e freelancers</h1>' +
+    '<p class="seo-lead">Métodos práticos, scripts e checklists para encontrar clientes locais, abordar sem ser bloqueado, respeitar a LGPD e usar IA com critério.</p>' +
+    '<div class="seo-actions"><a class="seo-cta" href="/login?mode=signup">Começar grátis →</a>' +
+    '<a class="seo-secondary" href="/ajuda/">Central de ajuda</a></div></div></section>' +
+    '<div class="seo-wrap seo-content"><section class="seo-section"><h2>Artigos</h2>' +
+    '<div class="blog-grid">' + cards + '</div></section></div></main>' + footer('pt');
+  return { route, html: '<!doctype html><html lang="pt-BR"><head>' + meta(page) + structured(graph) + '</head><body>' + body + '</body></html>' };
+}
+
+function renderBlogArticle(article) {
+  const route = blogRoute(article);
+  const page = { route, name: article.title, extraCss: blogCss, title: article.seoTitle, description: article.seoDescription };
+  const graph = [
+    organization,
+    { '@type': 'WebPage', '@id': url(route) + '#webpage', url: url(route), name: article.seoTitle,
+      description: article.seoDescription, inLanguage: 'pt-BR', isPartOf: { '@id': DOMAIN + '/#website' },
+      breadcrumb: { '@id': url(route) + '#breadcrumb' } },
+    { ...helpCrumbs([['Scoutly', '/'], ['Guias e artigos', BLOG_ROUTE], [article.title, route]]), '@id': url(route) + '#breadcrumb' },
+    { '@type': 'Article', '@id': url(route) + '#article', headline: article.title,
+      description: article.seoDescription, inLanguage: 'pt-BR', mainEntityOfPage: { '@id': url(route) + '#webpage' },
+      datePublished: article.published, dateModified: article.updated, articleSection: article.tag,
+      image: [logo], author: { '@type': 'Organization', name: BLOG_AUTHOR, url: DOMAIN + '/' },
+      publisher: { '@id': DOMAIN + '/#organization' } },
+    { '@type': 'FAQPage', '@id': url(route) + '#faq', mainEntity: article.faq.map(([question, answer]) => ({
+      '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: plain(answer) } })) }
+  ];
+  const toc = '<nav class="blog-toc" aria-label="Neste artigo"><h2>Neste artigo</h2><ol>' + article.sections.map((section) =>
+    '<li><a href="#' + section.id + '">' + inline(section.h) + '</a></li>').join('') +
+    '<li><a href="#perguntas-frequentes">Perguntas frequentes</a></li></ol></nav>';
+  const tldr = '<aside class="blog-tldr"><h2>Resumo rápido</h2><ul>' + article.tldr.map((item) => '<li>' + inline(item) + '</li>').join('') + '</ul></aside>';
+  const faq = '<section id="perguntas-frequentes" class="blog-faq"><h2>Perguntas frequentes</h2>' + article.faq.map(([question, answer]) =>
+    '<details><summary>' + inline(question) + '</summary><p>' + inline(answer) + '</p></details>').join('') + '</section>';
+  const sources = '<section id="fontes" class="blog-sources"><h2>Fontes e referências</h2><ul>' + article.sources.map(([label, href]) =>
+    '<li><a href="' + escape(href) + '" rel="noopener" target="_blank">' + escape(label) + '</a></li>').join('') + '</ul></section>';
+  const related = article.related.map((id) => BLOG_ARTICLES.find((item) => item.id === id)).filter(Boolean).map((item) =>
+    '<a href="' + blogRoute(item) + '">' + escape(item.title) + ' ↗</a>').join('');
+  const body = nav('pt') + '<main><article><section class="seo-hero"><div class="seo-wrap">' +
+    '<p class="seo-kicker"><a href="/">Scoutly</a> / <a href="' + BLOG_ROUTE + '">Guias e artigos</a> / ' + escape(article.tag) + '</p>' +
+    '<h1>' + escape(article.title) + '</h1><p class="seo-lead">' + escape(article.intro) + '</p>' +
+    '<div class="blog-meta"><span>Por ' + escape(BLOG_AUTHOR) + '</span><span>' + article.readMinutes + ' min de leitura</span><span>Atualizado em ' +
+    longDate(article.updated) + '</span></div></div></section>' +
+    '<div class="seo-wrap seo-content blog-body">' + tldr + toc + article.sections.map(renderBlogSection).join('') + faq + sources +
+    '<section class="seo-section"><h2>Coloque em prática com a Scoutly</h2><p>Encontre empresas por segmento e região, veja sinais digitais e organize o pipeline em um só lugar.</p>' +
+    '<div class="seo-actions"><a class="seo-cta" href="/login?mode=signup">Começar grátis →</a>' +
+    '<a class="seo-secondary" href="/prospeccao-local/">Conhecer a prospecção local</a></div></section>' +
+    '<section class="seo-section"><h2>Continue lendo</h2><div class="seo-related">' + related + '<a href="/ajuda/">Central de ajuda ↗</a></div></section>' +
+    '<p class="blog-note">Conteúdo informativo, sem garantia de resultados. Regras de plataformas e leis mudam: confirme nas fontes oficiais. Este artigo não é aconselhamento jurídico.</p>' +
+    '</div></article></main>' + footer('pt');
+  return { route, html: '<!doctype html><html lang="pt-BR"><head>' + meta(page) + structured(graph) + '</head><body>' + body + '</body></html>' };
+}
+
+const blogPages = [renderBlogIndex(), ...BLOG_ARTICLES.map(renderBlogArticle)];
+
 await mkdir(DIST, { recursive: true });
 let index = await readFile(path.join(DIST, 'index.html'), 'utf8');
 if (!index.includes('<div id="root"></div>')) {
@@ -415,15 +548,15 @@ for (const page of pages) {
   await mkdir(folder, { recursive: true });
   await writeFile(path.join(folder, 'index.html'), renderPage(page));
 }
-for (const page of helpPages) {
+for (const page of [...helpPages, ...blogPages]) {
   const folder = path.join(DIST, page.route.slice(1));
   await mkdir(folder, { recursive: true });
   await writeFile(path.join(folder, 'index.html'), page.html);
 }
 
 const lastUpdated = HELP_ARTICLES.reduce((latest, article) => article.updated > latest ? article.updated : latest, '');
-const lastmods = Object.fromEntries([[HELP_ROUTE, lastUpdated], ...HELP_ARTICLES.map((article) => [helpRoute(article), article.updated])]);
-const urls = ['/', ...pages.map(page => page.route), ...helpPages.map(page => page.route)];
+const lastmods = Object.fromEntries([[HELP_ROUTE, lastUpdated], ...HELP_ARTICLES.map((article) => [helpRoute(article), article.updated]), [BLOG_ROUTE, BLOG_ARTICLES.reduce((l, a) => a.updated > l ? a.updated : l, '')], ...BLOG_ARTICLES.map((article) => [blogRoute(article), article.updated])]);
+const urls = ['/', ...pages.map(page => page.route), ...helpPages.map(page => page.route), ...blogPages.map(page => page.route)];
 const sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n' +
   urls.map((route) => {
@@ -443,5 +576,5 @@ if (indexNowKey && /^[a-f0-9-]{8,128}$/i.test(indexNowKey)) {
   await writeFile(path.join(DIST, indexNowKey + '.txt'), indexNowKey);
 }
 console.log('[SEO] Homepage with static fallback, ' + pages.length +
-  ' standalone public pages, ' + helpPages.length + ' help center pages, structured data, sitemap and ' +
+  ' standalone public pages, ' + helpPages.length + ' help center pages, ' + blogPages.length + ' blog pages, structured data, sitemap and ' +
   (preview ? 'preview noindex' : 'production indexation') + ' generated.');
