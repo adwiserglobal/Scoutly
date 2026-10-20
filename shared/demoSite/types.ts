@@ -97,6 +97,8 @@ export interface DemoImages {
   hero: DemoImage | null;
   about: DemoImage | null;
   gallery: DemoImage[];
+  /** Optional full-bleed background for the top of the page (any layout). */
+  heroBg?: DemoImage | null;
   /** Why there are no photos (shown to the owner of the site, never on the public page). */
   note?: string;
 }

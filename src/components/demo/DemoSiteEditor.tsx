@@ -226,7 +226,7 @@ export default function DemoSiteEditor({ businessId, businessName, onClose }: De
   const tabs: Array<[Tab, string]> = [['content', 'Conteúdo'], ['design', 'Design'], ['sections', 'Seções']];
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex flex-col bg-[#08090c] font-sans text-white" role="dialog" aria-label={`Editor do site de ${businessName}`}>
+    <div className="fixed inset-0 z-[300] flex flex-col overflow-hidden bg-[#08090c] font-sans text-white" role="dialog" aria-label={`Editor do site de ${businessName}`}>
       {/* Top bar */}
       <header className="flex h-14 flex-none items-center gap-2 border-b border-white/[0.08] bg-[#0d0f13] px-3 sm:gap-3 sm:px-4">
         <button type="button" onClick={() => void close()} className="flex h-9 items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium text-[#d0d4db] hover:bg-white/[0.07]" aria-label="Fechar editor">
@@ -278,7 +278,14 @@ export default function DemoSiteEditor({ businessId, businessName, onClose }: De
       )}
 
       {!data && !loadError && (
-        <div className="flex flex-1 items-center justify-center text-[13px] text-[#9aa1ac]"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Abrindo o editor…</div>
+        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-gradient-to-b from-[#FFF8F3] via-[#FAF3EC] to-[#FAF7F2] p-6 text-center">
+          <img src="/scoutly-loading.gif" alt="Scoutly" className="h-36 w-36 object-contain drop-shadow-sm sm:h-44 sm:w-44" />
+          <div className="mt-3 flex items-center gap-2.5">
+            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#FF4D00] border-t-transparent" />
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-900">Abrindo o editor</span>
+          </div>
+          <p className="mt-1 text-[11px] font-medium text-stone-500">Carregando o site de {businessName}</p>
+        </div>
       )}
 
       {data && (

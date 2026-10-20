@@ -271,13 +271,14 @@ export function DesignPanel({ data, update, notify }: PanelProps) {
   const [open, setOpen] = useState('style');
   const heroInput = useRef<HTMLInputElement>(null);
   const aboutInput = useRef<HTMLInputElement>(null);
+  const bgInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const design = data.design || {};
   const setDesign = (mutate: (design: NonNullable<DemoSiteData['design']>) => void) =>
     update((draft) => { draft.design = draft.design || {}; mutate(draft.design); });
   const toggle = (id: string) => setOpen((current) => (current === id ? '' : id));
 
-  const uploadPhoto = async (file: File | undefined, target: 'hero' | 'about' | 'gallery') => {
+  const uploadPhoto = async (file: File | undefined, target: 'hero' | 'about' | 'gallery' | 'heroBg') => {
     if (!file) return;
     try {
       const prepared = await preparePhoto(file);
@@ -371,6 +372,13 @@ export function DesignPanel({ data, update, notify }: PanelProps) {
       </Group>
 
       <Group title="Fotos" open={open === 'photos'} onToggle={() => toggle('photos')}>
+        <div className="space-y-2 rounded-xl border border-[#ff7a45]/25 bg-[#ff5a12]/[0.05] p-3">
+          <Thumb image={data.images.heroBg || null} label="Imagem de fundo do topo" onPick={() => bgInput.current?.click()} onRemove={() => update((d) => { d.images.heroBg = null; })} />
+          {data.images.hero && !data.images.heroBg && (
+            <button type="button" onClick={() => update((d) => { d.images.heroBg = d.images.hero; })} className="text-[11px] font-semibold text-[#ff9869] hover:underline">Usar a foto principal como fundo</button>
+          )}
+          <p className="text-[10.5px] leading-relaxed text-[#9aa1ac]">Cobre todo o topo da página, com o título por cima. Funciona em qualquer estrutura.</p>
+        </div>
         <Thumb image={data.images.hero} label="Foto principal" onPick={() => heroInput.current?.click()} onRemove={() => update((d) => { d.images.hero = null; })} />
         <Thumb image={data.images.about} label="Foto da seção Sobre" onPick={() => aboutInput.current?.click()} onRemove={() => update((d) => { d.images.about = null; })} />
         <div className="space-y-1.5">
@@ -389,6 +397,7 @@ export function DesignPanel({ data, update, notify }: PanelProps) {
         </div>
         <p className="text-[10.5px] leading-relaxed text-[#8b929e]">Use fotos que você tem direito de usar. As imagens são reduzidas automaticamente para o site carregar rápido.</p>
         <input ref={heroInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { void uploadPhoto(e.target.files?.[0], 'hero'); e.target.value = ''; }} />
+        <input ref={bgInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { void uploadPhoto(e.target.files?.[0], 'heroBg'); e.target.value = ''; }} />
         <input ref={aboutInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { void uploadPhoto(e.target.files?.[0], 'about'); e.target.value = ''; }} />
         <input ref={galleryInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { void uploadPhoto(e.target.files?.[0], 'gallery'); e.target.value = ''; }} />
       </Group>

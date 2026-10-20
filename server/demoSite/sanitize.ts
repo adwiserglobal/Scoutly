@@ -139,6 +139,7 @@ export function sanitizeDemoData(input: any, prev: DemoSiteData): DemoSiteData {
     images: {
       hero: cleanImage(imagesIn.hero, pool),
       about: cleanImage(imagesIn.about, pool),
+      heroBg: 'heroBg' in imagesIn ? cleanImage(imagesIn.heroBg, pool) : (prev.images.heroBg ?? null),
       gallery: list(imagesIn.gallery, 6, (image) => cleanImage(image, pool)).filter((image): image is DemoImage => Boolean(image)),
       note: prev.images.note,
     },

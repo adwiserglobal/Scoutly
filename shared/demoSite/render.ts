@@ -254,8 +254,6 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-bet
 
 /* ---- layout variants ---- */
 .ed .wrap{padding:clamp(34px,6vw,72px) 0 0}
-.ed-top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:clamp(22px,4vw,40px);padding-bottom:16px;border-bottom:1px solid var(--line)}
-.ed-top span{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .ed h1{font-size:clamp(2.8rem,10.5vw,8.6rem);line-height:.95;letter-spacing:-.045em;max-width:15ch}
 .ed-row{display:grid;gap:24px;margin-top:clamp(24px,4vw,44px);align-items:end}
 @media(min-width:900px){.ed-row{grid-template-columns:1.2fr .8fr;gap:60px}.ed-row .cta{justify-content:flex-end;margin-top:0}}
@@ -453,10 +451,11 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
   const badge = hasRating
     ? `<div class="badge">${icon('star')}<div><b>${esc(ratingText)}</b>${esc(b.reviewCount)} avaliações no Google</div></div>`
     : `<div class="badge">${icon('pin')}<div><b>${esc(b.neighborhood || b.city || 'Local')}</b>Atendimento na região</div></div>`;
+  const heroKind: Parts['hero'] = images.heroBg ? 'full' : L.hero;
   const shape = style === 'fresh' || style === 'elegant' ? 'shape-arch' : '';
 
   let hero = '';
-  switch (L.hero) {
+  switch (heroKind) {
     case 'split': {
       let media = photo(images.hero, '(min-width:900px) 520px, 92vw', true, heroAlt, mainIcon);
       if (shape) media = media.startsWith('<img ') ? media.replace('<img ', `<img class="${shape}" `) : media.replace('class="art"', `class="art ${shape}"`);
@@ -464,7 +463,7 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
       break;
     }
     case 'full':
-      hero = `<section id="hero" class="hero full">${photo(images.hero, '100vw', true, heroAlt, mainIcon)}<div class="wrap">${heroText()}</div></section>`;
+      hero = `<section id="hero" class="hero full">${photo(images.heroBg || images.hero, '100vw', true, heroAlt, mainIcon)}<div class="wrap">${heroText()}</div></section>`;
       break;
     case 'center': {
       const mosaic = images.hero
@@ -474,7 +473,7 @@ export function renderDemoSite(data: DemoSiteData, style: StyleId, options: { pr
       break;
     }
     case 'editorial':
-      hero = `<section id="hero" class="hero ed"><div class="wrap"><div class="ed-top"><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><span>${esc(where || b.category)}</span></div><h1>${esc(copy.headline)}</h1><div class="ed-row"><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div><div class="ed-media">${photo(images.hero, '(min-width:1200px) 1160px, 94vw', true, heroAlt, mainIcon)}</div></div></section>`;
+      hero = `<section id="hero" class="hero ed"><div class="wrap"><h1>${esc(copy.headline)}</h1><div class="ed-row"><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div><div class="ed-media">${photo(images.hero, '(min-width:1200px) 1160px, 94vw', true, heroAlt, mainIcon)}</div></div></section>`;
       break;
     case 'stack':
       hero = `<section id="hero" class="hero"><div class="stack-media">${photo(images.hero, '(min-width:1320px) 1320px, 100vw', true, heroAlt, mainIcon)}</div><div class="wrap stack-text"><div><p class="eyebrow">${esc(copy.eyebrow || b.category)}</p><h1 style="margin-top:20px">${esc(copy.headline)}</h1></div><div><p class="lead">${esc(copy.subheadline)}</p>${ctas}</div></div></section>`;
