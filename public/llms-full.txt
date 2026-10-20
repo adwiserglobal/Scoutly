@@ -30,3 +30,9 @@ https://www.scoutly.pro/recursos/
 https://www.scoutly.pro/dados-e-fontes/
 https://www.scoutly.pro/perguntas-frequentes/
 https://www.scoutly.pro/en/
+https://www.scoutly.pro/ajuda/
+https://www.scoutly.pro/ajuda/relatorio-pdf/
+https://www.scoutly.pro/ajuda/logo-e-cores/
+https://www.scoutly.pro/ajuda/abordagem-ia/
+https://www.scoutly.pro/ajuda/pipeline/
+https://www.scoutly.pro/ajuda/empresas-sem-site/

@@ -4,6 +4,7 @@
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { HELP_ARTICLES } from '../src/data/helpArticles.data.mjs';
 
 const DOMAIN = 'https://www.scoutly.pro';
 const DIST = path.resolve('dist');
@@ -115,7 +116,8 @@ const publicLinks = [
   ['/para-agencias/', 'Para agências'],
   ['/recursos/', 'Recursos'],
   ['/dados-e-fontes/', 'Dados e fontes'],
-  ['/perguntas-frequentes/', 'Perguntas frequentes']
+  ['/perguntas-frequentes/', 'Perguntas frequentes'],
+  ['/ajuda/', 'Central de ajuda']
 ];
 const css = [
   ':root{font-family:Inter,Arial,sans-serif;color-scheme:dark}*{box-sizing:border-box}',
@@ -175,7 +177,7 @@ const structured = (graph) => '<script type="application/ld+json">' +
 const nav = (lang) => '<header class="seo-header"><nav class="seo-wrap seo-nav" aria-label="Scoutly">' +
   '<a class="seo-brand" href="/"><img src="/scoutly-mark.png" alt="" width="31" height="31">Scoutly<b>.</b></a>' +
   '<div class="seo-links"><a href="/prospeccao-local/">Prospecção local</a><a href="/recursos/">Recursos</a>' +
-  '<a href="/para-agencias/">Agências</a><a href="/perguntas-frequentes/">FAQ</a></div>' +
+  '<a href="/para-agencias/">Agências</a><a href="/perguntas-frequentes/">FAQ</a><a href="/ajuda/">Ajuda</a></div>' +
   '<a class="seo-cta" href="/login?mode=signup">' + (lang === 'en' ? 'Start free' : 'Começar grátis') +
   ' →</a></nav></header>';
 
@@ -213,7 +215,7 @@ const meta = (page) => {
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">' +
-    '<style>' + css + '</style>';
+    '<style>' + css + (page.extraCss || '') + '</style>';
 };
 
 function renderPage(page) {
@@ -272,6 +274,126 @@ const homeFallback = '<div class="seo-fallback">' + nav('pt') +
     '<a href="' + route + '">' + escape(label) + ' ↗</a>').join('') +
   '</div></section></div></main>' + footer('pt') + '</div>';
 
+
+// ---------------------------------------------------------------------------
+// Help center (public, indexable): /ajuda/ and /ajuda/<slug>/
+// Content comes from src/data/helpArticles.data.mjs, the same source the in-app help uses.
+// ---------------------------------------------------------------------------
+const HELP_ROUTE = '/ajuda/';
+const helpRoute = (article) => HELP_ROUTE + article.id + '/';
+const longDate = (iso) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR',
+  { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const absolute = (asset) => /^https?:/.test(asset) ? asset : DOMAIN + asset;
+const helpCss = [
+  '.help-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px;font-size:12px;color:#9aa1ac}',
+  '.help-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:8px}',
+  '.help-card{display:flex;flex-direction:column;gap:8px;padding:22px;border:1px solid #ffffff1f;border-radius:14px;background:#0e1116;color:#e8eaee}',
+  '.help-card:hover{border-color:#ff7a45;background:#11151b;color:#fff}',
+  '.help-card small{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#ff955f}',
+  '.help-card strong{font-size:17px;line-height:1.35;letter-spacing:-.02em}',
+  '.help-card span{font-size:13px;line-height:1.6;color:#a9b0ba}',
+  '.help-steps{list-style:none;margin:0;padding:0}',
+  '.help-step{padding:30px 0;border-bottom:1px solid #ffffff16}',
+  '.help-step h2{display:flex;align-items:center;gap:13px;font-size:clamp(19px,2.6vw,24px);letter-spacing:-.03em;line-height:1.3;margin:0}',
+  '.help-num{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#ff5a12;color:#fff;font-size:14px;font-weight:800}',
+  '.help-step p{max-width:820px;margin:12px 0 0 45px;color:#c2c8d1}',
+  '.help-figs{display:grid;gap:16px;margin:20px 0 0 45px}',
+  '.help-figs.two{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}',
+  '.help-fig{margin:0}.help-fig img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid #ffffff22;background:#0d1014}',
+  '.help-fig figcaption{margin-top:8px;text-align:center;font-size:12px;color:#8f97a3}',
+  '.help-tips{margin:34px 0 0;padding:22px 24px;border:1px solid #ff7a4533;border-radius:14px;background:#ff5a120d}',
+  '.help-tips h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#ff955f;margin:0 0 10px}',
+  '.help-tips ul{margin:0;padding-left:20px;color:#d0d5dc}.help-tips li{margin:8px 0}',
+  '@media(max-width:720px){.help-step p,.help-figs{margin-left:0}.help-step h2{align-items:flex-start}}'
+].join('\n');
+
+const helpCrumbs = (trail) => ({
+  '@type': 'BreadcrumbList',
+  itemListElement: trail.map(([name, route], index) => ({
+    '@type': 'ListItem', position: index + 1, name, item: url(route)
+  }))
+});
+
+function renderHelpIndex() {
+  const route = HELP_ROUTE;
+  const page = {
+    route, name: 'Central de ajuda', extraCss: helpCss,
+    title: 'Central de ajuda da Scoutly: guias passo a passo',
+    description: 'Guias passo a passo com capturas de tela para gerar relatórios em PDF, personalizar a IA, organizar o pipeline e encontrar empresas sem site com a Scoutly.'
+  };
+  const graph = [
+    organization,
+    { '@type': 'CollectionPage', '@id': url(route) + '#webpage', url: url(route), name: page.title,
+      description: page.description, inLanguage: 'pt-BR', isPartOf: { '@id': DOMAIN + '/#website' },
+      mainEntity: { '@type': 'ItemList', itemListElement: HELP_ARTICLES.map((article, index) => ({
+        '@type': 'ListItem', position: index + 1, url: url(helpRoute(article)), name: article.title
+      })) } },
+    helpCrumbs([['Scoutly', '/'], ['Central de ajuda', route]])
+  ];
+  const cards = HELP_ARTICLES.map((article) =>
+    '<a class="help-card" href="' + helpRoute(article) + '"><small>' + escape(article.tag) + '</small><strong>' +
+    escape(article.title) + '</strong><span>' + escape(article.summary) + '</span><span>' +
+    article.readMinutes + ' min de leitura</span></a>').join('');
+  const body = nav('pt') + '<main><section class="seo-hero"><div class="seo-wrap">' +
+    '<p class="seo-kicker"><a href="/">Scoutly</a> / Central de ajuda</p>' +
+    '<h1>Central de ajuda da Scoutly</h1>' +
+    '<p class="seo-lead">Guias passo a passo, com capturas de tela, para tirar o máximo da plataforma: gere relatórios em PDF para clientes, personalize a IA com a sua oferta, organize o pipeline e encontre as melhores oportunidades da sua região.</p>' +
+    '<div class="seo-actions"><a class="seo-cta" href="/login?mode=signup">Começar grátis →</a>' +
+    '<a class="seo-secondary" href="/perguntas-frequentes/">Perguntas frequentes</a></div></div></section>' +
+    '<div class="seo-wrap seo-content"><section class="seo-section"><h2>Artigos de ajuda</h2>' +
+    '<div class="help-grid">' + cards + '</div></section>' +
+    '<section class="seo-section"><h2>Precisa falar com a equipe?</h2><p>Clientes com conta podem abrir um atendimento dentro da Scoutly, em Ajuda, e acompanhar as respostas por lá.</p></section>' +
+    '</div></main>' + footer('pt');
+  return { route, html: '<!doctype html><html lang="pt-BR"><head>' + meta(page) + structured(graph) + '</head><body>' + body + '</body></html>' };
+}
+
+function renderHelpArticle(article) {
+  const route = helpRoute(article);
+  const page = { route, name: article.title, extraCss: helpCss, title: article.seoTitle, description: article.seoDescription };
+  const images = article.steps.flatMap((step) => step.images || []);
+  const graph = [
+    organization,
+    { '@type': 'WebPage', '@id': url(route) + '#webpage', url: url(route), name: article.seoTitle,
+      description: article.seoDescription, inLanguage: 'pt-BR', isPartOf: { '@id': DOMAIN + '/#website' },
+      breadcrumb: { '@id': url(route) + '#breadcrumb' } },
+    { ...helpCrumbs([['Scoutly', '/'], ['Central de ajuda', HELP_ROUTE], [article.title, route]]), '@id': url(route) + '#breadcrumb' },
+    { '@type': 'TechArticle', '@id': url(route) + '#article', headline: article.title,
+      description: article.seoDescription, inLanguage: 'pt-BR', mainEntityOfPage: { '@id': url(route) + '#webpage' },
+      datePublished: article.published, dateModified: article.updated,
+      image: images.slice(0, 3).map((image) => absolute(image.src)),
+      articleSection: article.tag, author: { '@id': DOMAIN + '/#organization' },
+      publisher: { '@id': DOMAIN + '/#organization' } }
+  ];
+  const figures = (list) => list && list.length
+    ? '<div class="help-figs' + (list.length > 1 ? ' two' : '') + '">' + list.map((image) =>
+        '<figure class="help-fig"><img src="' + escape(image.src) + '" alt="' + escape(image.alt) +
+        '" width="' + image.width + '" height="' + image.height + '" loading="lazy" decoding="async">' +
+        (image.caption ? '<figcaption>' + escape(image.caption) + '</figcaption>' : '') + '</figure>').join('') + '</div>'
+    : '';
+  const steps = article.steps.map((step, index) =>
+    '<li class="help-step"><h2><span class="help-num">' + (index + 1) + '</span>' + escape(step.title) +
+    '</h2><p>' + escape(step.body) + '</p>' + figures(step.images) + '</li>').join('');
+  const tips = article.tips && article.tips.length
+    ? '<aside class="help-tips"><h2>Dicas</h2><ul>' + article.tips.map((tip) => '<li>' + escape(tip) + '</li>').join('') + '</ul></aside>'
+    : '';
+  const related = HELP_ARTICLES.filter((item) => item.id !== article.id).map((item) =>
+    '<a href="' + helpRoute(item) + '">' + escape(item.title) + ' ↗</a>').join('');
+  const body = nav('pt') + '<main><article><section class="seo-hero"><div class="seo-wrap">' +
+    '<p class="seo-kicker"><a href="/">Scoutly</a> / <a href="' + HELP_ROUTE + '">Central de ajuda</a> / ' + escape(article.tag) + '</p>' +
+    '<h1>' + escape(article.title) + '</h1><p class="seo-lead">' + escape(article.intro) + '</p>' +
+    '<div class="help-meta"><span>' + article.readMinutes + ' min de leitura</span><span>Atualizado em ' +
+    longDate(article.updated) + '</span></div></div></section>' +
+    '<div class="seo-wrap seo-content"><ol class="help-steps">' + steps + '</ol>' + tips +
+    '<section class="seo-section"><h2>Quer testar na prática?</h2><p>Crie uma conta gratuita e siga este passo a passo com empresas reais da sua região.</p>' +
+    '<div class="seo-actions"><a class="seo-cta" href="/login?mode=signup">Começar grátis →</a>' +
+    '<a class="seo-secondary" href="' + HELP_ROUTE + '">Ver todos os artigos</a></div></section>' +
+    '<section class="seo-section"><h2>Outros artigos</h2><div class="seo-related">' + related + '</div></section>' +
+    '</div></article></main>' + footer('pt');
+  return { route, html: '<!doctype html><html lang="pt-BR"><head>' + meta(page) + structured(graph) + '</head><body>' + body + '</body></html>' };
+}
+
+const helpPages = [renderHelpIndex(), ...HELP_ARTICLES.map(renderHelpArticle)];
+
 await mkdir(DIST, { recursive: true });
 let index = await readFile(path.join(DIST, 'index.html'), 'utf8');
 if (!index.includes('<div id="root"></div>')) {
@@ -293,8 +415,15 @@ for (const page of pages) {
   await mkdir(folder, { recursive: true });
   await writeFile(path.join(folder, 'index.html'), renderPage(page));
 }
+for (const page of helpPages) {
+  const folder = path.join(DIST, page.route.slice(1));
+  await mkdir(folder, { recursive: true });
+  await writeFile(path.join(folder, 'index.html'), page.html);
+}
 
-const urls = ['/', ...pages.map(page => page.route)];
+const lastUpdated = HELP_ARTICLES.reduce((latest, article) => article.updated > latest ? article.updated : latest, '');
+const lastmods = Object.fromEntries([[HELP_ROUTE, lastUpdated], ...HELP_ARTICLES.map((article) => [helpRoute(article), article.updated])]);
+const urls = ['/', ...pages.map(page => page.route), ...helpPages.map(page => page.route)];
 const sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n' +
   urls.map((route) => {
@@ -302,7 +431,7 @@ const sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n' +
       ? '<xhtml:link rel="alternate" hreflang="pt-BR" href="' + DOMAIN + '/"/>' +
         '<xhtml:link rel="alternate" hreflang="en" href="' + DOMAIN + '/en/"/>'
       : '';
-    return '<url><loc>' + url(route) + '</loc>' + hreflang + '</url>';
+    return '<url><loc>' + url(route) + '</loc>' + (lastmods[route] ? '<lastmod>' + lastmods[route] + '</lastmod>' : '') + hreflang + '</url>';
   }).join('\n') + '\n</urlset>';
 await writeFile(path.join(DIST, 'sitemap.xml'), sitemap);
 
@@ -314,5 +443,5 @@ if (indexNowKey && /^[a-f0-9-]{8,128}$/i.test(indexNowKey)) {
   await writeFile(path.join(DIST, indexNowKey + '.txt'), indexNowKey);
 }
 console.log('[SEO] Homepage with static fallback, ' + pages.length +
-  ' standalone public pages, structured data, sitemap and ' +
+  ' standalone public pages, ' + helpPages.length + ' help center pages, structured data, sitemap and ' +
   (preview ? 'preview noindex' : 'production indexation') + ' generated.');

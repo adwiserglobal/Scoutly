@@ -297,11 +297,12 @@ export default function MarketingSite({
   const publicFooterLinks = isEnglish
     ? [
         ['/en/', 'English overview'], ['/recursos/', 'Features'], ['/dados-e-fontes/', 'Data & sources'],
-        ['/perguntas-frequentes/', 'FAQ'],
+        ['/perguntas-frequentes/', 'FAQ'], ['/ajuda/', 'Help center'],
       ]
     : [
         ['/recursos/', 'Recursos'], ['/dados-e-fontes/', 'Dados e fontes'],
         ['/perguntas-frequentes/', 'Perguntas frequentes'], ['/prospeccao-local/', 'Prospecção local'],
+        ['/ajuda/', 'Central de ajuda'],
       ];
 
   const homeFAQs = isEnglish

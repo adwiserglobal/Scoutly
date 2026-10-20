@@ -14,6 +14,14 @@ Languages: Brazilian Portuguese; English overview: https://www.scoutly.pro/en/
 - [Frequently asked questions](https://www.scoutly.pro/perguntas-frequentes/): plan limits, contact availability and AI.
 - [English overview](https://www.scoutly.pro/en/): product description in English.
 
+## Help center (step-by-step guides in Portuguese)
+- [Help center index](https://www.scoutly.pro/ajuda/): all how-to guides with screenshots.
+- [Generate a PDF report for a client](https://www.scoutly.pro/ajuda/relatorio-pdf/): the 3-page digital presence report.
+- [Add your logo and colors to the report](https://www.scoutly.pro/ajuda/logo-e-cores/): white-label report settings.
+- [Make the AI write messages with your offer](https://www.scoutly.pro/ajuda/abordagem-ia/): commercial approach profile for outreach.
+- [Add companies to the pipeline](https://www.scoutly.pro/ajuda/pipeline/): track each negotiation by stage.
+- [Find companies without a website](https://www.scoutly.pro/ajuda/empresas-sem-site/): search, filters and recommendations.
+
 ## Product details and limits
 The Free tier provides five prospecting credits per day, up to 25 per month. Full business emails and Scoutly AI require an eligible plan. Place data can include Overture Maps and supplemental place-search services such as Serper when configured. The coverage and freshness of results vary by place and source. A regular phone number is not a confirmed WhatsApp number. Missing tracking tags are not proof that they are absent. AI-assisted public research depends on configured integrations, and potential owner profiles must be verified.
 

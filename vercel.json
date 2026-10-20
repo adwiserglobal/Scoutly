@@ -86,6 +86,14 @@
       "dest": "/$1/index.html"
     },
     {
+      "src": "/ajuda/?",
+      "dest": "/ajuda/index.html"
+    },
+    {
+      "src": "/ajuda/([a-z0-9-]+)/?",
+      "dest": "/ajuda/$1/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
