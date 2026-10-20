@@ -451,7 +451,13 @@ export default function App() {
       }
 
       hydrateRecommendationSignals(
-        Array.isArray(data?.recommendationEvents) ? data.recommendationEvents : []
+        Array.isArray(data?.recommendationEvents) ? data.recommendationEvents : [],
+        {
+          leads: data?.leads || {},
+          favorites: data?.favorites || {},
+          favoriteBusinesses: data?.favoriteBusinesses || [],
+          favoriteTimes: data?.favoriteTimes || {},
+        }
       );
       hydrateRecentlyViewedBusinesses(
         Array.isArray(data?.recentBusinesses) ? data.recentBusinesses : []
@@ -1398,7 +1404,7 @@ export default function App() {
     if (signalBusiness) {
       const nextBusiness = { ...signalBusiness, leadStatus: newStatus, notes: updatedNotes };
       rememberRecommendationBusiness(nextBusiness);
-      recordRecommendationPipeline(signalBusiness, newStatus !== 'NOVO' && newStatus !== 'ARQUIVADO');
+      recordRecommendationPipeline(signalBusiness, newStatus !== 'NOVO' && newStatus !== 'ARQUIVADO', newStatus);
     }
     setBusinesses((prev) =>
       prev.map((b) => (b.id === id ? { ...b, leadStatus: newStatus, notes: updatedNotes } : b))
@@ -1440,7 +1446,9 @@ export default function App() {
   }, [businesses, recommendationHistoryBusinesses]);
 
   const recommendedBusinesses = useMemo(
-    () => getRecommendedBusinesses(recommendationCandidates, 12),
+    () => getRecommendedBusinesses(recommendationCandidates, 12, { center: centerCoordinates }),
+    // The map center is deliberately read at recompute time only: panning must not reshuffle the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [recommendationCandidates, recommendationRevision]
   );
 

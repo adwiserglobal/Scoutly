@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Clock, Phone, Sparkles, X } from 'lucide-react';
 import { Business } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
+import { getRecommendationReasons } from '../utils/recommendations';
 import { NEW_COMPANY_MONTHS, formatMonthsOpen, getMonthsOpen } from '../utils/newCompanies';
 
 interface RecommendationsPanelProps {
@@ -24,15 +25,18 @@ function BusinessRow({
   rank,
   selected,
   showAge,
+  showReasons,
   onSelect,
 }: {
   business: Business;
   rank: number;
   selected: boolean;
   showAge: boolean;
+  showReasons?: boolean;
   onSelect: () => void;
 }) {
   const months = getMonthsOpen(business);
+  const reasons = showReasons ? getRecommendationReasons(business.id).filter((reason) => reason !== 'Sem site') : [];
 
   return (
     <button
@@ -66,6 +70,11 @@ function BusinessRow({
               Sem site
             </span>
           )}
+          {reasons.map((reason) => (
+            <span key={reason} className="rounded-md bg-[#FF5A12]/12 px-1.5 py-0.5 text-[9px] font-semibold text-[#FF8A55]">
+              {reason}
+            </span>
+          ))}
           {hasPhone(business) && (
             <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold text-stone-400">
               <Phone className="h-2.5 w-2.5" /> Contato
@@ -176,6 +185,7 @@ export default function RecommendationsPanel({
                 rank={index + 1}
                 selected={selectedBusinessId === business.id}
                 showAge={tab === 'NOVAS'}
+                showReasons={tab === 'RECOMENDADOS'}
                 onSelect={() => onSelectBusiness(business)}
               />
             ))}

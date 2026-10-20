@@ -87,7 +87,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
       `user_settings?user_uid=eq.${dbValue(userUid)}&select=auto_enrich,results_batch_size,updated_at&limit=1`
     ),
     appDataRequest<any[]>(
-      `recommendation_events?user_uid=eq.${dbValue(userUid)}&event_type=in.(search,favorite_add,favorite_remove,pipeline_add,pipeline_remove,whatsapp_click)&select=id,event_type,business_id,category,query,location,metadata,created_at&order=created_at.desc&limit=250`
+      `recommendation_events?user_uid=eq.${dbValue(userUid)}&event_type=in.(search,favorite_add,favorite_remove,pipeline_add,pipeline_remove,whatsapp_click)&or=(event_type.neq.search,query.not.like.__scoutly_credit_*)&created_at=gte.${dbValue(new Date(Date.now() - 180 * 86_400_000).toISOString())}&select=id,event_type,business_id,category,query,location,metadata,created_at&order=created_at.desc&limit=400`
     ),
     appDataRequest<any[]>(
       `recent_businesses?user_uid=eq.${dbValue(userUid)}&select=business_id,business_snapshot,viewed_at&order=viewed_at.desc&limit=30`
@@ -125,6 +125,9 @@ async function bootstrap(userUid: string, workspaceId: string) {
   const favorites: Record<string, boolean> = {};
   for (const row of favoriteRows) favorites[row.business_id] = true;
 
+  const favoriteTimes: Record<string, string> = {};
+  for (const row of favoriteRows) if (row.created_at) favoriteTimes[row.business_id] = row.created_at;
+
   const favoriteBusinesses = favoriteRows
     .map((row) => row.business_snapshot)
     .filter((business) => business && typeof business.id === 'string');
@@ -138,6 +141,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
     leads,
     favorites,
     favoriteBusinesses,
+    favoriteTimes,
     settings: settingsRows[0] || { auto_enrich: true, results_batch_size: 30 },
     recommendationEvents: eventRows.filter((event) => !String(event?.query || '').startsWith('__scoutly_credit_')),
     recentBusinesses: recentRows,

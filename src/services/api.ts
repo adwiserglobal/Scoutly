@@ -146,6 +146,7 @@ export interface UserUserData {
   leads: Record<string, { status: any; notes: string; business?: Business | null }>;
   favorites: Record<string, boolean>;
   favoriteBusinesses?: Business[];
+  favoriteTimes?: Record<string, string>;
   settings?: { auto_enrich?: boolean; results_batch_size?: number };
   recommendationEvents?: any[];
   recentBusinesses?: any[];
