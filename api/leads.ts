@@ -9,7 +9,7 @@ import { getUserProfile, saveUserProfileData } from '../server/userProfileServic
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
 import {
-  acceptInvite, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, renewInvite,
+  acceptInvite, assertCanManageBilling, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, setMemberAdmin, renewInvite,
   revokeInvite, setExtraSeats, setPipelineMode,
 } from '../server/teamService.js';
 import { getWorkspaceInsights } from '../server/workspaceInsightsService.js';
@@ -134,7 +134,7 @@ async function bootstrap(userUid: string, workspaceId: string) {
   return {
     user: profileRows[0] || null,
     workspaceId,
-    team: team ? { role: team.role, pipelineMode: team.pipelineMode, workspaceName: team.workspaceName, isTeam: team.role === 'member' || team.pipelineMode === 'shared' } : null,
+    team: team ? { role: team.role, pipelineMode: team.pipelineMode, workspaceName: team.workspaceName, isTeam: team.role !== 'owner' || team.pipelineMode === 'shared' } : null,
     leads,
     favorites,
     favoriteBusinesses,
@@ -298,6 +298,7 @@ function publicError(error: any, statusCode: number) {
     'TEAM_MIGRATION_PENDING',
     'TEAM_NOT_FOUND',
     'TEAM_FORBIDDEN',
+    'TEAM_BILLING_MANAGED',
     'TEAM_REQUIRES_AGENCY',
     'TEAM_INVALID',
     'TEAM_INVALID_EMAIL',
@@ -416,6 +417,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         access,
       });
     }
+
+    if (action === 'create-checkout' || action === 'create-billing-portal') await assertCanManageBilling(identity.uid);
 
     if (action === 'create-checkout') {
       const plan = String(req.body?.plan || '').toLowerCase();
@@ -614,6 +617,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'team-invite-preview') return res.status(200).json(await previewInvite(identity, String(req.body?.token || '')));
     if (action === 'team-invite-accept') return res.status(200).json(await acceptInvite(identity, String(req.body?.token || '')));
     if (action === 'team-member-remove') return res.status(200).json(await removeMember(identity.uid, String(req.body?.memberUid || ''), req.body?.keepLeads !== false));
+    if (action === 'team-member-admin') return res.status(200).json(await setMemberAdmin(identity.uid, String(req.body?.memberUid || ''), req.body?.admin === true));
     if (action === 'team-leave') return res.status(200).json(await leaveTeam(identity.uid));
     if (action === 'team-settings') return res.status(200).json(await setPipelineMode(identity.uid, req.body?.pipelineMode));
     if (action === 'team-seats') return res.status(200).json(await setExtraSeats(identity.uid, req.body?.extraSeats));

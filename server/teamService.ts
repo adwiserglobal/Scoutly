@@ -23,7 +23,7 @@ export interface TeamContext {
   workspaceId: string;
   workspaceName: string;
   ownerUid: string;
-  role: 'owner' | 'member';
+  role: 'owner' | 'admin' | 'member';
   pipelineMode: PipelineMode;
   extraSeats: number;
 }
@@ -70,14 +70,14 @@ async function personalWorkspace(userUid: string): Promise<WorkspaceRow | null> 
 /** The workspace the user is currently working in: the team they belong to, or their own. */
 export async function getTeamContext(userUid: string): Promise<TeamContext | null> {
   let workspace: WorkspaceRow | null = null;
-  let role: 'owner' | 'member' = 'owner';
+  let role: 'owner' | 'admin' | 'member' = 'owner';
   try {
-    const memberships = await appDataRequest<Array<{ workspace_id: string }>>(
-      `workspace_members?user_uid=eq.${dbValue(userUid)}&role=eq.member&select=workspace_id&limit=1`
+    const memberships = await appDataRequest<Array<{ workspace_id: string; is_admin?: boolean }>>(
+      `workspace_members?user_uid=eq.${dbValue(userUid)}&role=eq.member&select=workspace_id,is_admin&limit=1`
     );
     if (memberships[0]?.workspace_id) {
       workspace = await workspaceById(memberships[0].workspace_id);
-      role = 'member';
+      role = memberships[0].is_admin ? 'admin' : 'member';
     }
   } catch (error) {
     throw migrationError(error);
@@ -99,14 +99,14 @@ export interface TeamMember {
   email: string;
   name: string;
   photoUrl: string | null;
-  role: 'owner' | 'member';
+  role: 'owner' | 'admin' | 'member';
   joinedAt: string | null;
   lastSeenAt: string | null;
 }
 
 export async function listTeamMembers(workspace: { id: string; ownerUid: string }): Promise<TeamMember[]> {
-  const rows = await appDataRequest<Array<{ user_uid: string; role: string; created_at: string | null }>>(
-    `workspace_members?workspace_id=eq.${dbValue(workspace.id)}&select=user_uid,role,created_at&order=created_at.asc`
+  const rows = await appDataRequest<Array<{ user_uid: string; role: string; is_admin?: boolean; created_at: string | null }>>(
+    `workspace_members?workspace_id=eq.${dbValue(workspace.id)}&select=user_uid,role,is_admin,created_at&order=created_at.asc`
   );
   const uids = [...new Set([workspace.ownerUid, ...rows.map((row) => row.user_uid)])];
   const users = uids.length
@@ -126,7 +126,7 @@ export async function listTeamMembers(workspace: { id: string; ownerUid: string 
       email,
       name: user?.display_name || email.split('@')[0] || 'Usuário',
       photoUrl: user?.photo_url || null,
-      role: uid === workspace.ownerUid ? 'owner' : 'member',
+      role: uid === workspace.ownerUid ? 'owner' : memberRows.get(uid)?.is_admin ? 'admin' : 'member',
       joinedAt: memberRows.get(uid)?.created_at || null,
       lastSeenAt: user?.last_seen_at || null,
     };
@@ -177,9 +177,10 @@ export async function getTeamOverview(userUid: string) {
   const access = await getSubscriptionAccess(userUid);
   const members = await listTeamMembers({ id: context.workspaceId, ownerUid: context.ownerUid });
   const isOwner = context.role === 'owner';
+  const canManage = context.role !== 'member';
   const ownerAccess = isOwner ? access : await getSubscriptionAccess(context.ownerUid);
   const teamEnabled = ownerAccess.plan === 'agency' && ownerAccess.hasAccess;
-  const invites = isOwner ? await listPendingInvites(context.workspaceId) : [];
+  const invites = canManage ? await listPendingInvites(context.workspaceId) : [];
   return {
     role: context.role,
     teamEnabled,
@@ -192,13 +193,29 @@ export async function getTeamOverview(userUid: string) {
   };
 }
 
-async function requireOwnerWithAgency(userUid: string) {
+/** Billing belongs to the workspace owner: team members (and admins) must leave the team to manage their own plan. */
+export async function assertCanManageBilling(userUid: string) {
+  const context = await getTeamContext(userUid).catch(() => null);
+  if (context && context.role !== 'owner') {
+    httpError('O plano é gerenciado pelo administrador do workspace. Fale com ele ou saia da equipe para gerenciar seu próprio plano.', 403, 'TEAM_BILLING_MANAGED');
+  }
+}
+
+/** Owner or admin of a workspace whose owner has an active Agency plan. */
+async function requireManager(userUid: string) {
   const context = await getTeamContext(userUid);
-  if (!context || context.role !== 'owner') httpError('Só o dono do workspace pode fazer isso.', 403, 'TEAM_FORBIDDEN');
-  const access = await getSubscriptionAccess(userUid);
+  if (!context || context.role === 'member') httpError('Só o dono ou um administrador do workspace pode fazer isso.', 403, 'TEAM_FORBIDDEN');
+  const access = await getSubscriptionAccess(context.ownerUid);
   if (access.plan !== 'agency' || !access.hasAccess) {
     httpError('Equipes são um recurso do plano Agency.', 402, 'TEAM_REQUIRES_AGENCY');
   }
+  return context;
+}
+
+/** Billing, seats and promotions stay with the owner. */
+async function requireOwnerWithAgency(userUid: string) {
+  const context = await requireManager(userUid);
+  if (context.role !== 'owner') httpError('Só o dono do workspace pode fazer isso.', 403, 'TEAM_FORBIDDEN');
   return context;
 }
 
@@ -239,10 +256,10 @@ async function countMembers(workspaceId: string) {
 }
 
 export async function createInvite(identity: FirebaseIdentity, emailInput: unknown) {
-  const context = await requireOwnerWithAgency(identity.uid);
+  const context = await requireManager(identity.uid);
   const email = normalizeEmail(emailInput);
   if (!validEmail(email)) httpError('Informe um e-mail válido.', 400, 'TEAM_INVALID_EMAIL');
-  if (email === normalizeEmail(identity.email)) httpError('Você já é o dono deste workspace.', 400, 'TEAM_INVALID_EMAIL');
+  if (email === normalizeEmail(identity.email)) httpError('Este é o seu próprio e-mail.', 400, 'TEAM_INVALID_EMAIL');
 
   const [members, pending] = await Promise.all([listTeamMembers({ id: context.workspaceId, ownerUid: context.ownerUid }), listPendingInvites(context.workspaceId)]);
   if (members.some((member) => normalizeEmail(member.email) === email)) httpError('Esta pessoa já está na equipe.', 409, 'TEAM_ALREADY_MEMBER');
@@ -271,7 +288,7 @@ export async function createInvite(identity: FirebaseIdentity, emailInput: unkno
 
 /** A new link for an existing invite (only a hash is stored, so the old link cannot be shown again). */
 export async function renewInvite(identity: FirebaseIdentity, inviteId: string) {
-  const context = await requireOwnerWithAgency(identity.uid);
+  const context = await requireManager(identity.uid);
   const rows = await appDataRequest<Array<{ id: string; email: string }>>(
     `workspace_invites?id=eq.${dbValue(inviteId)}&workspace_id=eq.${dbValue(context.workspaceId)}&status=eq.pending&select=id,email&limit=1`
   );
@@ -287,7 +304,7 @@ export async function renewInvite(identity: FirebaseIdentity, inviteId: string) 
 }
 
 export async function revokeInvite(userUid: string, inviteId: string) {
-  const context = await requireOwnerWithAgency(userUid);
+  const context = await requireManager(userUid);
   await appDataRequest(`workspace_invites?id=eq.${dbValue(inviteId)}&workspace_id=eq.${dbValue(context.workspaceId)}&status=eq.pending`, {
     method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'revoked' }),
   });
@@ -387,18 +404,21 @@ async function detachMember(context: TeamContext, memberUid: string, keepLeadsIn
   if (personal) await moveUserDataToWorkspace(memberUid, personal.id);
 }
 
-export async function removeMember(ownerUid: string, memberUid: string, keepLeads = true) {
-  const context = await requireOwnerWithAgency(ownerUid);
+export async function removeMember(actorUid: string, memberUid: string, keepLeads = true) {
+  const context = await requireManager(actorUid);
   if (memberUid === context.ownerUid) httpError('O dono não pode ser removido.', 400, 'TEAM_FORBIDDEN');
+  if (memberUid === actorUid) httpError('Para sair da equipe use "Sair da equipe".', 400, 'TEAM_FORBIDDEN');
   const members = await listTeamMembers({ id: context.workspaceId, ownerUid: context.ownerUid });
-  if (!members.some((member) => member.uid === memberUid)) httpError('Membro não encontrado.', 404, 'TEAM_NOT_FOUND');
+  const target = members.find((member) => member.uid === memberUid);
+  if (!target) httpError('Membro não encontrado.', 404, 'TEAM_NOT_FOUND');
+  if (target.role === 'admin' && context.role !== 'owner') httpError('Só o dono pode remover um administrador.', 403, 'TEAM_FORBIDDEN');
   await detachMember(context, memberUid, keepLeads);
   return { success: true };
 }
 
 export async function leaveTeam(userUid: string) {
   const context = await getTeamContext(userUid);
-  if (!context || context.role !== 'member') httpError('Você não faz parte de uma equipe.', 400, 'TEAM_FORBIDDEN');
+  if (!context || context.role === 'owner') httpError('Você não faz parte de uma equipe.', 400, 'TEAM_FORBIDDEN');
   await detachMember(context, userUid, true);
   return { success: true };
 }
@@ -408,7 +428,7 @@ export async function leaveTeam(userUid: string) {
 // ---------------------------------------------------------------------------
 
 export async function setPipelineMode(ownerUid: string, mode: unknown) {
-  const context = await requireOwnerWithAgency(ownerUid);
+  const context = await requireManager(ownerUid);
   if (mode !== 'shared' && mode !== 'individual') httpError('Modo de pipeline inválido.', 400, 'TEAM_INVALID');
   try {
     await appDataRequest(`workspaces?id=eq.${dbValue(context.workspaceId)}`, {
@@ -416,6 +436,22 @@ export async function setPipelineMode(ownerUid: string, mode: unknown) {
     });
   } catch (error) { throw migrationError(error); }
   return { pipelineMode: mode as PipelineMode };
+}
+
+/** Owner only: promotes a member to admin or demotes an admin back to member. */
+export async function setMemberAdmin(ownerUid: string, memberUid: string, admin: boolean) {
+  const context = await requireOwnerWithAgency(ownerUid);
+  if (memberUid === context.ownerUid) httpError('O dono já tem todas as permissões.', 400, 'TEAM_FORBIDDEN');
+  const rows = await appDataRequest<Array<{ user_uid: string }>>(
+    `workspace_members?workspace_id=eq.${dbValue(context.workspaceId)}&user_uid=eq.${dbValue(memberUid)}&role=eq.member&select=user_uid&limit=1`
+  );
+  if (!rows[0]) httpError('Membro não encontrado.', 404, 'TEAM_NOT_FOUND');
+  try {
+    await appDataRequest(`workspace_members?workspace_id=eq.${dbValue(context.workspaceId)}&user_uid=eq.${dbValue(memberUid)}&role=eq.member`, {
+      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ is_admin: Boolean(admin) }),
+    });
+  } catch (error) { throw migrationError(error); }
+  return { success: true, role: admin ? 'admin' : 'member' };
 }
 
 /** Buys or releases extra seats: the Stripe subscription gets a second line item for the seat price. */

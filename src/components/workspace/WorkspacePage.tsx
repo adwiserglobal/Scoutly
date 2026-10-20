@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Check, Copy, Crown, Lightbulb, Link2, Loader2, LogOut,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, Check, Copy, Crown, ShieldCheck, Lightbulb, Link2, Loader2, LogOut,
   Mail, Minus, Plus, RefreshCw, Trash2, TrendingUp, Users, X,
 } from 'lucide-react';
 import {
   getTeamOverview, getWorkspaceInsights, inviteTeamMember, leaveTeam, removeTeamMember, renewTeamInvite,
-  revokeTeamInvite, setExtraSeats, setPipelineMode,
+  revokeTeamInvite, setExtraSeats, setMemberAdmin, setPipelineMode,
   type Delta, type PipelineMode, type TeamOverview, type WorkspaceInsights,
 } from '../../services/teamApi';
 import { ActivityChart, BarList, CHART_COLORS, Funnel, Ring, Sparkline, WeekdayBars } from './charts';
@@ -117,6 +117,7 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
   const [loadingInsights, setLoadingInsights] = useState(false);
 
   const isOwner = overview?.role === 'owner';
+  const canManage = overview?.role === 'owner' || overview?.role === 'admin';
 
   const loadOverview = useCallback(async () => {
     try {
@@ -130,7 +131,7 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
   useEffect(() => { void loadOverview(); }, [loadOverview]);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!canManage) return;
     let cancelled = false;
     setLoadingInsights(true);
     getWorkspaceInsights(days)
@@ -138,7 +139,7 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
       .catch((e: any) => { if (!cancelled) setInsightsError(e?.message || 'Não foi possível carregar os dados.'); })
       .finally(() => { if (!cancelled) setLoadingInsights(false); });
     return () => { cancelled = true; };
-  }, [isOwner, days]);
+  }, [canManage, days]);
 
   if (error) {
     return (
@@ -177,11 +178,11 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
             <span className="rounded-full border border-[#FF5A12]/30 bg-[#FF5A12]/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#FF8A55]">Agency</span>
           </div>
           <p className="mt-0.5 text-[11px] text-stone-500">
-            {isOwner ? 'Painel do dono do workspace' : `Você faz parte da equipe de ${overview.ownerName}`}
+            {isOwner ? 'Painel do dono do workspace' : canManage ? 'Você é administrador deste workspace' : `Você faz parte da equipe de ${overview.ownerName}`}
             {' · '}{overview.seats.members} {overview.seats.members === 1 ? 'pessoa' : 'pessoas'} · pipeline {overview.workspace.pipelineMode === 'shared' ? 'compartilhado' : 'individual'}
           </p>
         </div>
-        {isOwner && (
+        {canManage && (
           <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-[#111418] p-1">
             {[7, 30, 90].map((d) => (
               <button key={d} type="button" onClick={() => setDays(d)} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition ${days === d ? 'bg-white/[0.10] text-white' : 'text-stone-500 hover:text-stone-300'}`}>
@@ -192,7 +193,7 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
         )}
       </header>
 
-      {isOwner && (
+      {canManage && (
         <nav className="mb-5 flex gap-1 border-b border-white/[0.06]">
           {SECTIONS.map((s) => (
             <button key={s.id} type="button" onClick={() => setSection(s.id)} className={`relative px-3.5 pb-2.5 pt-1 text-[12px] font-medium transition ${section === s.id ? 'text-white' : 'text-stone-500 hover:text-stone-300'}`}>
@@ -203,10 +204,10 @@ export default function WorkspacePage({ onLeft }: { onLeft?: () => void }) {
         </nav>
       )}
 
-      {!isOwner && <MemberView overview={overview} onLeft={onLeft} />}
-      {isOwner && section === 'overview' && <Overview insights={insights} loading={loadingInsights} error={insightsError} />}
-      {isOwner && section === 'team' && <TeamSection overview={overview} reload={loadOverview} />}
-      {isOwner && section === 'usage' && <UsageSection insights={insights} overview={overview} loading={loadingInsights} error={insightsError} />}
+      {!canManage && <MemberView overview={overview} onLeft={onLeft} />}
+      {canManage && section === 'overview' && <Overview insights={insights} loading={loadingInsights} error={insightsError} />}
+      {canManage && section === 'team' && <TeamSection overview={overview} reload={loadOverview} isOwner={isOwner} onLeft={onLeft} />}
+      {canManage && section === 'usage' && <UsageSection insights={insights} overview={overview} loading={loadingInsights} error={insightsError} />}
     </div>
   );
 }
@@ -308,7 +309,7 @@ function Overview({ insights, loading, error }: { insights: WorkspaceInsights | 
                     <div className="flex items-center gap-2.5">
                       <Avatar name={m.name} photo={m.photoUrl} />
                       <div className="min-w-0">
-                        <p className="flex items-center gap-1 truncate font-medium text-white">{m.name}{m.role === 'owner' && <Crown className="h-3 w-3 text-amber-400" />}</p>
+                        <p className="flex items-center gap-1 truncate font-medium text-white">{m.name}{m.role === 'owner' && <Crown className="h-3 w-3 text-amber-400" />}{m.role === 'admin' && <span className="rounded-full bg-sky-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">Admin</span>}</p>
                         <p className="truncate text-[10px] text-stone-600">{m.email}</p>
                       </div>
                     </div>
@@ -414,7 +415,7 @@ function UsageSection({ insights, overview, loading, error }: { insights: Worksp
 
 /* ─────────────── Team ─────────────── */
 
-function TeamSection({ overview, reload }: { overview: TeamOverview; reload: () => Promise<void> }) {
+function TeamSection({ overview, reload, isOwner, onLeft }: { overview: TeamOverview; reload: () => Promise<void>; isOwner: boolean; onLeft?: () => void }) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
@@ -518,11 +519,24 @@ function TeamSection({ overview, reload }: { overview: TeamOverview; reload: () 
               <Avatar name={m.name} photo={m.photoUrl} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 truncate text-[12px] font-medium text-white">
-                  {m.name}{m.role === 'owner' && <span className="flex items-center gap-1 rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300"><Crown className="h-2.5 w-2.5" />Dono</span>}
+                  {m.name}
+                  {m.role === 'owner' && <span className="flex items-center gap-1 rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300"><Crown className="h-2.5 w-2.5" />Dono</span>}
+                  {m.role === 'admin' && <span className="flex items-center gap-1 rounded-full bg-sky-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300"><ShieldCheck className="h-2.5 w-2.5" />Admin</span>}
                 </p>
                 <p className="truncate text-[10px] text-stone-600">{m.email} · visto {ago(m.lastSeenAt)}</p>
               </div>
-              {m.role === 'member' && (
+              {m.role !== 'owner' && isOwner && (
+                <button
+                  type="button"
+                  disabled={busy === `ad-${m.uid}`}
+                  onClick={() => void run(`ad-${m.uid}`, async () => { await setMemberAdmin(m.uid, m.role !== 'admin'); })}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-[11px] text-stone-200 hover:bg-white/[0.05] disabled:opacity-50"
+                >
+                  {busy === `ad-${m.uid}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  {m.role === 'admin' ? 'Remover admin' : 'Tornar admin'}
+                </button>
+              )}
+              {m.role !== 'owner' && (isOwner || m.role === 'member') && (
                 removing === m.uid ? (
                   <div className="flex flex-wrap items-center justify-end gap-1.5 text-[10px]">
                     <button type="button" disabled={busy === `rm-${m.uid}`} onClick={() => void run(`rm-${m.uid}`, async () => { await removeTeamMember(m.uid, true); setRemoving(null); })} className="rounded-lg bg-rose-500/90 px-2.5 py-1.5 font-semibold text-white">Remover e manter leads</button>
@@ -563,23 +577,28 @@ function TeamSection({ overview, reload }: { overview: TeamOverview; reload: () 
         </Card>
       )}
 
+      {isOwner ? (
       <Card title="Assentos extras" subtitle={`O Agency inclui ${seats.included} usuários. Cada adicional custa ${extraPrice}/mês, cobrado na mesma assinatura.`}>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" disabled={busy === 'seats' || seats.extra <= 0} onClick={() => void run('seats', async () => { await setExtraSeats(seats.extra - 1); })} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.10] text-stone-200 hover:bg-white/[0.05] disabled:opacity-30"><Minus className="h-4 w-4" /></button>
-            <div className="w-16 text-center">
-              <p className="text-xl font-semibold tabular-nums text-white">{busy === 'seats' ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : seats.extra}</p>
-              <p className="text-[10px] text-stone-600">extras</p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button type="button" disabled={busy === 'seats' || seats.extra <= 0} onClick={() => void run('seats', async () => { await setExtraSeats(seats.extra - 1); })} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.10] text-stone-200 hover:bg-white/[0.05] disabled:opacity-30"><Minus className="h-4 w-4" /></button>
+              <div className="w-16 text-center">
+                <p className="text-xl font-semibold tabular-nums text-white">{busy === 'seats' ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : seats.extra}</p>
+                <p className="text-[10px] text-stone-600">extras</p>
+              </div>
+              <button type="button" disabled={busy === 'seats'} onClick={() => void run('seats', async () => { await setExtraSeats(seats.extra + 1); })} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.10] text-stone-200 hover:bg-white/[0.05] disabled:opacity-30"><Plus className="h-4 w-4" /></button>
             </div>
-            <button type="button" disabled={busy === 'seats'} onClick={() => void run('seats', async () => { await setExtraSeats(seats.extra + 1); })} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.10] text-stone-200 hover:bg-white/[0.05] disabled:opacity-30"><Plus className="h-4 w-4" /></button>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-white">{brl(seats.extra * seats.extraSeatPrice)}<span className="text-[11px] font-normal text-stone-500"> /mês</span></p>
+              <p className="text-[10px] text-stone-600">Ajuste proporcional ao ciclo atual</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold text-white">{brl(seats.extra * seats.extraSeatPrice)}<span className="text-[11px] font-normal text-stone-500"> /mês</span></p>
-            <p className="text-[10px] text-stone-600">Ajuste proporcional ao ciclo atual</p>
-          </div>
-        </div>
-        {!seats.seatBillingConfigured && <p className="mt-3 text-[11px] text-stone-500">A cobrança de assentos extras ainda não foi habilitada nesta conta.</p>}
-      </Card>
+          {!seats.seatBillingConfigured && <p className="mt-3 text-[11px] text-stone-500">A cobrança de assentos extras ainda não foi habilitada nesta conta.</p>}
+        </Card>
+      ) : (
+        <Card title="Assentos extras"><p className="text-[11px] text-stone-500">Apenas o dono do workspace altera assentos, cobrança e administradores.</p></Card>
+      )}
+      {!isOwner && <LeaveCard onLeft={onLeft} />}
     </div>
   );
 }
@@ -587,16 +606,7 @@ function TeamSection({ overview, reload }: { overview: TeamOverview; reload: () 
 /* ─────────────── Member ─────────────── */
 
 function MemberView({ overview, onLeft }: { overview: TeamOverview; onLeft?: () => void }) {
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
   const shared = overview.workspace.pipelineMode === 'shared';
-  const leave = async () => {
-    setBusy(true);
-    setError('');
-    try { await leaveTeam(); onLeft?.(); }
-    catch (e: any) { setError(e?.message || 'Não foi possível sair da equipe.'); setBusy(false); }
-  };
   const owner = useMemo(() => overview.members.find((m) => m.role === 'owner'), [overview.members]);
 
   return (
@@ -622,17 +632,32 @@ function MemberView({ overview, onLeft }: { overview: TeamOverview; onLeft?: () 
           <li className="flex gap-2"><Crown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-600" />Você usa os recursos do plano Agency de {overview.ownerName}.</li>
         </ul>
       </Card>
-      <Card title="Sair da equipe" subtitle="Seus leads voltam para o seu workspace pessoal.">
-        {error && <p className="mb-3 text-[11px] text-rose-300">{error}</p>}
-        {confirm ? (
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => void leave()} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500/90 px-4 py-2.5 text-[12px] font-semibold text-white">{busy && <Loader2 className="h-4 w-4 animate-spin" />}Confirmar saída</button>
-            <button type="button" onClick={() => setConfirm(false)} className="px-3 py-2.5 text-[12px] text-stone-400">Cancelar</button>
-          </div>
-        ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="flex items-center gap-2 rounded-xl border border-white/[0.10] px-4 py-2.5 text-[12px] text-stone-200 hover:bg-white/[0.05]"><LogOut className="h-4 w-4" />Sair da equipe</button>
-        )}
-      </Card>
+      <LeaveCard onLeft={onLeft} />
     </div>
+  );
+}
+
+function LeaveCard({ onLeft }: { onLeft?: () => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const leave = async () => {
+    setBusy(true);
+    setError('');
+    try { await leaveTeam(); onLeft?.(); }
+    catch (e: any) { setError(e?.message || 'Não foi possível sair da equipe.'); setBusy(false); }
+  };
+  return (
+    <Card title="Sair da equipe" subtitle="Seus leads voltam para o seu workspace pessoal e você volta a gerenciar seu próprio plano.">
+      {error && <p className="mb-3 text-[11px] text-rose-300">{error}</p>}
+      {confirm ? (
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void leave()} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500/90 px-4 py-2.5 text-[12px] font-semibold text-white">{busy && <Loader2 className="h-4 w-4 animate-spin" />}Confirmar saída</button>
+          <button type="button" onClick={() => setConfirm(false)} className="px-3 py-2.5 text-[12px] text-stone-400">Cancelar</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirm(true)} className="flex items-center gap-2 rounded-xl border border-white/[0.10] px-4 py-2.5 text-[12px] text-stone-200 hover:bg-white/[0.05]"><LogOut className="h-4 w-4" />Sair da equipe</button>
+      )}
+    </Card>
   );
 }

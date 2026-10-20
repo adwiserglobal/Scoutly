@@ -31,8 +31,8 @@ export interface Insight { id: string; tone: 'good' | 'warn' | 'info'; title: st
 
 export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown) {
   const context = await getTeamContext(ownerUid);
-  if (!context || context.role !== 'owner') httpError('Só o dono do workspace pode ver esta página.', 403, 'TEAM_FORBIDDEN');
-  const access = await getSubscriptionAccess(ownerUid);
+  if (!context || context.role === 'member') httpError('Só o dono ou um administrador pode ver esta página.', 403, 'TEAM_FORBIDDEN');
+  const access = await getSubscriptionAccess(context.ownerUid);
   if (access.plan !== 'agency' || !access.hasAccess) httpError('O Workspace é um recurso do plano Agency.', 402, 'TEAM_REQUIRES_AGENCY');
 
   const days = [7, 30, 90].includes(Number(daysInput)) ? Number(daysInput) : 30;
@@ -207,7 +207,7 @@ export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown)
     const best = weekday.indexOf(Math.max(...weekday));
     insights.push({ id: 'weekday', tone: 'info', title: `A equipe prospecta mais na ${names[best]}`.replace('na domingo', 'no domingo').replace('na sábado', 'no sábado'), text: `${Math.round((weekday[best] / totalWeekday) * 100)}% das aberturas de empresas acontecem nesse dia.` });
   }
-  const idle = perMember.filter((member) => member.role === 'member' && member.unlocks + member.aiConversations + member.searches + member.newLeads === 0);
+  const idle = perMember.filter((member) => member.role !== 'owner' && member.unlocks + member.aiConversations + member.searches + member.newLeads === 0);
   if (idle.length > 0) {
     insights.push({ id: 'idle', tone: 'warn', title: `${idle.length} ${idle.length === 1 ? 'membro sem atividade' : 'membros sem atividade'} no período`, text: `${idle.map((member) => member.name).slice(0, 3).join(', ')}${idle.length > 3 ? ' e mais' : ''}. Vale conferir se precisam de ajuda para começar.` });
   }

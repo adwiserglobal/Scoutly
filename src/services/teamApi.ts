@@ -19,7 +19,7 @@ async function call<T>(action: string, payload: Record<string, unknown> = {}, ti
 export type PipelineMode = 'individual' | 'shared';
 
 export interface TeamMember {
-  uid: string; email: string; name: string; photoUrl: string | null; role: 'owner' | 'member';
+  uid: string; email: string; name: string; photoUrl: string | null; role: 'owner' | 'admin' | 'member';
   joinedAt: string | null; lastSeenAt: string | null;
 }
 export interface TeamInvite { id: string; email: string; createdAt: string; expiresAt: string }
@@ -28,7 +28,7 @@ export interface SeatSummary {
   extraSeatPrice: number; seatBillingConfigured: boolean;
 }
 export interface TeamOverview {
-  role: 'owner' | 'member';
+  role: 'owner' | 'admin' | 'member';
   teamEnabled: boolean;
   plan: string;
   workspace: { id: string; name: string; pipelineMode: PipelineMode };
@@ -41,7 +41,7 @@ export interface TeamOverview {
 export interface Delta { value: number; previous: number; change: number | null }
 export interface Insight { id: string; tone: 'good' | 'warn' | 'info'; title: string; text: string }
 export interface MemberStats {
-  uid: string; name: string; email: string; photoUrl: string | null; role: 'owner' | 'member';
+  uid: string; name: string; email: string; photoUrl: string | null; role: 'owner' | 'admin' | 'member';
   lastSeenAt: string | null; lastActivityAt: string | null;
   unlocks: number; aiConversations: number; aiMessages: number; searches: number; newLeads: number; favorites: number; demoSites: number;
 }
@@ -68,6 +68,7 @@ export const inviteTeamMember = (email: string) => call<{ invite: TeamInvite; li
 export const renewTeamInvite = (inviteId: string) => call<{ link: string; emailed: boolean; expiresAt: string }>('team-invite-renew', { inviteId });
 export const revokeTeamInvite = (inviteId: string) => call<{ success: boolean }>('team-invite-revoke', { inviteId });
 export const removeTeamMember = (memberUid: string, keepLeads: boolean) => call<{ success: boolean }>('team-member-remove', { memberUid, keepLeads });
+export const setMemberAdmin = (memberUid: string, admin: boolean) => call<{ success: boolean; role: string }>('team-member-admin', { memberUid, admin });
 export const leaveTeam = () => call<{ success: boolean }>('team-leave');
 export const setPipelineMode = (pipelineMode: PipelineMode) => call<{ pipelineMode: PipelineMode }>('team-settings', { pipelineMode });
 export const setExtraSeats = (extraSeats: number) => call<{ extraSeats: number; seats: SeatSummary }>('team-seats', { extraSeats });

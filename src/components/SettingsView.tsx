@@ -1,7 +1,8 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { formatBRL, type BillingStatus } from '../lib/billing';
+import { getTeamOverview } from '../services/teamApi';
 import { createBillingPortalSession, saveUserProfile, saveUserSettings } from '../services/api';
 import { useUserProfile } from '../hooks/useUserProfile';
 import OutreachProfileSection from './settings/OutreachProfileSection';
@@ -32,6 +33,17 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const [isOpeningBilling, setIsOpeningBilling] = useState(false);
   const [billingError, setBillingError] = useState('');
   const isDeveloper = billing.subscriptionStatus === 'developer';
+  const [teamRole, setTeamRole] = useState<'owner' | 'admin' | 'member' | null>(null);
+  const [teamOwnerName, setTeamOwnerName] = useState('');
+  const billingManagedByTeam = teamRole === 'admin' || teamRole === 'member';
+
+  useEffect(() => {
+    let cancelled = false;
+    getTeamOverview()
+      .then((team) => { if (!cancelled) { setTeamRole(team.role); setTeamOwnerName(team.ownerName); } })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
   const { profile: commercialProfile, isLoading: isProfileLoading, loadError: profileLoadError, save: saveCommercial } = useUserProfile();
 
   const initials = useMemo(() => {
@@ -289,7 +301,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   Status
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-white">
-                  {isDeveloper
+                  {billingManagedByTeam
+                    ? 'Incluído pela equipe'
+                    : isDeveloper
                     ? 'Acesso interno ilimitado'
                     : billing.isExpired
                       ? 'Acesso encerrado'
@@ -308,7 +322,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                   Cobrança
                 </span>
                 <span className="mt-1.5 block text-sm font-semibold text-white">
-                  {isDeveloper
+                  {billingManagedByTeam
+                    ? 'Paga pelo workspace'
+                    : isDeveloper
                     ? 'Sem cobrança'
                     : billing.isTrial || billing.monthlyPrice === null
                       ? 'Sem cobrança no teste'
@@ -320,7 +336,9 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
             <div className="mt-5 flex flex-col gap-3 border-t border-white/[0.07] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-xl">
                 <p className="text-[11px] leading-relaxed text-stone-500">
-                  {isDeveloper
+                  {billingManagedByTeam
+                    ? `Você usa o plano Agency do workspace${teamOwnerName ? ` de ${teamOwnerName}` : ''}. A assinatura e a cobrança são gerenciadas pelo dono do workspace. Se quiser administrar o seu próprio plano, saia do workspace.`
+                    : isDeveloper
                     ? 'Sua conta faz parte do Scoutly Developers. Todos os recursos estão liberados e este acesso não possui assinatura Stripe associada.'
                     : billing.cancelAtPeriodEnd && periodEndLabel
                       ? `Seu plano permanece ativo até ${periodEndLabel}. Você pode reativar ou alterar a assinatura pelo portal de cobrança.`
@@ -333,7 +351,11 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
                 )}
               </div>
 
-              {isDeveloper ? (
+              {billingManagedByTeam ? (
+                <div className="shrink-0 rounded-xl border border-white/[0.10] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-stone-400">
+                  Indisponível · fale com o administrador
+                </div>
+              ) : isDeveloper ? (
                 <div className="shrink-0 rounded-xl border border-[#FF5A12]/25 bg-[#FF5A12]/[0.08] px-4 py-2.5 text-xs font-semibold text-[#FF7A3D]">
                   Acesso ilimitado
                 </div>
