@@ -564,7 +564,7 @@ export async function fetchPageSpeed(url: string): Promise<PageSpeedData> {
 
 export interface GenerateMessageResult {
   message: string;
-  source: 'gemini' | 'openrouter';
+  source: 'gateway' | 'gemini' | 'openrouter';
   model?: string;
   variationIndex?: number;
   access?: CreditAccessStatus;

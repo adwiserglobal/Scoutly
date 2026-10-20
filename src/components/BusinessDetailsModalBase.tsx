@@ -42,7 +42,7 @@ export default function BusinessDetailsModal({
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
   const [messageVariation, setMessageVariation] = useState(0);
-  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | null>(null);
+  const [messageSource, setMessageSource] = useState<'gateway' | 'gemini' | 'openrouter' | null>(null);
   const [messageModel, setMessageModel] = useState('');
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);

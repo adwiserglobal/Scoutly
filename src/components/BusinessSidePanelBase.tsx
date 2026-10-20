@@ -170,7 +170,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState('');
   const [messageVariation, setMessageVariation] = useState(0);
-  const [messageSource, setMessageSource] = useState<'gemini' | 'openrouter' | null>(null);
+  const [messageSource, setMessageSource] = useState<'gateway' | 'gemini' | 'openrouter' | null>(null);
   const [messageModel, setMessageModel] = useState('');
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);

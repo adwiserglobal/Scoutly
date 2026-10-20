@@ -33,7 +33,7 @@ export interface LlmRequest {
 export interface LlmResult {
   text: string;
   model: string;
-  provider: 'gemini' | 'openrouter';
+  provider: 'gateway' | 'gemini' | 'openrouter';
   attempts: number;
 }
 
@@ -53,6 +53,9 @@ const DEFAULT_OPENROUTER_MODELS = [
   'openrouter/auto',
 ];
 
+// Vercel AI Gateway (one key, OpenAI-compatible). Override with AI_GATEWAY_MODELS.
+const DEFAULT_GATEWAY_MODELS = ['google/gemini-2.5-flash', 'openai/gpt-4o-mini', 'google/gemini-2.5-flash-lite'];
+
 const DEFAULT_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 function list(value: string | undefined, fallback: string[]) {
@@ -60,11 +63,14 @@ function list(value: string | undefined, fallback: string[]) {
   return items.length ? items : fallback;
 }
 
-type Candidate = { provider: 'gemini' | 'openrouter'; model: string };
+type Candidate = { provider: 'gateway' | 'gemini' | 'openrouter'; model: string };
 
 function candidates(): Candidate[] {
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY;
-  const chain: Candidate[] = [];
+  // The gateway is paid/credit based and reliable, so it goes first; free tiers are the safety net.
+  const chain: Candidate[] = process.env.AI_GATEWAY_API_KEY
+    ? list(process.env.AI_GATEWAY_MODELS, DEFAULT_GATEWAY_MODELS).map((model) => ({ provider: 'gateway' as const, model }))
+    : [];
   const gemini = geminiKey
     ? list(process.env.GEMINI_MODELS, DEFAULT_GEMINI_MODELS).map((model) => ({ provider: 'gemini' as const, model }))
     : [];
@@ -101,6 +107,19 @@ async function callGemini(model: string, request: LlmRequest, timeoutMs: number)
   return String(response.text || '').trim();
 }
 
+async function callGateway(model: string, request: LlmRequest, timeoutMs: number): Promise<string> {
+  const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.AI_GATEWAY_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: request.messages, temperature: request.temperature, max_tokens: request.maxTokens }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  if (data?.error) throw new Error(String(data.error?.message || 'provider error'));
+  return String(data?.choices?.[0]?.message?.content || '').trim();
+}
+
 async function callOpenRouter(model: string, request: LlmRequest, timeoutMs: number): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -125,9 +144,11 @@ async function callOpenRouter(model: string, request: LlmRequest, timeoutMs: num
 }
 
 async function attempt(candidate: Candidate, request: LlmRequest, timeoutMs: number): Promise<string> {
-  const text = candidate.provider === 'gemini'
-    ? await callGemini(candidate.model, request, timeoutMs)
-    : await callOpenRouter(candidate.model, request, timeoutMs);
+  const text = candidate.provider === 'gateway'
+    ? await callGateway(candidate.model, request, timeoutMs)
+    : candidate.provider === 'gemini'
+      ? await callGemini(candidate.model, request, timeoutMs)
+      : await callOpenRouter(candidate.model, request, timeoutMs);
   if (text.length < (request.minLength ?? 1)) throw new Error('answer too short');
   if (request.validate && !request.validate(text)) throw new Error('answer failed validation');
   return text;
