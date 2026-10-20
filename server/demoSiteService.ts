@@ -57,7 +57,37 @@ function slugify(value: string) {
   return base || 'negocio';
 }
 
-const newSlug = (name: string) => `${slugify(name)}-${randomBytes(3).toString('hex')}`;
+// Names that must never become a site address (they could be mistaken for the product itself
+// or become a subdomain later): the app's own paths and common infrastructure names.
+const RESERVED_SLUGS = new Set([
+  'www', 'app', 'api', 'login', 'admin', 'dashboard', 'suporte', 'support', 'ajuda', 'help', 'blog', 'demo', 'demos',
+  'editor', 'mail', 'email', 'ftp', 'status', 'static', 'assets', 'cdn', 'internal', 'scoutly', 'pipeline', 'favoritos',
+  'configuracoes', 'precos', 'planos', 'termos', 'privacidade', 'sites', 'site', 'preview', 'billing', 'checkout',
+]);
+
+function baseSlug(name: string) {
+  let base = slugify(name);
+  if (base.length < 3) base = `${base}-site`;
+  if (RESERVED_SLUGS.has(base)) base = `${base}-site`;
+  return base.slice(0, 40).replace(/-+$/g, '');
+}
+
+/** Clean, readable address: "clinica-master", then "clinica-master-2", "-3"... Falls back to a random suffix. */
+async function uniqueSlug(name: string) {
+  const base = baseSlug(name);
+  const candidates = [base, ...Array.from({ length: 9 }, (_, i) => `${base}-${i + 2}`)];
+  try {
+    const taken = await appDataRequest<Array<{ slug: string }>>(
+      `demo_sites?slug=in.(${candidates.map((slug) => dbValue(slug)).join(',')})&select=slug`,
+    );
+    const used = new Set(taken.map((row) => row.slug));
+    const free = candidates.find((slug) => !used.has(slug));
+    if (free) return free;
+  } catch (error) {
+    throw migrationError(error);
+  }
+  return `${base}-${randomBytes(3).toString('hex')}`;
+}
 
 function summary(row: DemoSiteRow): DemoSiteSummary {
   return {
@@ -179,10 +209,18 @@ export async function createOrRegenerateDemoSite(userUid: string, input: any) {
       });
       return summary(rows[0]);
     }
-    const rows = await appDataRequest<DemoSiteRow[]>('demo_sites?select=*', {
+    const insert = (slug: string) => appDataRequest<DemoSiteRow[]>('demo_sites?select=*', {
       method: 'POST', headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ ...payload, slug: newSlug(facts.name) }),
+      body: JSON.stringify({ ...payload, slug }),
     });
+    let rows: DemoSiteRow[];
+    try {
+      rows = await insert(await uniqueSlug(facts.name));
+    } catch (error: any) {
+      // Two people picked the same free name at once: the unique constraint wins, retry with a random suffix.
+      if (!/23505|duplicate key/i.test(String(error?.message || ''))) throw error;
+      rows = await insert(`${baseSlug(facts.name)}-${randomBytes(3).toString('hex')}`);
+    }
     return summary(rows[0]);
   } catch (error) {
     throw migrationError(error);

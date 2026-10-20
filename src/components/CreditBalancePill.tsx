@@ -139,19 +139,19 @@ export default function CreditBalancePill() {
       type="button"
       data-credit-pill
       onClick={handleClick}
-      className={`fixed right-[78px] top-[18px] z-[30] flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-left pointer-events-auto xl:right-[104px] ${clickable ? 'cursor-pointer transition active:scale-95' : 'cursor-default'}`}
+      className={`fixed right-[78px] top-[22px] z-[30] flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-left pointer-events-auto xl:right-[104px] ${clickable ? 'cursor-pointer transition active:scale-95' : 'cursor-default'}`}
       title={access.plan === 'free' && !access.isUnlimited ? 'Free: 5 créditos por dia, limitado a 25 por mês' : detail}
       aria-label={`${primary}. ${secondary}`}
     >
       <img
         src="/credits-coin-3d.webp?v=2"
         alt=""
-        width={38}
-        height={38}
-        className={`block h-[38px] w-[38px] shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)] ${clickable ? 'transition-transform hover:scale-110 hover:-rotate-6' : ''}`}
+        width={28}
+        height={28}
+        className={`block h-[28px] w-[28px] shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)] ${clickable ? 'transition-transform hover:scale-110 hover:-rotate-6' : ''}`}
         draggable={false}
       />
-      <span className={`whitespace-nowrap leading-none [text-shadow:0_1px_2px_rgba(0,0,0,0.9),0_0_10px_rgba(0,0,0,0.6)] ${access.isUnlimited ? 'text-[13px] font-bold tracking-tight text-white' : exhausted ? 'text-[19px] font-extrabold tabular-nums text-rose-300' : 'text-[19px] font-extrabold tabular-nums text-white'}`}>
+      <span className={`whitespace-nowrap leading-none [text-shadow:0_1px_2px_rgba(0,0,0,0.9),0_0_10px_rgba(0,0,0,0.6)] ${access.isUnlimited ? 'text-[12px] font-bold tracking-tight text-white' : exhausted ? 'text-[16px] font-extrabold tabular-nums text-rose-300' : 'text-[16px] font-extrabold tabular-nums text-white'}`}>
         {amount}
         {unit && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">{unit}</span>}
       </span>
