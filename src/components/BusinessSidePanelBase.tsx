@@ -40,6 +40,7 @@ import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
 import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
 import DataFeedback from './DataFeedback';
+import DemoSiteCard from './DemoSiteCard';
 
 interface BusinessSidePanelProps {
   business: Business;
@@ -543,6 +544,8 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
               </div>
             )}
           </section>
+
+          <DemoSiteCard business={business} phone={phoneToCopy || null} />
 
           <div className="mt-4 divide-y divide-white/[0.085]">
             <section>

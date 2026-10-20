@@ -792,3 +792,54 @@ export async function refreshSubscriptionFromStripe() {
   if (!res.ok || !data?.subscription) throw new Error(data?.error || 'Não foi possível sincronizar sua assinatura.');
   return data.subscription;
 }
+
+// ---------------------------------------------------------------------------
+// Demo websites ("Site em 1 clique")
+// ---------------------------------------------------------------------------
+export type DemoStyleId = 'clean' | 'warm' | 'bold' | 'elegant' | 'fresh' | 'noir';
+
+export interface DemoSiteSummary {
+  slug: string;
+  path: string;
+  style: DemoStyleId;
+  businessName: string;
+  views: number;
+  lastViewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  hasPhotos: boolean;
+}
+
+export interface DemoSiteState {
+  site: DemoSiteSummary | null;
+  quota: { plan: string; limit: number; used: number };
+}
+
+async function demoAction(action: string, payload: Record<string, unknown>, timeoutMs = 20000): Promise<DemoSiteState> {
+  const res = await authenticatedFetch('/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...payload }),
+    signal: AbortSignal.timeout(timeoutMs),
+  }).catch((error: any) => {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      throw Object.assign(new Error('A criação do site demorou mais que o esperado. Tente novamente em instantes.'), { code: 'LLM_UNAVAILABLE' });
+    }
+    throw error;
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data?.error || 'Não foi possível concluir esta ação.'), { code: data?.code, status: res.status });
+  return data as DemoSiteState;
+}
+
+export const getDemoSite = (businessId: string) => demoAction('demo-site-get', { businessId });
+
+export const createDemoSite = (business: Record<string, unknown>, options: { variation?: number; style?: DemoStyleId } = {}) =>
+  demoAction('demo-site-create', { business, ...options }, 65000);
+
+export const setDemoSiteStyle = (businessId: string, style: DemoStyleId, variant?: 0 | 1) =>
+  demoAction('demo-site-style', { businessId, style, variant });
+
+export async function deleteDemoSite(businessId: string) {
+  await demoAction('demo-site-delete', { businessId });
+}

@@ -7,6 +7,10 @@ import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
+import {
+  changeDemoSiteStyle, createOrRegenerateDemoSite, deleteDemoSite, getDemoSiteForBusiness, renderPublicDemoSite,
+} from '../server/demoSiteService.js';
+import { DEMO_CSP } from '../server/demoSite/render.js';
 
 const LEAD_STATUSES = new Set([
   'NOVO',
@@ -275,6 +279,11 @@ function publicError(error: any, statusCode: number) {
     'INVALID_BUSINESS_TOKEN',
     'CREDIT_RESERVATION_FAILED',
     'PROFILE_MIGRATION_PENDING',
+    'DEMO_MIGRATION_PENDING',
+    'DEMO_LIMIT_REACHED',
+    'DEMO_NOT_FOUND',
+    'DEMO_INVALID',
+    'LLM_UNAVAILABLE',
   ]);
   const code = String(error?.code || '');
   if (safeCodes.has(code)) {
@@ -285,7 +294,34 @@ function publicError(error: any, statusCode: number) {
   return { error: 'Não foi possível concluir esta ação.', code: code || undefined };
 }
 
+async function servePublicDemo(req: VercelRequest, res: VercelResponse) {
+  const slug = String(req.query?.slug || '').toLowerCase();
+  const html = await renderPublicDemoSite(slug, { countView: String(req.query?.preview || '') !== '1' });
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('Content-Security-Policy', DEMO_CSP);
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!html) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(404).send('<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Página não encontrada</title><body style="font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#0d0e11;color:#eee"><p>Esta proposta de site não está mais disponível.</p>');
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  // Views are counted per request, so keep the edge cache short.
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
+  return res.status(200).send(html);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET' && String(req.query?.view || '') === 'demo') {
+    try {
+      return await servePublicDemo(req, res);
+    } catch (error: any) {
+      console.error('[API /api/leads demo]:', error?.message || error);
+      return res.status(500).send('Erro ao carregar a página.');
+    }
+  }
+
   try {
     const identity = await requireFirebaseIdentity(req as any);
     const { workspaceId } = await ensureAppUser(identity);
@@ -517,6 +553,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasLogo: 'logo' in (req.body || {}),
       });
       return res.status(200).json({ success: true, ...(await getUserProfile(identity.uid)) });
+    }
+
+    if (action === 'demo-site-get') {
+      return res.status(200).json(await getDemoSiteForBusiness(identity.uid, String(req.body?.businessId || '')));
+    }
+
+    if (action === 'demo-site-create') {
+      const site = await createOrRegenerateDemoSite(identity.uid, req.body);
+      return res.status(200).json({ site, ...(await getDemoSiteForBusiness(identity.uid, site ? String(req.body?.business?.id) : '')) });
+    }
+
+    if (action === 'demo-site-style') {
+      const businessId = String(req.body?.businessId || '');
+      await changeDemoSiteStyle(identity.uid, businessId, String(req.body?.style || ''), req.body?.variant);
+      return res.status(200).json(await getDemoSiteForBusiness(identity.uid, businessId));
+    }
+
+    if (action === 'demo-site-delete') {
+      await deleteDemoSite(identity.uid, String(req.body?.businessId || ''));
+      return res.status(200).json({ success: true });
     }
 
     if (action === 'recent-business') {
