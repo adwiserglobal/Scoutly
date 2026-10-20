@@ -166,28 +166,26 @@ export async function generateCopy(
   const variation = options.variation || 0;
   const hint = options.style || styleForCategory(facts.category, facts.name);
   const prompt = promptFor(facts, brand, variation, hint);
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await generateText({
-      messages: [
-        { role: 'system', content: 'Você responde exclusivamente com JSON válido, sem comentários e sem markdown.' },
-        { role: 'user', content: attempt === 0 ? prompt : `${prompt}\n\nA resposta anterior não era um JSON completo e válido. Responda novamente apenas com o JSON.` },
-      ],
-      temperature: 0.8,
-      maxTokens: 2600,
-      minLength: 400,
-      budgetMs: attempt === 0 ? 30_000 : 18_000,
-      attemptMs: 14_000,
-      title: 'Scoutly Demo Site',
-    }).catch((error) => { lastError = error; return null; });
-    if (!result) continue;
-    const copy = normalizeCopy(extractJson(result.text), hint);
-    if (copy) {
-      if (options.style) copy.style = options.style;
-      return copy;
-    }
-  }
-  throw lastError || Object.assign(new Error('Não foi possível gerar o conteúdo do site.'), { statusCode: 503, code: 'LLM_UNAVAILABLE' });
+  const result = await generateText({
+    messages: [
+      { role: 'system', content: 'Você responde exclusivamente com JSON válido, sem comentários e sem markdown.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.8,
+    maxTokens: 2400,
+    minLength: 400,
+    json: true,
+    // Long answer: let a slow model keep working while the next one starts in parallel.
+    hedgeMs: 9_000,
+    attemptMs: 32_000,
+    budgetMs: 46_000,
+    validate: (text) => normalizeCopy(extractJson(text), hint) !== null,
+    title: 'Scoutly Demo Site',
+  });
+  const copy = normalizeCopy(extractJson(result.text), hint);
+  if (!copy) throw Object.assign(new Error(`Resposta inválida de ${result.model}`), { statusCode: 503, code: 'LLM_UNAVAILABLE' });
+  if (options.style) copy.style = options.style;
+  return copy;
 }
 
 // ---------------------------------------------------------------------------

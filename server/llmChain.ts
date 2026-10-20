@@ -21,6 +21,12 @@ export interface LlmRequest {
   budgetMs?: number;
   /** Limit for each single attempt, in ms. */
   attemptMs?: number;
+  /** Start the next candidate after this many ms without cancelling the slow one (first valid answer wins). */
+  hedgeMs?: number;
+  /** An answer failing this check counts as a failed attempt. */
+  validate?: (text: string) => boolean;
+  /** Ask the provider for JSON output when supported. */
+  json?: boolean;
   title?: string;
 }
 
@@ -88,6 +94,7 @@ async function callGemini(model: string, request: LlmRequest, timeoutMs: number)
       temperature: request.temperature,
       maxOutputTokens: request.maxTokens,
       systemInstruction: system || undefined,
+      responseMimeType: request.json ? 'application/json' : undefined,
       abortSignal: AbortSignal.timeout(timeoutMs),
     },
   });
@@ -117,30 +124,72 @@ async function callOpenRouter(model: string, request: LlmRequest, timeoutMs: num
   return String(data?.choices?.[0]?.message?.content || '').trim();
 }
 
+async function attempt(candidate: Candidate, request: LlmRequest, timeoutMs: number): Promise<string> {
+  const text = candidate.provider === 'gemini'
+    ? await callGemini(candidate.model, request, timeoutMs)
+    : await callOpenRouter(candidate.model, request, timeoutMs);
+  if (text.length < (request.minLength ?? 1)) throw new Error('answer too short');
+  if (request.validate && !request.validate(text)) throw new Error('answer failed validation');
+  return text;
+}
+
 export async function generateText(request: LlmRequest): Promise<LlmResult> {
   const budgetMs = request.budgetMs ?? 40_000;
   const attemptMs = request.attemptMs ?? 9_000;
-  const minLength = request.minLength ?? 1;
+  const hedgeMs = request.hedgeMs ?? 0;
   const started = Date.now();
+  const queue = candidates();
   let attempts = 0;
 
-  for (const candidate of candidates()) {
-    const remaining = budgetMs - (Date.now() - started);
-    if (remaining < 2_000) break;
-    attempts += 1;
-    try {
-      const timeout = Math.min(attemptMs, remaining);
-      const text = candidate.provider === 'gemini'
-        ? await callGemini(candidate.model, request, timeout)
-        : await callOpenRouter(candidate.model, request, timeout);
-      if (text.length >= minLength) {
+  if (hedgeMs <= 0) {
+    for (const candidate of queue) {
+      const remaining = budgetMs - (Date.now() - started);
+      if (remaining < 2_000) break;
+      attempts += 1;
+      try {
+        const text = await attempt(candidate, request, Math.min(attemptMs, remaining));
         return { text, model: candidate.model, provider: candidate.provider, attempts };
+      } catch (error: any) {
+        console.warn(`[LLM] ${candidate.provider}/${candidate.model} failed:`, error?.message || error);
       }
-      console.warn(`[LLM] ${candidate.provider}/${candidate.model} returned too little text`);
-    } catch (error: any) {
-      console.warn(`[LLM] ${candidate.provider}/${candidate.model} failed:`, error?.message || error);
     }
+    throw new LlmUnavailableError();
   }
 
-  throw new LlmUnavailableError();
+  // Hedged mode: launch the next candidate when the current ones are slow or have failed.
+  return new Promise<LlmResult>((resolve, reject) => {
+    let next = 0;
+    let pending = 0;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      fn();
+    };
+
+    const launch = () => {
+      if (settled) return;
+      const remaining = budgetMs - (Date.now() - started);
+      if (next >= queue.length || remaining < 2_000) {
+        if (pending === 0) finish(() => reject(new LlmUnavailableError()));
+        return;
+      }
+      const candidate = queue[next];
+      next += 1;
+      attempts += 1;
+      pending += 1;
+      attempt(candidate, request, Math.min(attemptMs, remaining))
+        .then((text) => finish(() => resolve({ text, model: candidate.model, provider: candidate.provider, attempts })))
+        .catch((error: any) => {
+          console.warn(`[LLM] ${candidate.provider}/${candidate.model} failed:`, error?.message || error);
+          pending -= 1;
+          if (!settled) launch();
+        });
+      timer = setTimeout(launch, hedgeMs);
+    };
+    launch();
+  });
 }
