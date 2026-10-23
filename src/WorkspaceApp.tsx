@@ -769,7 +769,7 @@ export default function App() {
       const nameBusinesses = Array.isArray(nameResult?.businesses) ? nameResult.businesses : [];
       const categoryBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
       const combinedBusinesses = new Map<string, Business>(
-        nameBusinesses.map((business: Business) => [business.id, business])
+        nameBusinesses.map((business: Business): [string, Business] => [business.id, business])
       );
       for (const business of categoryBusinesses as Business[]) {
         if (!combinedBusinesses.has(business.id)) combinedBusinesses.set(business.id, business);
