@@ -14,6 +14,7 @@ import { fetchBusinessesFromRankFabrik } from './rankFabrikService.js';
 import { hasBrazilPlacesDatabase, queryBrazilPlacesByName, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
 import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
 import { resolveSearchGeography, extractBusinessPhraseFromQuery } from './geographyService.js';
+import { queryOsmPlacesInBBox } from './osmPlacesService.js';
 
 export interface BusinessSearchResult {
   query: string;
@@ -118,6 +119,56 @@ function scorePlace(place: OverturePlace, terms: string[]): number {
     if (categories.includes(term)) score += term.includes(' ') ? 6 : 3;
   }
   return score;
+}
+
+function scoreOsmCandidate(place: OverturePlace, profile: SearchProfile | null, terms: string[]): number {
+  if (!profile) return scorePlace(place, terms);
+
+  const matchedProfileScore = scoreAgainstProfile(place, profile);
+  if (matchedProfileScore > 0) return matchedProfileScore;
+
+  // OSM uses tags like healthcare=dentist and office=lawyer, while our index
+  // and profiles mostly use Overture taxonomies. Use explicit profile terms as
+  // a conservative secondary match, not a broad city-wide business match.
+  const name = normalizeText(place.name || '');
+  const categories = normalizeText([
+    place.category,
+    place.basicCategory,
+    place.taxonomyPrimary,
+    ...(place.taxonomyHierarchy || []),
+    ...(place.taxonomyAlternates || []),
+  ].filter(Boolean).join(' '));
+
+  const strongTerms = [...profile.nameTerms, ...profile.aliases]
+    .map(normalizeText)
+    .filter((term) => term.length >= 4);
+
+  if (strongTerms.some((term) => name.includes(term))) return 68;
+  if (strongTerms.some((term) => categories === term || categories.includes(term))) return 58;
+  return 0;
+}
+
+function mergeOsmCandidates(
+  places: OverturePlace[],
+  results: Map<string, BusinessSummary>,
+  relevance: Map<string, number>,
+  bbox: { west: number; south: number; east: number; north: number },
+  profile: SearchProfile | null,
+  terms: string[],
+): number {
+  let added = 0;
+  for (const place of places) {
+    const business = placeToSummary(place);
+    if (!isWithinBounds(business, bbox)) continue;
+
+    const score = scoreOsmCandidate(place, profile, terms);
+    if (score <= 0) continue;
+
+    const existed = results.size;
+    mergeExternalBusiness(results, relevance, business, score);
+    if (results.size > existed) added += 1;
+  }
+  return added;
 }
 
 function scoreSummary(business: BusinessSummary, profile: SearchProfile): number {
@@ -459,21 +510,33 @@ export async function searchBusinessesInBounds(
     }
   }
 
-  // Overture is a network fallback only when the indexed result is sparse.
-  if (results.size < 12) {
+  // Small-city and non-indexed coverage is commonly sparse. Query the free
+  // OpenStreetMap fallback and Overture in parallel instead of making users wait
+  // for one remote provider before starting the other.
+  if (results.size < 40) {
     const terms = getSearchTerms(cleanQuery, profile?.label || phrase, [], profile);
-    try {
-      const overture = await searchOvertureByTerms(terms, bbox, 220);
-      for (const place of overture) {
+    const [overtureOutcome, osmOutcome] = await Promise.allSettled([
+      searchOvertureByTerms(terms, bbox, 220),
+      queryOsmPlacesInBBox(bbox.west, bbox.south, bbox.east, bbox.north, 1400, 5200),
+    ]);
+
+    if (overtureOutcome.status === 'fulfilled') {
+      for (const place of overtureOutcome.value) {
         const score = profile ? scoreAgainstProfile(place, profile) : scorePlace(place, terms);
         if (score > 0) addPlace(place, score);
       }
-    } catch (error: any) {
-      console.warn('[Viewport Search] Overture fallback failed:', error?.message || error);
+    } else {
+      console.warn('[Viewport Search] Overture fallback failed:', overtureOutcome.reason?.message || overtureOutcome.reason);
+    }
+
+    if (osmOutcome.status === 'fulfilled') {
+      mergeOsmCandidates(osmOutcome.value.places, results, relevance, bbox, profile, terms);
+    } else {
+      console.warn('[Viewport Search] OpenStreetMap fallback failed:', osmOutcome.reason?.message || osmOutcome.reason);
     }
   }
 
-  // RankFabrik is a paid/free-tier fallback, used only when local + Overture coverage is still sparse.
+  // RankFabrik is the last external fallback if the free/indexed sources are still sparse.
   if (results.size < 12) {
     try {
       const rankFabrik = await fetchBusinessesFromRankFabrik(
@@ -568,11 +631,24 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
     }
   }
 
-  // Unknown segments, areas outside the local index, or sparse precise results use Overture fallback.
-  if (!profile || results.size < 12) {
-    try {
-      const overture = await searchOvertureByTerms(terms, resolvedArea.bbox, 300);
-      overture
+  // Use two independent public/local-data sources at once when the result
+  // set is sparse. This is especially important for smaller municipalities
+  // where one national dataset may have little or no coverage.
+  if (!profile || results.size < 40) {
+    const [overtureOutcome, osmOutcome] = await Promise.allSettled([
+      searchOvertureByTerms(terms, resolvedArea.bbox, 300),
+      queryOsmPlacesInBBox(
+        resolvedArea.bbox.west,
+        resolvedArea.bbox.south,
+        resolvedArea.bbox.east,
+        resolvedArea.bbox.north,
+        1600,
+        5200,
+      ),
+    ]);
+
+    if (overtureOutcome.status === 'fulfilled') {
+      overtureOutcome.value
         .map((place) => ({
           place,
           score: profile ? scoreAgainstProfile(place, profile) : scorePlace(place, terms),
@@ -583,8 +659,21 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
           if (!results.has(place.id)) results.set(place.id, placeToSummary(place));
           relevance.set(place.id, Math.max(relevance.get(place.id) || 0, score));
         });
-    } catch (err: any) {
-      console.warn('[Business Search] Overture error:', err.message);
+    } else {
+      console.warn('[Business Search] Overture error:', overtureOutcome.reason?.message || overtureOutcome.reason);
+    }
+
+    if (osmOutcome.status === 'fulfilled') {
+      mergeOsmCandidates(
+        osmOutcome.value.places,
+        results,
+        relevance,
+        resolvedArea.bbox,
+        profile,
+        terms,
+      );
+    } else {
+      console.warn('[Business Search] OpenStreetMap error:', osmOutcome.reason?.message || osmOutcome.reason);
     }
   }
 
