@@ -21,6 +21,12 @@ const SCOUTLY_PRO_DEVELOPER_EMAILS = new Set([
   'rossivictor638@gmail.com',
 ]);
 
+// Explicit Agency entitlement grants. These accounts get unlimited Agency
+// usage but are not marked as internal developer accounts.
+const SCOUTLY_AGENCY_UNLIMITED_EMAILS = new Set([
+  'thamyflores@gmail.com',
+]);
+
 function freeAccess(): SubscriptionAccess {
   return {
     plan: 'free',
@@ -47,21 +53,37 @@ function developerAccess(plan: 'pro' | 'agency'): SubscriptionAccess {
   };
 }
 
-async function getScoutlyDeveloperPlan(userUid: string): Promise<'pro' | 'agency' | null> {
+async function getScoutlyAccountEmail(userUid: string): Promise<string> {
   const rows = await appDataRequest<Array<{ email?: string | null }>>(
     `app_users?firebase_uid=eq.${dbValue(userUid)}&select=email&limit=1`
   );
-  const email = String(rows[0]?.email || '').trim().toLowerCase();
+  return String(rows[0]?.email || '').trim().toLowerCase();
+}
 
+function getDeveloperPlanForEmail(email: string): 'pro' | 'agency' | null {
   if (SCOUTLY_AGENCY_DEVELOPER_EMAILS.has(email)) return 'agency';
   if (SCOUTLY_PRO_DEVELOPER_EMAILS.has(email)) return 'pro';
   return null;
 }
 
 export async function getSubscriptionAccess(userUid: string): Promise<SubscriptionAccess> {
-  // This allowlist is deliberately server-side and exact-match only. Never use
-  // domains, prefixes or client-provided email values for developer access.
-  const developerPlan = await getScoutlyDeveloperPlan(userUid);
+  // Email-based grants use an exact server-side match against the email saved
+  // from the verified Firebase ID token. No client-provided email is trusted.
+  const email = await getScoutlyAccountEmail(userUid);
+
+  if (SCOUTLY_AGENCY_UNLIMITED_EMAILS.has(email)) {
+    return {
+      plan: 'agency',
+      status: 'active',
+      current_period_start: null,
+      current_period_end: null,
+      hasAccess: true,
+      reason: 'active',
+      isDeveloper: false,
+    };
+  }
+
+  const developerPlan = getDeveloperPlanForEmail(email);
   if (developerPlan) return developerAccess(developerPlan);
 
   const rows = await appDataRequest<any[]>(
