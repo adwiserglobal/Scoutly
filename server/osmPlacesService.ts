@@ -50,6 +50,49 @@ function splitContact(value?: string) {
     .filter(Boolean);
 }
 
+const OSM_TAXONOMY_MAP: Record<string, string> = {
+  'amenity:restaurant': 'restaurant',
+  'amenity:fast_food': 'fast_food_restaurant',
+  'amenity:bank': 'bank',
+  'amenity:pharmacy': 'pharmacy',
+  'amenity:school': 'school',
+  'amenity:parking': 'parking',
+  'amenity:clinic': 'medical_clinic',
+  'amenity:doctors': 'medical_service',
+  'amenity:hospital': 'hospital',
+  'amenity:dentist': 'dental_clinic',
+  'amenity:fitness_centre': 'gym',
+  'shop:supermarket': 'supermarket',
+  'shop:hairdresser': 'hair_salon',
+  'shop:car_repair': 'auto_repair',
+  'shop:car_parts': 'auto_parts_store',
+  'shop:tyres': 'tire_shop',
+  'shop:optician': 'eyewear_store',
+  'shop:pet': 'pet_store',
+  'office:lawyer': 'attorney_or_law_firm',
+  'office:accountant': 'accountant',
+  'office:estate_agent': 'real_estate_agency',
+  'office:advertising_agency': 'marketing_agency',
+  'craft:mechanic': 'mechanic',
+  'healthcare:dentist': 'dental_clinic',
+  'healthcare:doctor': 'medical_clinic',
+  'healthcare:physiotherapist': 'physiotherapy',
+  'healthcare:veterinary': 'veterinarian',
+  'tourism:hotel': 'hotel',
+  'tourism:guest_house': 'inn',
+  'leisure:fitness_centre': 'gym',
+};
+
+function inferTaxonomy(tags: Record<string, string | undefined>, categoryRaw: string): string {
+  for (const key of ['amenity', 'shop', 'office', 'craft', 'healthcare', 'tourism', 'leisure', 'industrial']) {
+    const value = String(tags[key] || '').trim().toLowerCase();
+    if (!value) continue;
+    const mapped = OSM_TAXONOMY_MAP[`${key}:${value}`];
+    if (mapped) return mapped;
+  }
+  return categoryRaw;
+}
+
 function elementToPlace(element: OverpassElement): OverturePlace | null {
   const tags = element.tags || {};
   const latitude = Number(element.lat ?? element.center?.lat);
@@ -60,6 +103,7 @@ function elementToPlace(element: OverpassElement): OverturePlace | null {
   if (!name) return null;
 
   const categoryRaw = normalizeCategory(tags);
+  const taxonomyPrimary = inferTaxonomy(tags, categoryRaw);
   const category = categoryRaw
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -80,8 +124,8 @@ function elementToPlace(element: OverpassElement): OverturePlace | null {
     longitude,
     category,
     basicCategory: categoryRaw,
-    taxonomyPrimary: categoryRaw,
-    taxonomyHierarchy: [],
+    taxonomyPrimary,
+    taxonomyHierarchy: Array.from(new Set([taxonomyPrimary, categoryRaw])),
     taxonomyAlternates: [],
     confidence: 0.78,
     operatingStatus: null,
@@ -100,17 +144,47 @@ function elementToPlace(element: OverpassElement): OverturePlace | null {
   };
 }
 
-export async function queryOsmPlacesInBBox(
+type OsmCacheEntry = {
+  places: OverturePlace[];
+  savedAt: number;
+};
+
+const OSM_CACHE_TTL_MS = 5 * 60 * 1000;
+const OSM_EMPTY_CACHE_TTL_MS = 45 * 1000;
+const OSM_CACHE_MAX_ENTRIES = 80;
+const osmCache = new Map<string, OsmCacheEntry>();
+const osmInflight = new Map<string, Promise<OverturePlace[]>>();
+
+function roundedBbox(west: number, south: number, east: number, north: number) {
+  // Query a slightly rounded outward box so adjacent searches can reuse data
+  // without returning points outside the user's exact viewport.
+  return {
+    west: Math.floor(west * 1000) / 1000,
+    south: Math.floor(south * 1000) / 1000,
+    east: Math.ceil(east * 1000) / 1000,
+    north: Math.ceil(north * 1000) / 1000,
+  };
+}
+
+function filterToBbox(places: OverturePlace[], west: number, south: number, east: number, north: number) {
+  return places.filter((place) =>
+    Number.isFinite(place.latitude) &&
+    Number.isFinite(place.longitude) &&
+    place.latitude >= south && place.latitude <= north &&
+    place.longitude >= west && place.longitude <= east
+  );
+}
+
+async function fetchOsmBox(
   west: number,
   south: number,
   east: number,
   north: number,
-  limit = 1200,
-): Promise<{ places: OverturePlace[]; cached: boolean; durationMs: number }> {
-  const startedAt = Date.now();
-  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2000));
+  safeLimit: number,
+  timeoutMs: number,
+): Promise<OverturePlace[]> {
   const bbox = `${south},${west},${north},${east}`;
-  const query = `[out:json][timeout:12];(
+  const query = `[out:json][timeout:8];(
     nwr["name"]["amenity"](${bbox});
     nwr["name"]["shop"](${bbox});
     nwr["name"]["office"](${bbox});
@@ -122,7 +196,6 @@ export async function queryOsmPlacesInBBox(
   );out center ${safeLimit};`;
 
   let lastError: Error | null = null;
-
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const response = await fetch(endpoint, {
@@ -132,7 +205,7 @@ export async function queryOsmPlacesInBBox(
           'User-Agent': 'Scoutly-Local-Prospecting/2.0',
         },
         body: new URLSearchParams({ data: query }).toString(),
-        signal: AbortSignal.timeout(14000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (!response.ok) {
@@ -152,17 +225,62 @@ export async function queryOsmPlacesInBBox(
         places.push(place);
         if (places.length >= safeLimit) break;
       }
-
-      return {
-        places,
-        cached: false,
-        durationMs: Date.now() - startedAt,
-      };
+      return places;
     } catch (error: any) {
       lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
 
   if (lastError) throw lastError;
-  return { places: [], cached: false, durationMs: Date.now() - startedAt };
+  return [];
+}
+
+export async function queryOsmPlacesInBBox(
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  limit = 1200,
+  timeoutMs = 9000,
+): Promise<{ places: OverturePlace[]; cached: boolean; durationMs: number }> {
+  const startedAt = Date.now();
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2000));
+  const box = roundedBbox(west, south, east, north);
+  const key = [box.west, box.south, box.east, box.north, safeLimit].join(':');
+
+  const filterCached = (places: OverturePlace[]) =>
+    filterToBbox(places, west, south, east, north).slice(0, safeLimit);
+
+  const entry = osmCache.get(key);
+  if (entry && Date.now() - entry.savedAt < (entry.places.length ? OSM_CACHE_TTL_MS : OSM_EMPTY_CACHE_TTL_MS)) {
+    return {
+      places: filterCached(entry.places),
+      cached: true,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  let pending = osmInflight.get(key);
+  if (!pending) {
+    pending = fetchOsmBox(box.west, box.south, box.east, box.north, safeLimit, timeoutMs);
+    osmInflight.set(key, pending);
+  }
+
+  try {
+    const places = await pending;
+    osmCache.set(key, { places, savedAt: Date.now() });
+    while (osmCache.size > OSM_CACHE_MAX_ENTRIES) {
+      osmCache.delete(osmCache.keys().next().value as string);
+    }
+    return {
+      places: filterCached(places),
+      cached: false,
+      durationMs: Date.now() - startedAt,
+    };
+  } catch (error: any) {
+    if (error instanceof Error) throw error;
+    throw new Error(String(error));
+  } finally {
+    if (osmInflight.get(key) === pending) osmInflight.delete(key);
+  }
 }
