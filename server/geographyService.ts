@@ -55,6 +55,7 @@ const CITY_UF: Record<string, string> = {
   'sorocaba': 'SP',
   'ribeirao preto': 'SP',
   'sao jose dos campos': 'SP',
+  'sacramento': 'MG',
   'vitoria': 'ES',
   'manaus': 'AM',
   'belem': 'PA',
