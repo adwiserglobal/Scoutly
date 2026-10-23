@@ -90,7 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         south,
         east,
         north,
-        Math.min(safeLimit, zoom && zoom >= 14 ? 1800 : 1000),
+        Math.min(safeLimit, zoom && zoom >= 14 ? 1800 : 1500),
+        5200,
       );
       if (osm.places.length > 0) {
         res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
