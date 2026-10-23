@@ -679,30 +679,44 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
     }
   }
 
-  // External enrichment is only used when the geographically precise result set is sparse.
+  // Paid/third-party fallbacks were already all invoked for sparse searches,
+  // but one slow provider previously blocked every later provider. Start the
+  // same fallback calls together, then merge their results deterministically.
   if (results.size < 12) {
-    try {
-      const rankFabrik = await fetchBusinessesFromRankFabrik(
+    const cnaes = resolveCnaes(profile?.label || intent.businessType, intent.keywords || []);
+    const [rankFabrikOutcome, cnpjOutcome, serperOutcome] = await Promise.allSettled([
+      fetchBusinessesFromRankFabrik(
         profile?.label || phrase || intent.businessType,
         resolvedArea.center.lat,
         resolvedArea.center.lng,
         20,
-      );
-      for (const business of rankFabrik.businesses) {
+      ),
+      fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query),
+      fetchBusinessesFromSerper(
+        `${phrase} em ${resolvedArea.rawName}`,
+        resolvedArea.center.lat,
+        resolvedArea.center.lng
+      ),
+    ]);
+
+    if (rankFabrikOutcome.status === 'fulfilled') {
+      for (const business of rankFabrikOutcome.value.businesses) {
         if (!isWithinBounds(business, resolvedArea.bbox)) continue;
         const score = profile ? scoreSummary(business, profile) : 1;
         if (profile && score <= 0) continue;
         mergeExternalBusiness(results, relevance, business, score);
       }
-    } catch (err: any) {
-      console.warn('[Business Search] RankFabrik error:', err.message);
+    } else {
+      console.warn('[Business Search] RankFabrik error:', rankFabrikOutcome.reason?.message || rankFabrikOutcome.reason);
     }
 
-    try {
-      const cnaes = resolveCnaes(profile?.label || intent.businessType, intent.keywords || []);
-      const companies = await fetchCompaniesFromMinhaReceita(cnaes, resolvedArea.query);
-      for (const company of companies.filter(isCompanyActive).filter((item) => isCNPJInRequestedRegion(item, resolvedArea))) {
-        const { business, matchedOvertureId } = processMinhaReceitaBusiness(company, Array.from(results.values()), profile?.label || intent.businessType);
+    if (cnpjOutcome.status === 'fulfilled') {
+      for (const company of cnpjOutcome.value.filter(isCompanyActive).filter((item) => isCNPJInRequestedRegion(item, resolvedArea))) {
+        const { business, matchedOvertureId } = processMinhaReceitaBusiness(
+          company,
+          Array.from(results.values()),
+          profile?.label || intent.businessType
+        );
         if (!isWithinBounds(business, resolvedArea.bbox)) continue;
         const score = profile ? scoreSummary(business, profile) : 1;
         if (profile && score <= 0) continue;
@@ -715,28 +729,22 @@ export async function searchBusinesses(query: string, currentRegionName = 'São 
           relevance.set(business.id, score);
         }
       }
-    } catch (err: any) {
-      console.warn('[Business Search] CNPJ error:', err.message);
+    } else {
+      console.warn('[Business Search] CNPJ error:', cnpjOutcome.reason?.message || cnpjOutcome.reason);
     }
 
-    try {
-      const serper = await fetchBusinessesFromSerper(
-        `${phrase} em ${resolvedArea.rawName}`,
-        resolvedArea.center.lat,
-        resolvedArea.center.lng
-      );
-      for (const business of serper) {
+    if (serperOutcome.status === 'fulfilled') {
+      for (const business of serperOutcome.value) {
         if (!isWithinBounds(business, resolvedArea.bbox)) continue;
         const score = profile ? scoreSummary(business, profile) : 1;
         if (profile && score <= 0) continue;
         if (!results.has(business.id)) results.set(business.id, business);
         relevance.set(business.id, Math.max(relevance.get(business.id) || 0, score));
       }
-    } catch (err: any) {
-      console.warn('[Business Search] Serper error:', err.message);
+    } else {
+      console.warn('[Business Search] Serper error:', serperOutcome.reason?.message || serperOutcome.reason);
     }
   }
-
   const getResultScore = (business: BusinessSummary): number => {
     const stored = relevance.get(business.id);
     if (stored !== undefined) return stored;
