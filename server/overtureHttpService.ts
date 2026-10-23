@@ -24,6 +24,7 @@ export async function queryOvertureViaApi(
   north: number,
   limit = 1200,
   zoom?: number,
+  timeoutMs = 15000,
 ): Promise<OvertureHttpResult> {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
   const url = new URL('/api/places', getInternalBaseUrl());
@@ -39,7 +40,7 @@ export async function queryOvertureViaApi(
     headers: {
       'x-scoutly-internal-fallback': '1',
     },
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(Math.max(1500, Math.min(30000, timeoutMs))),
   });
 
   if (!response.ok) {
