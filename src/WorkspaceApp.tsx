@@ -748,46 +748,33 @@ export default function App() {
         /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de|regi[aã]o\s+do|regi[aã]o\s+da)\b/i.test(cleanQuery);
       const viewportBounds = hasExplicitLocation ? null : currentMapBoundsRef.current;
 
-      // PinDrop-like behavior: for a plain term, literal business-name matches win.
-      if (viewportBounds) {
-        const nameResult = await searchBusinessesByQuery(
-          cleanQuery,
-          currentRegionName,
-          viewportBounds,
-          'name'
-        );
-        const nameBusinesses = Array.isArray(nameResult?.businesses) ? nameResult.businesses : [];
-
-        if (nameBusinesses.length > 0) {
-          const currentLeads = leadsMapRef.current;
-          const currentFavorites = favoritesMapRef.current;
-          const merged = nameBusinesses.map((business: Business) => {
-            const saved = currentLeads[business.id];
-            return {
-              ...business,
-              isFavorite: Boolean(currentFavorites[business.id]),
-              leadStatus: saved ? (saved.status as LeadStatus) : business.leadStatus || 'NOVO',
-              notes: saved ? saved.notes : business.notes || '',
-            };
-          });
-
-          setBusinesses(merged);
-          setListSearchQuery('');
-          setListCategoryFilter('TODAS');
-          setListWebsiteFilter('TODOS');
-          setListContactFilter('TODOS');
-          setIsListOpen(true);
-          setIsFiltersOpen(false);
-          setSelectedBusiness(null);
-          setModalBusiness(null);
-          recordRecommendationSearch(cleanQuery, currentRegionName);
-          setIsLocating(false);
-          return;
-        }
-      }
+      // Exact company-name matches and category results are complementary.
+      // Search them concurrently so a single exact-name hit does not hide the
+      // rest of the businesses in the selected area, and neither request waits
+      // for the other to begin.
+      const nameSearchPromise = viewportBounds
+        ? searchBusinessesByQuery(
+            cleanQuery,
+            currentRegionName,
+            viewportBounds,
+            'name'
+          ).catch((error) => {
+            console.warn('[Scoutly Search] Exact-name lookup failed:', error?.message || error);
+            return null;
+          })
+        : Promise.resolve(null);
 
       const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, viewportBounds);
-      const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
+      const nameResult = await nameSearchPromise;
+      const nameBusinesses = Array.isArray(nameResult?.businesses) ? nameResult.businesses : [];
+      const categoryBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
+      const combinedBusinesses = new Map<string, Business>(
+        nameBusinesses.map((business: Business) => [business.id, business])
+      );
+      for (const business of categoryBusinesses as Business[]) {
+        if (!combinedBusinesses.has(business.id)) combinedBusinesses.set(business.id, business);
+      }
+      const nextBusinesses = Array.from(combinedBusinesses.values());
       const region = result?.region;
       const isViewportSearch = result?.searchMode === 'viewport';
 
