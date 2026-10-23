@@ -207,19 +207,28 @@ export async function findSparseSearchFallback(params: {
   const seen = new Set<string>(params.existingIds || []);
   const found: BusinessSummary[] = [];
 
-  for (const term of distinctiveTerms(profile)) {
-    try {
-      const localMatches = await searchSupabaseByName(term, region, limit);
-      for (const business of localMatches) {
-        if (seen.has(business.id) || !strongNameMatch(business, profile)) continue;
-        seen.add(business.id);
-        found.push(business);
-        if (found.length >= limit) return found;
-      }
-      if (found.length >= 12) break;
-    } catch (err: any) {
-      console.warn(`[Sparse Search] Supabase name fallback failed for "${term}":`, err?.message || err);
+  const terms = distinctiveTerms(profile);
+  const localOutcomes = await Promise.allSettled(
+    terms.map((term) => searchSupabaseByName(term, region, limit))
+  );
+
+  for (let index = 0; index < localOutcomes.length; index += 1) {
+    const outcome = localOutcomes[index];
+    if (outcome.status === 'rejected') {
+      console.warn(
+        `[Sparse Search] Supabase name fallback failed for "${terms[index]}":`,
+        outcome.reason?.message || outcome.reason
+      );
+      continue;
     }
+
+    for (const business of outcome.value) {
+      if (seen.has(business.id) || !strongNameMatch(business, profile)) continue;
+      seen.add(business.id);
+      found.push(business);
+      if (found.length >= limit) return found;
+    }
+    if (found.length >= 12) break;
   }
 
   // No-key recovery for sparse niches and cities outside the Scoutly local index.
