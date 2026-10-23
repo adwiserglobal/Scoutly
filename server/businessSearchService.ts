@@ -172,12 +172,29 @@ function mergeOsmCandidates(
 }
 
 function scoreSummary(business: BusinessSummary, profile: SearchProfile): number {
-  return scoreAgainstProfile({
+  const indexedScore = scoreAgainstProfile({
     name: business.name,
     category: business.category,
     basicCategory: business.basicCategory,
     taxonomyPrimary: business.taxonomyPrimary,
   }, profile);
+  if (indexedScore > 0) return indexedScore;
+
+  // Keep fallback-only records that match a meaningful segment alias. This is
+  // important for small-town OSM listings whose taxonomy differs from Overture.
+  const name = normalizeText(business.name || '');
+  const categories = normalizeText([
+    business.category,
+    business.basicCategory,
+    business.taxonomyPrimary,
+  ].filter(Boolean).join(' '));
+  const strongTerms = [...profile.nameTerms, ...profile.aliases]
+    .map(normalizeText)
+    .filter((term) => term.length >= 4);
+
+  if (strongTerms.some((term) => name.includes(term))) return 68;
+  if (strongTerms.some((term) => categories === term || categories.includes(term))) return 58;
+  return 0;
 }
 
 function isWithinBounds(
