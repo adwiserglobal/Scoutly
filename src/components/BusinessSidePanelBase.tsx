@@ -440,7 +440,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   return (
     <>
       <div className="fixed inset-0 z-[68] bg-black/45 backdrop-blur-[2px] pointer-events-auto" onClick={onClose} />
-      <aside className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col border-l border-white/[0.09] bg-[#0d1014] text-white shadow-[-28px_0_100px_rgba(0,0,0,0.48)] pointer-events-auto sm:w-[520px] lg:w-[550px]" aria-label={`Detalhes de ${business.name}`}>
+      <aside data-no-flight-zoom className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col border-l border-white/[0.09] bg-[#0d1014] text-white shadow-[-28px_0_100px_rgba(0,0,0,0.48)] pointer-events-auto sm:w-[520px] lg:w-[550px]" aria-label={`Detalhes de ${business.name}`}>
         <header className="shrink-0 border-b border-white/[0.085] bg-[#101317] px-5 pb-5 pt-6 sm:px-7">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a1a6af]">Perfil da empresa</span>
