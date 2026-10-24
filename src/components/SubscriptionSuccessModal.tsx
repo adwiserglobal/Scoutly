@@ -1,4 +1,5 @@
 import type { BillingStatus } from '../lib/billing';
+import { getActiveLocale } from '../i18n/language';
 
 interface SubscriptionSuccessModalProps {
   billing: BillingStatus | null;
@@ -12,7 +13,7 @@ export default function SubscriptionSuccessModal({
   if (!billing) return null;
 
   const renewalLabel = billing.periodEndsAt
-    ? new Date(billing.periodEndsAt).toLocaleDateString('pt-BR')
+    ? new Date(billing.periodEndsAt).toLocaleDateString(getActiveLocale())
     : '';
 
   return (

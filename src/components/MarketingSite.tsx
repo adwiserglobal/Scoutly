@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLanguage, type Language } from '../i18n';
+import { useLanguage, type Language } from '../i18n';
 import {
   ArrowRight,
   CheckCircle2,
@@ -20,7 +22,6 @@ interface MarketingSiteProps {
   onOpenDashboard: () => void;
 }
 
-type Language = 'en' | 'pt';
 
 const TRUSTED_BRANDS = [
   {
@@ -136,11 +137,7 @@ export default function MarketingSite({
   onStart,
   onOpenDashboard,
 }: MarketingSiteProps) {
-  const [language, setLanguage] = useState<Language>(() => {
-    const saved = window.sessionStorage.getItem('scoutly_language');
-    if (saved === 'pt' || saved === 'en') return saved;
-    return navigator.language.toLowerCase().startsWith('pt') ? 'pt' : 'en';
-  });
+  const { language, setLanguage } = useLanguage();
   const isEnglish = language === 'en';
 
   const t = useMemo(
@@ -265,8 +262,6 @@ export default function MarketingSite({
 
   useEffect(() => {
     document.title = t.pageTitle;
-    document.documentElement.lang = isEnglish ? 'en' : 'pt-BR';
-    window.sessionStorage.setItem('scoutly_language', language);
     const description = isEnglish
       ? 'Find local businesses by location and category, review digital signals and organize your sales leads with Scoutly maps, pipeline and AI.'
       : 'Encontre empresas por nome, segmento e região. Analise sinais digitais e organize seus leads com mapa, pipeline e IA da Scoutly.';

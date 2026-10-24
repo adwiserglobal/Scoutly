@@ -1,4 +1,5 @@
 import type { User } from 'firebase/auth';
+import { getActiveLocale } from '../i18n/language';
 
 export type ScoutlyPlan = 'free' | 'go' | 'pro' | 'agency';
 
@@ -162,7 +163,7 @@ export const SCOUTLY_PLANS = {
 } satisfies Record<'go' | 'pro' | 'agency', ScoutlyPlanDefinition>;
 
 export function formatBRL(value: number) {
-  return value.toLocaleString('pt-BR', {
+  return value.toLocaleString(getActiveLocale(), {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,

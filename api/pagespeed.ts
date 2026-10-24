@@ -3,6 +3,13 @@ import { analyzePageSpeed } from '../server/pagespeedService.js';
 import { handleFlashPromoRequest } from '../server/flashPromoHttpHandler.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (String(req.query.__scoutly_handler || '') === 'geo') {
+    // Vercel resolves the visitor's country from the IP address; no external lookup needed.
+    res.setHeader('Cache-Control', 'private, no-store');
+    const country = String(req.headers['x-vercel-ip-country'] || '').toUpperCase();
+    return res.status(200).json({ country: /^[A-Z]{2}$/.test(country) ? country : null });
+  }
+
   if (String(req.query.__scoutly_handler || '') === 'flash-promo') {
     return handleFlashPromoRequest(req, res);
   }

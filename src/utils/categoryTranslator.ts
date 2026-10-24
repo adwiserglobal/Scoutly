@@ -1,3 +1,4 @@
+import { getActiveLanguage } from '../i18n/language';
 // Helper to translate raw English Overture categories into friendly Portuguese
 
 const CATEGORY_TRANSLATIONS: Record<string, string> = {
@@ -73,6 +74,10 @@ const CATEGORY_TRANSLATIONS: Record<string, string> = {
 };
 
 export function translateCategory(categoryName: string | undefined | null): string {
+  if (getActiveLanguage() === 'en') {
+    const english = (categoryName || '').trim();
+    return !english || english === 'Estabelecimento' ? 'Establishment' : english.replace(/^Dentista$/, 'Dentist');
+  }
   if (!categoryName) return 'Estabelecimento';
   const trimmed = categoryName.trim();
   if (CATEGORY_TRANSLATIONS[trimmed]) {

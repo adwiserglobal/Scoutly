@@ -7,6 +7,8 @@ import { createBillingPortalSession, saveUserProfile, saveUserSettings } from '.
 import { useUserProfile } from '../hooks/useUserProfile';
 import OutreachProfileSection from './settings/OutreachProfileSection';
 import BrandSection from './settings/BrandSection';
+import { getActiveLocale } from '../i18n/language';
+import { useLanguage } from '../i18n';
 
 function getInitialBatchSize() {
   const raw = Number(localStorage.getItem('scoutly_results_batch_size') || 30);
@@ -20,6 +22,7 @@ interface SettingsViewProps {
 
 function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   const { user, signOut } = useAuth();
+  const { language, setLanguage } = useLanguage();
 
   const [displayName, setDisplayName] = useState(
     user?.displayName || localStorage.getItem('scoutly_profile_name') || ''
@@ -121,7 +124,7 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
   };
 
   const periodEndLabel = billing.periodEndsAt
-    ? new Date(billing.periodEndsAt).toLocaleDateString('pt-BR')
+    ? new Date(billing.periodEndsAt).toLocaleDateString(getActiveLocale())
     : '';
 
   return (
@@ -229,6 +232,28 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
 
             <div className="divide-y divide-white/[0.07]">
               <div className="flex items-center justify-between gap-5 py-4 first:pt-0">
+                <div>
+                  <div className="text-sm font-medium text-stone-200">Idioma</div>
+                  <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-stone-500">
+                    Detectamos automaticamente pela sua localização. Você pode trocar quando quiser.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/[0.08] bg-[#0b0e12] p-1" role="group" aria-label="Language">
+                  {([['pt', 'Português (Brasil)'], ['en', 'English']] as const).map(([code, label]) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => setLanguage(code)}
+                      aria-pressed={language === code}
+                      className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${language === code ? 'bg-white text-[#090c10]' : 'text-stone-500 hover:text-white'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-5 py-4">
                 <div>
                   <div className="text-sm font-medium text-stone-200">
                     Analisar empresas automaticamente

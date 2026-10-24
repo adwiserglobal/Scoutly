@@ -1,3 +1,4 @@
+import { getActiveLanguage } from '../i18n/language';
 // Portuguese Translation Dictionary for Overture/OSM Categories
 
 const CATEGORY_TRANSLATIONS: Record<string, string> = {
@@ -128,6 +129,10 @@ const CATEGORY_TRANSLATIONS: Record<string, string> = {
  * Translates any category string into clean, professional Brazilian Portuguese.
  */
 export function translateCategory(rawCategory?: string | null): string {
+  if (getActiveLanguage() === 'en') {
+    if (!rawCategory) return 'Commerce & Services';
+    return rawCategory.trim().replace(/[_\-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
   if (!rawCategory) return 'Comércio & Serviços';
 
   // Clean and normalize input

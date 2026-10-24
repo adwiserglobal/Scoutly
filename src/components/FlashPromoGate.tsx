@@ -7,6 +7,7 @@ import {
   fetchFlashPromoStatus,
   type FlashPromoStatus,
 } from '../services/flashPromoApi';
+import { getActiveLocale } from '../i18n/language';
 
 const HOME_PATH = '/dashboard';
 const FLASH_DURATION_SECONDS = 12 * 60 * 60;
@@ -21,7 +22,7 @@ function dismissalKey(uid: string, identity: string) {
 }
 
 function formatBRL(value: number) {
-  return value.toLocaleString('pt-BR', {
+  return value.toLocaleString(getActiveLocale(), {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,

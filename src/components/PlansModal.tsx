@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, Clock3, X } from 'lucide-react';
 import { BillingStatus, formatBRL, SCOUTLY_PLANS } from '../lib/billing';
 import { CreditAccessStatus, createBillingPortalSession, createCheckoutSession } from '../services/api';
+import { getActiveLocale } from '../i18n/language';
 
 interface PlansModalProps {
   open: boolean;
@@ -30,7 +31,7 @@ function formatResetDate(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat(getActiveLocale(), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

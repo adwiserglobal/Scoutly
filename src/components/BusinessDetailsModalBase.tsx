@@ -10,6 +10,7 @@ import { recordRecommendationWhatsApp } from '../utils/recommendations';
 import { normalizeExternalUrl } from '../utils/externalUrl';
 import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
 import { useDiagnosticPdf } from '../hooks/useDiagnosticPdf';
+import { getActiveLocale } from '../i18n/language';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -820,7 +821,7 @@ export default function BusinessDetailsModal({
                 {hasFreshContactEvidence && contactCheckedAt && (
                   <span
                     className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#d3d7dd] shrink-0"
-                    title={`Verificado em ${contactCheckedAt.toLocaleString('pt-BR')}`}
+                    title={`Verificado em ${contactCheckedAt.toLocaleString(getActiveLocale())}`}
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                     Verificado agora

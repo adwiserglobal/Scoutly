@@ -74,6 +74,10 @@
       "dest": "/api/leads.ts"
     },
     {
+      "src": "/api/geo",
+      "dest": "/api/pagespeed.ts?__scoutly_handler=geo"
+    },
+    {
       "src": "/api/flash-promo",
       "dest": "/api/pagespeed.ts?__scoutly_handler=flash-promo"
     },

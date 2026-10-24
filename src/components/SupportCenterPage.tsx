@@ -20,6 +20,7 @@ import {
 } from '../services/supportApi';
 import HelpArticleView from './HelpArticleView';
 import { HELP_ARTICLES, getHelpArticle } from '../data/helpArticles';
+import { getActiveLocale } from '../i18n/language';
 
 type Props = {
   isOpen: boolean;
@@ -227,7 +228,7 @@ const FLOWS: Record<TopicId, Flow> = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
+  return new Date(value).toLocaleString(getActiveLocale(), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

@@ -2,6 +2,7 @@ import { FormEvent, KeyboardEvent, memo, useEffect, useMemo, useRef, useState } 
 import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { Business } from '../types';
 import RecommendedTrigger from './RecommendedTrigger';
+import { getActiveLocale } from '../i18n/language';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -455,7 +456,7 @@ function Header({
           {currentRegionName}
         </div>
         <div className="rounded-full border border-white/10 bg-[#111418]/[0.82] px-3 py-1.5 text-[9px] font-semibold text-stone-300 backdrop-blur-xl">
-          {new Intl.NumberFormat('pt-BR').format(totalBusinessesCount)} resultados
+          {new Intl.NumberFormat(getActiveLocale()).format(totalBusinessesCount)} resultados
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { LanguageProvider } from './i18n';
 import { AuthProvider } from './context/AuthContext';
 import MarketingMediaEnhancer from './components/MarketingMediaEnhancer';
 import OnboardingGate from './components/OnboardingGate';
@@ -37,6 +38,7 @@ if (storedPromoCode === SHAREABLE_PROMOTION_CODE) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <LanguageProvider>
     <AuthProvider>
       <App />
       <MarketingMediaEnhancer />
@@ -44,5 +46,6 @@ createRoot(document.getElementById('root')!).render(
       <DeveloperWelcomeGate />
       <FlashPromoGate />
     </AuthProvider>
+    </LanguageProvider>
   </StrictMode>,
 );

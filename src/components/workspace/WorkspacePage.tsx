@@ -9,6 +9,7 @@ import {
   type Delta, type PipelineMode, type TeamOverview, type WorkspaceInsights,
 } from '../../services/teamApi';
 import { ActivityChart, BarList, CHART_COLORS, Funnel, Ring, Sparkline, WeekdayBars } from './charts';
+import { getActiveLocale } from '../../i18n/language';
 
 type Section = 'overview' | 'team' | 'usage';
 
@@ -18,8 +19,8 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
   { id: 'usage', label: 'Uso e limites' },
 ];
 
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const num = (v: number) => v.toLocaleString('pt-BR');
+const brl = (v: number) => v.toLocaleString(getActiveLocale(), { style: 'currency', currency: 'BRL' });
+const num = (v: number) => v.toLocaleString(getActiveLocale());
 
 function ago(iso: string | null) {
   if (!iso) return 'nunca';
@@ -560,7 +561,7 @@ function TeamSection({ overview, reload, isOwner, onLeft }: { overview: TeamOver
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-stone-500"><Mail className="h-4 w-4" /></span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-medium text-white">{inv.email}</p>
-                  <p className="text-[10px] text-stone-600">expira em {new Date(inv.expiresAt).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[10px] text-stone-600">expira em {new Date(inv.expiresAt).toLocaleDateString(getActiveLocale())}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button type="button" disabled={busy === `rn-${inv.id}`} onClick={() => void run(`rn-${inv.id}`, async () => {

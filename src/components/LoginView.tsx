@@ -10,9 +10,9 @@ import {
   Mail,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../i18n';
 import '../login.css';
 
-type Language = 'pt' | 'en';
 
 const COPY = {
   pt: {
@@ -103,14 +103,6 @@ const COPY = {
   },
 };
 
-function getInitialLanguage(): Language {
-  const requested = new URLSearchParams(window.location.search).get('lang');
-  if (requested === 'pt' || requested === 'en') return requested;
-  const saved = window.sessionStorage.getItem('scoutly_language');
-  if (saved === 'pt' || saved === 'en') return saved;
-  return navigator.language.toLowerCase().startsWith('pt') ? 'pt' : 'en';
-}
-
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" role="img" aria-label="Google">
@@ -135,7 +127,7 @@ function ScoutlyIdentity({ compact = false }: { compact?: boolean }) {
 
 export default function LoginView() {
   const { signIn, signInWithGoogle, signUp, resetPassword } = useAuth();
-  const [language, setLanguage] = useState<Language>(getInitialLanguage);
+  const { language, setLanguage } = useLanguage();
   const [isSignUp, setIsSignUp] = useState(() => new URLSearchParams(window.location.search).get('mode') === 'signup');
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -145,11 +137,6 @@ export default function LoginView() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const t = COPY[language];
-
-  useEffect(() => {
-    document.documentElement.lang = language === 'pt' ? 'pt-BR' : 'en';
-    window.sessionStorage.setItem('scoutly_language', language);
-  }, [language]);
 
   useEffect(() => {
     document.documentElement.classList.add('scoutly-auth-active');
