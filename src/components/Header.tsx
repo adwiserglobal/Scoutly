@@ -3,6 +3,7 @@ import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-
 import { Business } from '../types';
 import RecommendedTrigger from './RecommendedTrigger';
 import { getActiveLocale } from '../i18n/language';
+import { localizeSearchQuery } from '../i18n/searchQuery';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -154,7 +155,7 @@ function Header({
   }, []);
 
   useEffect(() => {
-    const query = searchInput.trim();
+    const query = localizeSearchQuery(searchInput.trim());
     if (query.length < 2) {
       suggestionsAbortRef.current?.abort();
       setSuggestions([]);
@@ -231,7 +232,7 @@ function Header({
     setRemoteBusinessSuggestions([]);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
-    onSearch(query);
+    onSearch(localizeSearchQuery(query));
   };
 
   const chooseSuggestion = (suggestion: LocationSuggestion) => {
@@ -240,7 +241,7 @@ function Header({
     setSearchInput(nextQuery);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
-    onSearch(nextQuery);
+    onSearch(localizeSearchQuery(nextQuery));
   };
 
   const handleSubmit = (event: FormEvent) => {
@@ -253,7 +254,7 @@ function Header({
 
     if (searchInput.trim()) {
       setSuggestionsOpen(false);
-      onSearch(searchInput.trim());
+      onSearch(localizeSearchQuery(searchInput.trim()));
     }
   };
 

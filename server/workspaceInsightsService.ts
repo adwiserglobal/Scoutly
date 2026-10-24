@@ -29,7 +29,8 @@ const delta = (value: number, previous: number): Delta => ({
 
 export interface Insight { id: string; tone: 'good' | 'warn' | 'info'; title: string; text: string }
 
-export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown) {
+export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown, languageInput?: unknown) {
+  const en = languageInput === 'en';
   const context = await getTeamContext(ownerUid);
   if (!context || context.role === 'member') httpError('Só o dono ou um administrador pode ver esta página.', 403, 'TEAM_FORBIDDEN');
   const access = await getSubscriptionAccess(context.ownerUid);
@@ -178,45 +179,47 @@ export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown)
   if (closable.length >= 5) {
     const rate = Math.round((funnel.FECHADO / closable.length) * 100);
     insights.push({
-      id: 'close-rate', tone: rate >= 15 ? 'good' : 'info', title: `Taxa de fechamento de ${rate}%`,
-      text: `${funnel.FECHADO} de ${closable.length} leads trabalhados viraram cliente. ${rate >= 15 ? 'Bom ritmo: replique o que está funcionando.' : 'Acompanhe de perto as negociações em andamento para elevar esse número.'}`,
+      id: 'close-rate', tone: rate >= 15 ? 'good' : 'info', title: en ? `Close rate of ${rate}%` : `Taxa de fechamento de ${rate}%`,
+      text: en
+        ? `${funnel.FECHADO} of ${closable.length} worked leads became customers. ${rate >= 15 ? 'Good pace: repeat what is working.' : 'Keep a close eye on open negotiations to raise this number.'}`
+        : `${funnel.FECHADO} de ${closable.length} leads trabalhados viraram cliente. ${rate >= 15 ? 'Bom ritmo: replique o que está funcionando.' : 'Acompanhe de perto as negociações em andamento para elevar esse número.'}`,
     });
   }
   const stalled = leads.filter((lead) => (lead.status === 'CONTATADO' || lead.status === 'EM_NEGOCIACAO') && now.getTime() - new Date(lead.updated_at).getTime() > STALLED_DAYS * DAY_MS).length;
   if (stalled > 0) {
-    insights.push({ id: 'stalled', tone: 'warn', title: `${stalled} ${stalled === 1 ? 'lead parado' : 'leads parados'} há mais de ${STALLED_DAYS} dias`, text: 'Contatos sem movimentação esfriam rápido. Combine um follow-up com a equipe nesta semana.' });
+    insights.push({ id: 'stalled', tone: 'warn', title: en ? `${stalled} ${stalled === 1 ? 'lead' : 'leads'} stalled for more than ${STALLED_DAYS} days` : `${stalled} ${stalled === 1 ? 'lead parado' : 'leads parados'} há mais de ${STALLED_DAYS} dias`, text: en ? 'Contacts with no movement go cold fast. Plan a follow-up with the team this week.' : 'Contatos sem movimentação esfriam rápido. Combine um follow-up com a equipe nesta semana.' });
   }
   const bestSegment = categories.find((category) => category.won > 0) ? [...categories].sort((x, y) => y.won - x.won)[0] : null;
   if (bestSegment && bestSegment.won > 0) {
-    insights.push({ id: 'best-segment', tone: 'good', title: `${bestSegment.name} é o segmento que mais converte`, text: `${bestSegment.won} ${bestSegment.won === 1 ? 'cliente fechado' : 'clientes fechados'} entre ${bestSegment.count} leads desse segmento. Vale priorizar buscas parecidas.` });
+    insights.push({ id: 'best-segment', tone: 'good', title: en ? `${bestSegment.name} is the top-converting category` : `${bestSegment.name} é o segmento que mais converte`, text: en ? `${bestSegment.won} ${bestSegment.won === 1 ? 'customer closed' : 'customers closed'} out of ${bestSegment.count} leads in this category. Worth prioritizing similar searches.` : `${bestSegment.won} ${bestSegment.won === 1 ? 'cliente fechado' : 'clientes fechados'} entre ${bestSegment.count} leads desse segmento. Vale priorizar buscas parecidas.` });
   } else if (categories[0]) {
-    insights.push({ id: 'top-segment', tone: 'info', title: `${categories[0].name} concentra seus leads`, text: `${categories[0].count} leads estão nesse segmento. Se ele não é o foco, diversifique as buscas.` });
+    insights.push({ id: 'top-segment', tone: 'info', title: en ? `${categories[0].name} holds most of your leads` : `${categories[0].name} concentra seus leads`, text: en ? `${categories[0].count} leads are in this category. If it isn't your focus, diversify your searches.` : `${categories[0].count} leads estão nesse segmento. Se ele não é o foco, diversifique as buscas.` });
   }
   const withoutSite = leads.filter((lead) => !lead.website).length;
   if (leads.length >= 5) {
     const share = Math.round((withoutSite / leads.length) * 100);
-    if (share >= 25) insights.push({ id: 'no-site', tone: 'good', title: `${share}% dos leads não têm site`, text: 'É o melhor gancho para vender sites e presença digital. Use o site de demonstração na abordagem.' });
+    if (share >= 25) insights.push({ id: 'no-site', tone: 'good', title: en ? `${share}% of leads have no website` : `${share}% dos leads não têm site`, text: en ? 'This is the best hook for selling websites and digital presence. Use the demo website in your outreach.' : 'É o melhor gancho para vender sites e presença digital. Use o site de demonstração na abordagem.' });
   }
   if (summary.unlocks.change !== null && Math.abs(summary.unlocks.change) >= 15 && summary.unlocks.previous >= 5) {
     const up = summary.unlocks.change > 0;
-    insights.push({ id: 'trend', tone: up ? 'good' : 'warn', title: `Prospecção ${up ? 'subiu' : 'caiu'} ${Math.abs(summary.unlocks.change)}%`, text: `${summary.unlocks.value} empresas abertas contra ${summary.unlocks.previous} no período anterior.` });
+    insights.push({ id: 'trend', tone: up ? 'good' : 'warn', title: en ? `Prospecting ${up ? 'rose' : 'fell'} ${Math.abs(summary.unlocks.change)}%` : `Prospecção ${up ? 'subiu' : 'caiu'} ${Math.abs(summary.unlocks.change)}%`, text: en ? `${summary.unlocks.value} businesses opened versus ${summary.unlocks.previous} in the previous period.` : `${summary.unlocks.value} empresas abertas contra ${summary.unlocks.previous} no período anterior.` });
   }
   const totalWeekday = weekday.reduce((x, y) => x + y, 0);
   if (totalWeekday >= 15) {
-    const names = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const names = en ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
     const best = weekday.indexOf(Math.max(...weekday));
-    insights.push({ id: 'weekday', tone: 'info', title: `A equipe prospecta mais na ${names[best]}`.replace('na domingo', 'no domingo').replace('na sábado', 'no sábado'), text: `${Math.round((weekday[best] / totalWeekday) * 100)}% das aberturas de empresas acontecem nesse dia.` });
+    insights.push({ id: 'weekday', tone: 'info', title: en ? `Your team prospects most on ${names[best]}s` : `A equipe prospecta mais na ${names[best]}`.replace('na domingo', 'no domingo').replace('na sábado', 'no sábado'), text: en ? `${Math.round((weekday[best] / totalWeekday) * 100)}% of business openings happen on this day.` : `${Math.round((weekday[best] / totalWeekday) * 100)}% das aberturas de empresas acontecem nesse dia.` });
   }
   const idle = perMember.filter((member) => member.role !== 'owner' && member.unlocks + member.aiConversations + member.searches + member.newLeads === 0);
   if (idle.length > 0) {
-    insights.push({ id: 'idle', tone: 'warn', title: `${idle.length} ${idle.length === 1 ? 'membro sem atividade' : 'membros sem atividade'} no período`, text: `${idle.map((member) => member.name).slice(0, 3).join(', ')}${idle.length > 3 ? ' e mais' : ''}. Vale conferir se precisam de ajuda para começar.` });
+    insights.push({ id: 'idle', tone: 'warn', title: en ? `${idle.length} ${idle.length === 1 ? 'member' : 'members'} with no activity in this period` : `${idle.length} ${idle.length === 1 ? 'membro sem atividade' : 'membros sem atividade'} no período`, text: en ? `${idle.map((member) => member.name).slice(0, 3).join(', ')}${idle.length > 3 ? ' and more' : ''}. Worth checking whether they need help getting started.` : `${idle.map((member) => member.name).slice(0, 3).join(', ')}${idle.length > 3 ? ' e mais' : ''}. Vale conferir se precisam de ajuda para começar.` });
   }
   const seatCapacity = INCLUDED_AGENCY_SEATS + context.extraSeats;
   if (members.length >= seatCapacity) {
-    insights.push({ id: 'seats-full', tone: 'info', title: 'Todos os assentos estão em uso', text: `Sua equipe usa ${members.length} de ${seatCapacity} assentos. Adicione um assento por R$ ${EXTRA_SEAT_PRICE_BRL.toFixed(2).replace('.', ',')} por mês para convidar mais alguém.` });
+    insights.push({ id: 'seats-full', tone: 'info', title: en ? 'All seats are in use' : 'Todos os assentos estão em uso', text: en ? `Your team uses ${members.length} of ${seatCapacity} seats. Add a seat for R$ ${EXTRA_SEAT_PRICE_BRL.toFixed(2)} per month to invite someone else.` : `Sua equipe usa ${members.length} de ${seatCapacity} assentos. Adicione um assento por R$ ${EXTRA_SEAT_PRICE_BRL.toFixed(2).replace('.', ',')} por mês para convidar mais alguém.` });
   }
   if (insights.length === 0) {
-    insights.push({ id: 'start', tone: 'info', title: 'Seus insights aparecem com o uso', text: 'Abra empresas, salve leads e use a IA. Em poucos dias esta página mostra tendências e oportunidades da sua equipe.' });
+    insights.push({ id: 'start', tone: 'info', title: en ? 'Your insights appear with use' : 'Seus insights aparecem com o uso', text: en ? 'Open businesses, save leads and use the AI. In a few days this page will show your team\'s trends and opportunities.' : 'Abra empresas, salve leads e use a IA. Em poucos dias esta página mostra tendências e oportunidades da sua equipe.' });
   }
 
   // Limits and credit tracking
@@ -224,17 +227,17 @@ export async function getWorkspaceInsights(ownerUid: string, daysInput: unknown)
   const demosThisMonth = demos.filter((demo) => new Date(demo.created_at).getTime() >= monthStart).length;
   const demoViews = demos.reduce((sum, demo) => sum + Number(demo.views || 0), 0);
   const limits = [
-    { id: 'seats', label: 'Assentos da equipe', used: members.length, limit: seatCapacity, unit: 'pessoas', note: `${INCLUDED_AGENCY_SEATS} incluídos${context.extraSeats ? ` + ${context.extraSeats} adicionais` : ''}` },
-    { id: 'credits', label: 'Créditos de prospecção', used: summary.unlocks.value, limit: null as number | null, unit: 'empresas abertas', note: 'Ilimitados no Agency' },
-    { id: 'ai', label: 'Conversas com a Scoutly AI', used: summary.aiConversations.value, limit: null as number | null, unit: 'conversas', note: 'Sem limite diário' },
-    { id: 'demos', label: 'Sites de demonstração no mês', used: demosThisMonth, limit: DEMO_MONTHLY_LIMIT_PER_USER * members.length, unit: 'sites', note: `${DEMO_MONTHLY_LIMIT_PER_USER} por pessoa` },
-    { id: 'agentic', label: 'Buscas do Agentic', used: summary.agentRuns.value, limit: null as number | null, unit: 'buscas', note: 'Até 300 empresas por busca, 5 simultâneas' },
-    { id: 'flight', label: 'Modo voo', used: 0, limit: null as number | null, unit: '', note: 'Ilimitado' },
+    { id: 'seats', label: en ? 'Team seats' : 'Assentos da equipe', used: members.length, limit: seatCapacity, unit: en ? 'people' : 'pessoas', note: en ? `${INCLUDED_AGENCY_SEATS} included${context.extraSeats ? ` + ${context.extraSeats} extra` : ''}` : `${INCLUDED_AGENCY_SEATS} incluídos${context.extraSeats ? ` + ${context.extraSeats} adicionais` : ''}` },
+    { id: 'credits', label: en ? 'Prospecting credits' : 'Créditos de prospecção', used: summary.unlocks.value, limit: null as number | null, unit: en ? 'businesses opened' : 'empresas abertas', note: en ? 'Unlimited on Agency' : 'Ilimitados no Agency' },
+    { id: 'ai', label: en ? 'Scoutly AI conversations' : 'Conversas com a Scoutly AI', used: summary.aiConversations.value, limit: null as number | null, unit: en ? 'conversations' : 'conversas', note: en ? 'No daily limit' : 'Sem limite diário' },
+    { id: 'demos', label: en ? 'Demo websites this month' : 'Sites de demonstração no mês', used: demosThisMonth, limit: DEMO_MONTHLY_LIMIT_PER_USER * members.length, unit: en ? 'websites' : 'sites', note: en ? `${DEMO_MONTHLY_LIMIT_PER_USER} per person` : `${DEMO_MONTHLY_LIMIT_PER_USER} por pessoa` },
+    { id: 'agentic', label: en ? 'Agentic searches' : 'Buscas do Agentic', used: summary.agentRuns.value, limit: null as number | null, unit: en ? 'searches' : 'buscas', note: en ? 'Up to 300 businesses per search, 5 at a time' : 'Até 300 empresas por busca, 5 simultâneas' },
+    { id: 'flight', label: en ? 'Flight mode' : 'Modo voo', used: 0, limit: null as number | null, unit: '', note: en ? 'Unlimited' : 'Ilimitado' },
   ];
 
   const recentLeads = context.pipelineMode === 'shared'
     ? [...leads].sort((x, y) => new Date(y.updated_at).getTime() - new Date(x.updated_at).getTime()).slice(0, 8).map((lead) => ({
-        name: lead.name || 'Empresa', status: lead.status, category: lead.category, updatedAt: lead.updated_at,
+        name: lead.name || (en ? 'Business' : 'Empresa'), status: lead.status, category: lead.category, updatedAt: lead.updated_at,
         by: members.find((member) => member.uid === lead.user_uid)?.name || '',
       }))
     : [];

@@ -625,7 +625,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'team-leave') return res.status(200).json(await leaveTeam(identity.uid));
     if (action === 'team-settings') return res.status(200).json(await setPipelineMode(identity.uid, req.body?.pipelineMode));
     if (action === 'team-seats') return res.status(200).json(await setExtraSeats(identity.uid, req.body?.extraSeats));
-    if (action === 'workspace-insights') return res.status(200).json(await getWorkspaceInsights(identity.uid, req.body?.days));
+    if (action === 'workspace-insights') return res.status(200).json(await getWorkspaceInsights(identity.uid, req.body?.days, req.body?.language));
 
     if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
     if (action === 'flight-start') return res.status(200).json(await startFlight(identity.uid));

@@ -1,3 +1,4 @@
+import { getActiveLanguage } from '../i18n/language';
 import { auth } from '../lib/firebase';
 
 /** Team and Workspace (Agency) API. All calls are authenticated and go through /api/leads. */
@@ -63,7 +64,7 @@ export interface WorkspaceInsights {
 }
 
 export const getTeamOverview = () => call<TeamOverview>('team-overview');
-export const getWorkspaceInsights = (days: number) => call<WorkspaceInsights>('workspace-insights', { days }, 40000);
+export const getWorkspaceInsights = (days: number) => call<WorkspaceInsights>('workspace-insights', { days, language: getActiveLanguage() }, 40000);
 export const inviteTeamMember = (email: string) => call<{ invite: TeamInvite; link: string; emailed: boolean }>('team-invite', { email });
 export const renewTeamInvite = (inviteId: string) => call<{ link: string; emailed: boolean; expiresAt: string }>('team-invite-renew', { inviteId });
 export const revokeTeamInvite = (inviteId: string) => call<{ success: boolean }>('team-invite-revoke', { inviteId });

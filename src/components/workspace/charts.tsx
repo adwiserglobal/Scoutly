@@ -1,3 +1,4 @@
+import { getActiveLanguage } from '../../i18n/language';
 import { useMemo, useState } from 'react';
 
 export const CHART_COLORS = {
@@ -210,7 +211,7 @@ export function Funnel({ stages }: { stages: Array<{ label: string; value: numbe
 }
 
 export function WeekdayBars({ values }: { values: number[] }) {
-  const labels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  const labels = getActiveLanguage() === 'en' ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
   const max = Math.max(1, ...values);
   return (
     <div className="flex items-end gap-2">

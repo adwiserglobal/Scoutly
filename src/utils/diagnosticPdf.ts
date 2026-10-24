@@ -1,5 +1,31 @@
 import type { Business, PageSpeedData } from '../types';
 import { hexToRgb, isHexColor } from '../lib/userProfile';
+import { getActiveLanguage, getActiveLocale } from '../i18n/language';
+import { createMatcher } from '../i18n/matcher';
+import { EN } from '../i18n/en';
+import { EN_PDF } from '../i18n/en.pdf';
+
+const isEnglish = () => getActiveLanguage() === 'en';
+/** 4.5 in English, 4,5 in Portuguese. */
+const decimal = (value: number, digits = 1) => (isEnglish() ? value.toFixed(digits) : value.toFixed(digits).replace('.', ','));
+
+/**
+ * The report copy is written in Portuguese. For English users every string drawn on the page is
+ * mapped through the PDF dictionary first (then the general one), so the layout code stays untouched.
+ */
+function localizeDoc(doc: any) {
+  const pdf = createMatcher(EN_PDF);
+  const general = createMatcher(EN);
+  const tr = (value: any): any => {
+    if (Array.isArray(value)) return value.map(tr);
+    if (typeof value !== 'string') return value;
+    return pdf.translate(value) ?? general.translate(value) ?? value;
+  };
+  for (const method of ['text', 'splitTextToSize', 'getTextWidth']) {
+    const original = doc[method].bind(doc);
+    doc[method] = (value: any, ...rest: any[]) => original(tr(value), ...rest);
+  }
+}
 
 /** Subset of the tracking audit (static public HTML scan) used by the report. */
 export interface DiagnosticTracking {
@@ -170,7 +196,7 @@ function parseSeconds(value?: string | null): number | null {
 }
 
 function formatSeconds(seconds: number): string {
-  return `${seconds.toFixed(1).replace('.', ',')} s`;
+  return `${decimal(seconds)} s`;
 }
 
 function placeOf(business: Business): string {
@@ -250,7 +276,7 @@ function buildReport(opts: DiagnosticPdfOptions): Report {
       level: levelOf(foundScore),
       headline: website
         ? rating !== null
-          ? `Site no ar e ficha no Google com nota ${rating.toFixed(1).replace('.', ',')}.`
+          ? `Site no ar e ficha no Google com nota ${decimal(rating)}.`
           : 'A empresa tem site próprio para quem pesquisa.'
         : 'Sem site próprio: quem pesquisa não encontra um endereço oficial.',
     },
@@ -290,7 +316,7 @@ function buildReport(opts: DiagnosticPdfOptions): Report {
         rating !== null
           ? `${reviewCount ? `${reviewCount} avaliações no Google` : 'Avaliações no Google'}${socials.length ? ` e presença em ${socials.length} ${socials.length === 1 ? 'rede' : 'redes'}` : ''}.`
           : socials.length
-          ? `Presente em ${socials.join(' e ')}.`
+          ? `Presente em ${socials.join(isEnglish() ? ' and ' : ' e ')}.`
           : 'Nenhuma rede social identificada.',
     },
   ];
@@ -393,7 +419,7 @@ function buildReport(opts: DiagnosticPdfOptions): Report {
   if (rating !== null && (rating < 4.5 || (reviewCount !== null && reviewCount < 50))) {
     actions.push({
       title: 'Reforçar a reputação no Google',
-      why: `A ficha tem nota ${rating.toFixed(1).replace('.', ',')}${reviewCount !== null ? ` em ${reviewCount} avaliações` : ''}; mais avaliações positivas aumentam a confiança de quem compara opções.`,
+      why: `A ficha tem nota ${decimal(rating)}${reviewCount !== null ? ` em ${reviewCount} avaliações` : ''}; mais avaliações positivas aumentam a confiança de quem compara opções.`,
       what: 'Rotina simples para pedir avaliações a clientes satisfeitos e responder a todas.',
       impact: 'Médio',
       effort: 'Baixo',
@@ -496,7 +522,7 @@ function slugify(value: string): string {
 }
 
 function formatDate(date: Date): string {
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  return date.toLocaleDateString(getActiveLocale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function relLuminance([r, g, b]: RGB): number {
@@ -583,6 +609,7 @@ function loadInterFonts() {
 export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  if (isEnglish()) localizeDoc(doc);
   const interFonts = await loadInterFonts();
   if (interFonts) {
     for (const { file, style, base64 } of interFonts) {
@@ -798,7 +825,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
       ? 'Fontes: Google PageSpeed Insights, ficha pública do Google e dados abertos.'
       : 'Fontes: ficha pública do Google e dados abertos.';
     doc.text(sources, M, 286);
-    doc.text(`Coletado em ${now.toLocaleDateString('pt-BR')}  |  Scoutly`, PAGE_W - M, 286, { align: 'right' });
+    doc.text(`Coletado em ${now.toLocaleDateString(getActiveLocale())}  |  Scoutly`, PAGE_W - M, 286, { align: 'right' });
   };
 
   // =========================================================================
@@ -909,7 +936,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   doc.line(M, fy - 3, PAGE_W - M, fy - 3);
   const facts: Array<[string, string]> = [
     ['Site', r.domain || 'Não identificado'],
-    ['Avaliação no Google', r.rating !== null ? `${r.rating.toFixed(1).replace('.', ',')}${r.reviewCount ? ` (${r.reviewCount})` : ''}` : 'Sem dados'],
+    ['Avaliação no Google', r.rating !== null ? `${decimal(r.rating as number)}${r.reviewCount ? ` (${r.reviewCount})` : ''}` : 'Sem dados'],
     ['Redes sociais', r.socials.length ? r.socials.slice(0, 2).join(', ') : 'Não identificadas'],
     ['Atuação', r.openSince ? `Desde ${r.openSince}` : r.place || '-'],
   ];
@@ -1026,7 +1053,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
     if (r.speed.cls !== null) {
       metrics.push({
         label: 'Estabilidade visual',
-        value: String(r.speed.cls).replace('.', ','),
+        value: decimal(Number(r.speed.cls), String(r.speed.cls).split('.')[1]?.length || 0),
         level: r.speed.cls <= 0.1 ? 'strong' : r.speed.cls <= 0.25 ? 'mid' : 'weak',
         note: 'Se o conteúdo "pula" na tela',
       });
@@ -1097,7 +1124,7 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   card(M + colHalf + 5, ry, colHalf, rcH);
 
   if (r.rating !== null) {
-    const ratingText = r.rating.toFixed(1).replace('.', ',');
+    const ratingText = decimal(r.rating as number);
     font('helvetica', 'bold', 30, INK);
     doc.text(ratingText, M + 7, ry + 17);
     const starX = M + 7 + doc.getTextWidth(ratingText) + 6;
@@ -1276,9 +1303,9 @@ export async function downloadDiagnosticPdf(opts: DiagnosticPdfOptions): Promise
   });
 
   doc.setProperties({
-    title: `Relatório de presença digital - ${r.name}`,
-    subject: 'Análise da presença digital',
+    title: isEnglish() ? `Digital presence report - ${r.name}` : `Relatório de presença digital - ${r.name}`,
+    subject: isEnglish() ? 'Digital presence analysis' : 'Análise da presença digital',
     author: preparedBy || 'Scoutly',
   });
-  doc.save(`relatorio-presenca-digital-${slugify(r.name)}.pdf`);
+  doc.save(`${isEnglish() ? 'digital-presence-report' : 'relatorio-presenca-digital'}-${slugify(r.name)}.pdf`);
 }

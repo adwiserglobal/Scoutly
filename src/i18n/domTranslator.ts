@@ -1,4 +1,5 @@
 import { EN } from './en';
+import { createMatcher } from './matcher';
 
 /**
  * Translates the rendered Portuguese UI into English by swapping DOM text. It never touches
@@ -9,53 +10,8 @@ import { EN } from './en';
 const TRANSLATABLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE', 'NOSCRIPT', 'SVG', 'CANVAS']);
 
-interface Template {
-  pattern: RegExp;
-  english: string;
-  weight: number;
-}
-
-const exact = new Map<string, string>();
-const templates: Template[] = [];
-
-const MIN_TEMPLATE_LITERAL = 6; // keeps patterns like "{0} em {1}" from rewriting user content
-
-for (const [portuguese, english] of Object.entries(EN)) {
-  if (/\{\d+\}/.test(portuguese)) {
-    if (portuguese.replace(/\{\d+\}/g, '').length < MIN_TEMPLATE_LITERAL) continue;
-    const source = portuguese
-      .split(/\{\d+\}/)
-      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      .join('(.+?)');
-    templates.push({ pattern: new RegExp(`^${source}$`), english, weight: portuguese.replace(/\{\d+\}/g, '').length });
-  } else {
-    exact.set(portuguese, english);
-  }
-}
-
-// Most specific (longest literal) patterns first.
-templates.sort((a, b) => b.weight - a.weight);
-
-const collapse = (value: string) => value.replace(/\s+/g, ' ').trim();
-
-function translateText(value: string): string | null {
-  const core = collapse(value);
-  if (!core) return null;
-  let english = exact.get(core);
-  if (english === undefined) {
-    for (const { pattern, english: template } of templates) {
-      const match = pattern.exec(core);
-      if (match) {
-        english = template.replace(/\{(\d+)\}/g, (_, index) => match[Number(index) + 1] ?? '');
-        break;
-      }
-    }
-  }
-  if (english === undefined || english === core) return null;
-  const leading = value.match(/^\s*/)?.[0] ?? '';
-  const trailing = value.match(/\s*$/)?.[0] ?? '';
-  return leading + english + trailing;
-}
+const matcher = createMatcher(EN);
+const translateText = (value: string) => matcher.translate(value);
 
 /** What each node looked like before we touched it, so we can undo and detect React updates. */
 const textState = new WeakMap<Node, { original: string; translated: string }>();
