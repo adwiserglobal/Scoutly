@@ -304,6 +304,7 @@ function ProductTour({ onFinish }: { onFinish: () => Promise<void> }) {
             {TOUR_STEPS.map((_, dotIndex) => <span key={dotIndex} className={`h-1.5 rounded-full transition-all ${dotIndex === index ? 'w-5 bg-[#FF5A12]' : 'w-1.5 bg-white/10'}`} />)}
           </div>
           <div className="flex items-center gap-2">
+            {index < TOUR_STEPS.length - 1 && <button type="button" onClick={() => void finish()} className="h-9 rounded-xl px-3 text-[10px] font-semibold text-stone-500 hover:bg-white/[0.04] hover:text-white">Pular</button>}
             {index > 0 && <button type="button" onClick={() => setIndex((current) => current - 1)} className="h-9 rounded-xl px-3 text-[10px] font-semibold text-stone-500 hover:bg-white/[0.04] hover:text-white">Voltar</button>}
             {index < TOUR_STEPS.length - 1 ? (
               <button type="button" onClick={() => setIndex((current) => current + 1)} className="flex h-9 items-center gap-1.5 rounded-xl bg-white px-3.5 text-[10px] font-semibold text-[#090c10]">

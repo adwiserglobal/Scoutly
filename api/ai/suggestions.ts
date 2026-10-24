@@ -18,23 +18,15 @@ async function handleOnboardingAction(req: VercelRequest, res: VercelResponse, a
   await ensureAppUser(identity);
 
   if (action === 'onboarding-status') {
-    const [rows, access] = await Promise.all([
-      appDataRequest<any[]>(
-        `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_role,onboarding_team_size,onboarding_goal,onboarding_goal_other,onboarding_completed_at,tutorial_completed,tutorial_completed_at&limit=1`
-      ),
-      getSubscriptionAccess(identity.uid),
-    ]);
+    // Keep this lookup to a single query: it gates the first screen a new user sees.
+    const rows = await appDataRequest<any[]>(
+      `user_settings?user_uid=eq.${dbValue(identity.uid)}&select=onboarding_version,onboarding_completed_at,tutorial_completed&limit=1`
+    );
     const settings = rows[0] || null;
     return res.status(200).json({
       onboardingVersion: Number(settings?.onboarding_version || 0),
       tutorialCompleted: Boolean(settings?.tutorial_completed),
       completedAt: settings?.onboarding_completed_at || null,
-      subscription: {
-        plan: access.plan,
-        status: access.status,
-        currentPeriodStart: access.current_period_start,
-        currentPeriodEnd: access.current_period_end,
-      },
     });
   }
 

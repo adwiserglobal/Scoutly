@@ -18,6 +18,22 @@ function currentPath() {
   return window.location.pathname.replace(/\/+$/, '') || '/';
 }
 
+const doneKey = (uid: string) => `scoutly-onboarding-done:${uid}`;
+
+function readDone(uid: string) {
+  try { return localStorage.getItem(doneKey(uid)) === String(SCOUTLY_ONBOARDING_VERSION); } catch { return false; }
+}
+
+function writeDone(uid: string) {
+  try { localStorage.setItem(doneKey(uid), String(SCOUTLY_ONBOARDING_VERSION)); } catch { /* ignore */ }
+}
+
+// Accounts created moments ago have never onboarded: show the wizard without waiting for the network.
+function isFreshAccount(creationTime?: string) {
+  const created = creationTime ? Date.parse(creationTime) : NaN;
+  return Number.isFinite(created) && Date.now() - created < 10 * 60 * 1000;
+}
+
 function markTutorialTargets() {
   document.querySelector<HTMLElement>('.scoutly-search-focus-ring')?.setAttribute('data-scoutly-tour', 'search');
   document.querySelector<HTMLElement>('button[title="Filtros"]')?.setAttribute('data-scoutly-tour', 'filters');
@@ -45,8 +61,14 @@ export default function OnboardingGate() {
     if (loading || !user || !PRODUCT_PATHS.has(pathname)) return;
     if (statusCheckedFor === user.uid || checkingRef.current) return;
 
+    if (readDone(user.uid)) {
+      setStatusCheckedFor(user.uid);
+      return;
+    }
+
     let cancelled = false;
     checkingRef.current = true;
+    if (isFreshAccount((user as any).metadata?.creationTime)) setMode((current) => (current === 'hidden' ? 'wizard' : current));
 
     fetchOnboardingStatus()
       .then((status) => {
@@ -59,11 +81,14 @@ export default function OnboardingGate() {
         }
 
         if (!status.tutorialCompleted) setMode('tutorial');
-        else setMode('hidden');
+        else {
+          writeDone(user.uid);
+          setMode('hidden');
+        }
       })
       .catch((error) => {
         console.warn('[Scoutly Onboarding] Could not load status:', error);
-        if (!cancelled) setMode('hidden');
+        if (!cancelled) setMode((current) => (current === 'wizard' ? current : 'hidden'));
       })
       .finally(() => {
         checkingRef.current = false;
@@ -108,6 +133,7 @@ export default function OnboardingGate() {
     try {
       await completeOnboardingTutorial();
     } finally {
+      if (user) writeDone(user.uid);
       setMode('hidden');
       window.dispatchEvent(new Event('scoutly-access-updated'));
     }
