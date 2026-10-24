@@ -1,4 +1,5 @@
 import type { OverturePlace } from './overtureService.js';
+import { hasPlacesTiles, queryPlacesTiles } from './placesTiles.js';
 
 export interface OvertureHttpResult {
   places: OverturePlace[];
@@ -24,8 +25,23 @@ export async function queryOvertureViaApi(
   north: number,
   limit = 1200,
   zoom?: number,
+  /** Search mode: with the places archive, scan the whole area instead of the top results. */
+  deep = false,
 ): Promise<OvertureHttpResult> {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
+
+  // Preferred source: the worldwide places archive, read in-process (no extra function hop).
+  if (hasPlacesTiles()) {
+    try {
+      const tiles = await queryPlacesTiles(west, south, east, north, deep ? Math.max(limit, 25000) : safeLimit, deep);
+      if (tiles.places.length > 0) {
+        return { places: tiles.places, cached: tiles.cached, durationMs: tiles.durationMs };
+      }
+    } catch (error: any) {
+      console.warn('[Overture HTTP] places tiles unavailable:', error?.message || error);
+    }
+  }
+
   const url = new URL('/api/places', getInternalBaseUrl());
 
   url.searchParams.set('west', String(west));

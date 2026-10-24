@@ -1,0 +1,85 @@
+name: Build worldwide places archive
+
+# Overture publishes a new release every month. This job turns it into places.pmtiles
+# (see docs/GLOBAL_PLACES.md) and publishes it to Cloudflare R2. Nothing here costs money:
+# GitHub-hosted runner minutes plus R2's free tier.
+on:
+  schedule:
+    - cron: '17 5 3 * *' # 3rd of every month, after Overture's release
+  workflow_dispatch:
+    inputs:
+      countries:
+        description: 'Comma separated ISO codes (empty = whole world). Start with e.g. BR,US,MX,PT'
+        required: false
+        default: ''
+      min_confidence:
+        description: 'Minimum Overture confidence (0-1). Higher = smaller archive'
+        required: false
+        default: '0.35'
+      release:
+        description: 'Overture release (empty = latest)'
+        required: false
+        default: ''
+
+concurrency:
+  group: places-tiles
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # The monthly schedule only runs once the repository variable PLACES_TILES_ENABLED is "true"
+    # (set it after the first successful manual run); manual runs always work.
+    if: github.event_name == 'workflow_dispatch' || vars.PLACES_TILES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      SCOUTLY_PLACES_KEY: ${{ secrets.SCOUTLY_PLACES_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: pip install duckdb pyarrow pmtiles cryptography
+
+      - name: Resolve Overture release
+        id: release
+        run: |
+          RELEASE="${{ inputs.release }}"
+          if [ -z "$RELEASE" ]; then
+            RELEASE=$(curl -s "https://overturemaps-us-west-2.s3.amazonaws.com/?delimiter=/&prefix=release/" \
+              | grep -o '<Prefix>release/[^<]*/</Prefix>' | sed 's#<Prefix>release/##; s#/</Prefix>##' | sort | tail -n 1)
+          fi
+          echo "Using Overture release $RELEASE"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Build places.pmtiles
+        run: |
+          python scripts/places-tiles/build.py \
+            --source "s3://overturemaps-us-west-2/release/${{ steps.release.outputs.release }}/theme=places/type=place/*" \
+            --release "${{ steps.release.outputs.release }}" \
+            --countries "${{ inputs.countries }}" \
+            --min-confidence "${{ inputs.min_confidence || '0.35' }}" \
+            --out places.pmtiles \
+            --tmp-dir "$RUNNER_TEMP"
+
+      - name: Publish to Cloudflare R2
+        run: |
+          FILE="places-${{ steps.release.outputs.release }}.pmtiles"
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 cp places.pmtiles "s3://${R2_BUCKET}/${FILE}" --endpoint-url "$ENDPOINT" \
+            --content-type application/octet-stream --cache-control "public, max-age=31536000, immutable"
+          # The manifest switches readers to the new file atomically, then older builds are removed.
+          echo "{\"file\":\"${FILE}\",\"release\":\"${{ steps.release.outputs.release }}\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > manifest.json
+          aws s3 cp manifest.json "s3://${R2_BUCKET}/manifest.json" --endpoint-url "$ENDPOINT" \
+            --content-type application/json --cache-control "no-store"
+          for OLD in $(aws s3 ls "s3://${R2_BUCKET}/" --endpoint-url "$ENDPOINT" | awk '{print $4}' | grep '^places-.*\.pmtiles$' | grep -v "^${FILE}$"); do
+            aws s3 rm "s3://${R2_BUCKET}/${OLD}" --endpoint-url "$ENDPOINT"
+          done

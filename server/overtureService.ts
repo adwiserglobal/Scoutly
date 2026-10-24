@@ -506,7 +506,6 @@ export async function queryPlacesInBBox(
         names.primary AS name,
         basic_category,
         taxonomy,
-        categories,
         confidence,
         operating_status,
         websites,
@@ -517,7 +516,7 @@ export async function queryPlacesInBBox(
         sources,
         ST_X(geometry) AS longitude,
         ST_Y(geometry) AS latitude
-      FROM read_parquet('s3://overturemaps-us-west-2/release/2026-08-19.0/theme=places/type=place/*', filename=false)
+      FROM read_parquet('s3://overturemaps-us-west-2/release/${process.env.OVERTURE_RELEASE || '2026-10-21.0'}/theme=places/type=place/*', filename=false)
       WHERE bbox.xmin >= ?
         AND bbox.xmax <= ?
         AND bbox.ymin >= ?

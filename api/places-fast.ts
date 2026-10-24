@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { queryBrazilPlaces, hasBrazilPlacesDatabase } from '../server/brazilPlacesService.js';
 import { queryOvertureViaApi } from '../server/overtureHttpService.js';
 import { queryOsmPlacesInBBox } from '../server/osmPlacesService.js';
+import { hasPlacesTiles, queryPlacesTiles } from '../server/placesTiles.js';
 import { protectBusinessListForClient } from '../server/businessSealService.js';
 
 const BRAZIL_INDEX_BBOX = {
@@ -81,6 +82,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn('[Fast Places] Local index returned 0 places; trying OSM national fallback.');
       } catch (err: any) {
         console.warn('[Fast Places] Local index unavailable; trying OSM national fallback:', err.message);
+      }
+    }
+
+    // Worldwide index (Overture -> PMTiles on object storage): a handful of ranged reads,
+    // the same speed in any city. Falls through to OSM only if it is not configured or fails.
+    if (hasPlacesTiles()) {
+      try {
+        const tiles = await queryPlacesTiles(west, south, east, north, safeLimit);
+        if (tiles.places.length > 0) {
+          res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+          res.setHeader('X-Scoutly-Places-Source', `tiles:${tiles.release || 'unknown'}:${tiles.tiles}`);
+          return res.status(200).json(safeResult(tiles, 'scoutly-places'));
+        }
+      } catch (err: any) {
+        console.warn('[Fast Places] Places tiles unavailable; trying OSM fallback:', err?.message || err);
       }
     }
 

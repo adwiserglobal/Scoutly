@@ -224,7 +224,9 @@ async function searchOvertureByTerms(
       bbox.south,
       bbox.east,
       bbox.north,
-      Math.min(5000, Math.max(limit * 12, 1200))
+      Math.min(5000, Math.max(limit * 12, 1200)),
+      undefined,
+      true,
     );
 
     return fallback.places

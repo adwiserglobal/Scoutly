@@ -3,7 +3,7 @@ import duckdb from 'duckdb';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE || '2026-08-19.0';
+const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE || '2026-10-21.0';
 const BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 500);
 
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
@@ -63,7 +63,7 @@ async function main() {
         names.primary AS name,
         ST_Y(geometry) AS latitude,
         ST_X(geometry) AS longitude,
-        coalesce(basic_category, categories.primary, taxonomy.primary) AS category,
+        coalesce(basic_category, taxonomy.primary) AS category,
         basic_category,
         taxonomy.primary AS taxonomy_primary,
         confidence,
