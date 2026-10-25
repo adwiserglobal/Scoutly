@@ -77,6 +77,10 @@ def main() -> int:
     con.execute(f"PRAGMA temp_directory='{args.tmp_dir}'")
     if args.source.startswith("s3://"):
         con.execute("INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2';")
+        # The Overture bucket is public: read it anonymously even if AWS_* variables exist in the environment.
+        for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+            os.environ.pop(key, None)
+        con.execute("SET s3_access_key_id=''; SET s3_secret_access_key=''; SET s3_session_token='';")
 
     where = [
         "names.primary IS NOT NULL",

@@ -32,13 +32,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || vars.PLACES_TILES_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 340
-    env:
-      SCOUTLY_PLACES_KEY: ${{ secrets.SCOUTLY_PLACES_KEY }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_BUCKET: ${{ secrets.R2_BUCKET }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: auto
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +54,9 @@ jobs:
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Build places.pmtiles
+        # No AWS_* variables here on purpose: DuckDB would send the R2 keys to the public Overture bucket (403).
+        env:
+          SCOUTLY_PLACES_KEY: ${{ secrets.SCOUTLY_PLACES_KEY }}
         run: |
           python scripts/places-tiles/build.py \
             --source "s3://overturemaps-us-west-2/release/${{ steps.release.outputs.release }}/theme=places/type=place/*" \
@@ -71,6 +67,12 @@ jobs:
             --tmp-dir "$RUNNER_TEMP"
 
       - name: Publish to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
         run: |
           FILE="places-${{ steps.release.outputs.release }}.pmtiles"
           ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
