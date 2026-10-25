@@ -39,6 +39,31 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Validate Cloudflare R2 settings
+        # Fails in seconds (not after the 10-minute build) when a secret is malformed.
+        env:
+          RAW_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          RAW_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          # Accept the bare id, or a pasted endpoint URL; drop spaces and line breaks.
+          ACCOUNT_ID=$(printf '%s' "$RAW_ACCOUNT_ID" | tr -d '[:space:]' | sed -E 's#^https?://##; s#\.r2\.cloudflarestorage\.com.*$##')
+          BUCKET=$(printf '%s' "$RAW_BUCKET" | tr -d '[:space:]')
+          if ! printf '%s' "$ACCOUNT_ID" | grep -Eq '^[0-9a-f]{32}$'; then
+            echo "::error::R2_ACCOUNT_ID must be the 32-character Cloudflare Account ID (hex). Found ${#ACCOUNT_ID} characters."
+            exit 1
+          fi
+          if [ -z "$BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "::error::R2_BUCKET, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY must all be set."
+            exit 1
+          fi
+          echo "R2_ENDPOINT=https://${ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
+          echo "R2_BUCKET_CLEAN=${BUCKET}" >> "$GITHUB_ENV"
+          aws s3 ls "s3://${BUCKET}/" --endpoint-url "https://${ACCOUNT_ID}.r2.cloudflarestorage.com" > /dev/null \
+            && echo "R2 bucket reachable with the provided credentials."
+
       - name: Install build dependencies
         run: pip install duckdb pyarrow pmtiles cryptography
 
@@ -68,20 +93,17 @@ jobs:
 
       - name: Publish to Cloudflare R2
         env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           FILE="places-${{ steps.release.outputs.release }}.pmtiles"
-          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          aws s3 cp places.pmtiles "s3://${R2_BUCKET}/${FILE}" --endpoint-url "$ENDPOINT" \
+          aws s3 cp places.pmtiles "s3://${R2_BUCKET_CLEAN}/${FILE}" --endpoint-url "$R2_ENDPOINT" \
             --content-type application/octet-stream --cache-control "public, max-age=31536000, immutable"
           # The manifest switches readers to the new file atomically, then older builds are removed.
           echo "{\"file\":\"${FILE}\",\"release\":\"${{ steps.release.outputs.release }}\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > manifest.json
-          aws s3 cp manifest.json "s3://${R2_BUCKET}/manifest.json" --endpoint-url "$ENDPOINT" \
+          aws s3 cp manifest.json "s3://${R2_BUCKET_CLEAN}/manifest.json" --endpoint-url "$R2_ENDPOINT" \
             --content-type application/json --cache-control "no-store"
-          for OLD in $(aws s3 ls "s3://${R2_BUCKET}/" --endpoint-url "$ENDPOINT" | awk '{print $4}' | grep '^places-.*\.pmtiles$' | grep -v "^${FILE}$"); do
-            aws s3 rm "s3://${R2_BUCKET}/${OLD}" --endpoint-url "$ENDPOINT"
+          for OLD in $(aws s3 ls "s3://${R2_BUCKET_CLEAN}/" --endpoint-url "$R2_ENDPOINT" | awk '{print $4}' | grep '^places-.*\.pmtiles$' | grep -v "^${FILE}$"); do
+            aws s3 rm "s3://${R2_BUCKET_CLEAN}/${OLD}" --endpoint-url "$R2_ENDPOINT"
           done
