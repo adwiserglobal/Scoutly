@@ -4,7 +4,7 @@ import type { FlightSummary } from './flight/summary';
 import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './utils/startLocation';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
-import { searchAddressOrCity } from './services/geocoding';
+import { findPlaceForQuery, searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
@@ -775,6 +775,36 @@ export default function App() {
       setModalBusiness(null);
     }
 
+    // A city, neighbourhood or state goes straight to the map; only segments and company
+    // names are searched as businesses.
+    const place = localMatches.length === 0 ? await findPlaceForQuery(cleanQuery, currentRegionName) : null;
+    if (place) {
+      recordRecommendationSearch(cleanQuery, place.name);
+      userPickedLocationRef.current = true;
+      setCenterCoordinates({ lat: place.lat, lng: place.lng });
+      setCurrentRegionName(place.name);
+      setIsListOpen(false);
+      return;
+    }
+
+    // One company with exactly the searched name: show it on the map and open it.
+    const focusExactCompany = (found: Business[]) => {
+      const exact = found.filter((business) => normalizeLocalQuery(business.name) === normalizedQuery);
+      if (exact.length !== 1 || !Number.isFinite(exact[0].coordinates?.lat) || !Number.isFinite(exact[0].coordinates?.lng)) {
+        return false;
+      }
+      const target = exact[0];
+      suppressNextBoundsFetchRef.current = true;
+      userPickedLocationRef.current = true;
+      setCenterCoordinates({ lat: target.coordinates.lat, lng: target.coordinates.lng });
+      setIsListOpen(false);
+      setIsFiltersOpen(false);
+      setModalBusiness(null);
+      setSelectedBusiness(target);
+      rememberRecommendationBusiness(target);
+      return true;
+    };
+
     try {
       const hasExplicitLocation =
         /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de|regi[aã]o\s+do|regi[aã]o\s+da)\b/i.test(cleanQuery);
@@ -808,11 +838,12 @@ export default function App() {
           setListCategoryFilter('TODAS');
           setListWebsiteFilter('TODOS');
           setListContactFilter('TODOS');
+          recordRecommendationSearch(cleanQuery, currentRegionName);
+          if (focusExactCompany(merged)) return;
           setIsListOpen(true);
           setIsFiltersOpen(false);
           setSelectedBusiness(null);
           setModalBusiness(null);
-          recordRecommendationSearch(cleanQuery, currentRegionName);
           return;
         }
       }
@@ -852,11 +883,12 @@ export default function App() {
         setListCategoryFilter('TODAS');
         setListWebsiteFilter('TODOS');
         setListContactFilter('TODOS');
+        recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
+        if (focusExactCompany(merged)) return;
         setIsListOpen(true);
         setIsFiltersOpen(false);
         setSelectedBusiness(null);
         setModalBusiness(null);
-        recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
         return;
       }
 
@@ -940,6 +972,7 @@ export default function App() {
   // Preset region click
   const handleSelectPreset = (preset: { name: string; lat: number; lng: number }) => {
     userPickedLocationRef.current = true;
+    setIsListOpen(false);
     setCenterCoordinates({ lat: preset.lat, lng: preset.lng });
     setCurrentRegionName(preset.name);
   };

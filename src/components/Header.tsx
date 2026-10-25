@@ -92,6 +92,7 @@ function Header({
   businesses,
   onSelectBusiness,
   onUseCurrentLocation,
+  onSelectPreset,
   isLocating,
   isSearching = false,
   totalBusinessesCount,
@@ -251,6 +252,12 @@ function Header({
     setSearchInput(nextQuery);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
+    // A bare place ("Abadia de Goiás"): take the map there. With a segment in front
+    // ("dentista em Abadia de Goiás") keep searching businesses in that place.
+    if (nextQuery === suggestion.label && onSelectPreset) {
+      onSelectPreset({ name: suggestion.label, lat: suggestion.lat, lng: suggestion.lng });
+      return;
+    }
     onSearch(localizeSearchQuery(nextQuery));
   };
 

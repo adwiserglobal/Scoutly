@@ -200,3 +200,50 @@ export async function searchAddressOrCity(query: string, currentRegionName?: str
   if (!looksLikeAddress(trimmed)) return searchBusinesses(trimmed, currentRegionName);
   return null;
 }
+
+const PLACE_KINDS = new Set([
+  'city', 'town', 'municipality', 'village', 'suburb', 'district', 'neighbourhood', 'neighborhood',
+  'quarter', 'county', 'state', 'region', 'postcode', 'locality',
+]);
+
+export interface PlaceMatch {
+  name: string;
+  lat: number;
+  lng: number;
+  kind: string;
+}
+
+/**
+ * Typing a city, neighbourhood or state ("Presidente Prudente", "Abadia de Goiás, GO") should take
+ * the map there instead of listing businesses whose address merely mentions that name.
+ * Returns null for anything that looks like a business or segment search.
+ */
+export async function findPlaceForQuery(query: string, currentRegionName = ''): Promise<PlaceMatch | null> {
+  const wanted = normalizeText(query);
+  if (wanted.length < 3 || looksLikeBusinessSearch(query) || looksLikeAddress(query)) return null;
+
+  try {
+    const params = new URLSearchParams({ q: query.trim(), currentRegionName });
+    const response = await fetch(`/api/location-suggestions?${params.toString()}`, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const suggestions: any[] = Array.isArray(data?.suggestions) ? data.suggestions : [];
+
+    for (const suggestion of suggestions) {
+      const kind = String(suggestion?.kind || '');
+      if (!PLACE_KINDS.has(kind)) continue;
+      const lat = Number(suggestion.lat);
+      const lng = Number(suggestion.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const primary = normalizeText(String(suggestion.primary || suggestion.label || ''));
+      // Same name, optionally followed by a state/country ("abadia de goias go").
+      if (primary && (wanted === primary || wanted.startsWith(`${primary} `))) {
+        return { name: String(suggestion.label || suggestion.primary), lat, lng, kind };
+      }
+    }
+  } catch {
+    /* fall back to the regular business search */
+  }
+  return null;
+}
+
