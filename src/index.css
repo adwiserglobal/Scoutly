@@ -41,7 +41,15 @@
     box-shadow 220ms ease;
 }
 
-.scoutly-search-focus-ring::before {
+/*
+ * Orange contour behaviour:
+ *  - focus: the gradient makes one lap around the field and settles into a still orange outline;
+ *  - searching (data-searching): the gradient laps continuously until the result arrives,
+ *    then the field goes back to the still outline.
+ * ::before is the one-shot focus lap, ::after is the search loop.
+ */
+.scoutly-search-focus-ring::before,
+.scoutly-search-focus-ring::after {
   content: '';
   position: absolute;
   inset: -2px;
@@ -74,11 +82,53 @@
   box-shadow:
     0 14px 44px rgba(0, 0, 0, 0.34),
     0 0 22px rgba(255, 90, 18, 0.10);
+  animation: scoutlySearchSettle 1.6s ease-out forwards;
 }
 
 .scoutly-search-focus-ring:focus-within::before {
+  animation: scoutlySearchLap 1.6s ease-in-out forwards;
+}
+
+.scoutly-search-focus-ring[data-searching='true'] {
+  border-color: transparent !important;
+}
+
+/* After a search finishes the outline stays still and orange, even if focus moved away. */
+.scoutly-search-focus-ring[data-settled='true'] {
+  border-color: rgba(255, 90, 18, 0.9);
+  box-shadow:
+    0 14px 44px rgba(0, 0, 0, 0.34),
+    0 0 22px rgba(255, 90, 18, 0.10);
+}
+
+.scoutly-search-focus-ring[data-searching='true']::after {
   opacity: 1;
-  animation: scoutlySearchOrbit 3.2s linear infinite;
+  animation: scoutlySearchOrbit 1.3s linear infinite;
+}
+
+@keyframes scoutlySearchLap {
+  0% {
+    --scoutly-search-angle: 0deg;
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    --scoutly-search-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+/* The outline stays orange once the lap is over. */
+@keyframes scoutlySearchSettle {
+  0%,
+  86% {
+    border-color: transparent;
+  }
+  100% {
+    border-color: rgba(255, 90, 18, 0.9);
+  }
 }
 
 @keyframes scoutlyBusinessChevronFloat {
@@ -263,9 +313,15 @@
     transition: none !important;
   }
 
+  .scoutly-search-focus-ring,
   .scoutly-search-focus-ring::before,
+  .scoutly-search-focus-ring::after,
   .scoutly-view-businesses-chevron {
     animation: none !important;
+  }
+
+  .scoutly-search-focus-ring:focus-within {
+    border-color: rgba(255, 90, 18, 0.9);
   }
 }
 

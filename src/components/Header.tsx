@@ -14,6 +14,7 @@ interface HeaderProps {
   onUseCurrentLocation: () => void;
   onSelectPreset?: (region: { name: string; lat: number; lng: number }) => void;
   isLocating: boolean;
+  isSearching?: boolean;
   totalOpportunitiesCount: number;
   totalBusinessesCount: number;
   onOpenFilters: () => void;
@@ -92,6 +93,7 @@ function Header({
   onSelectBusiness,
   onUseCurrentLocation,
   isLocating,
+  isSearching = false,
   totalBusinessesCount,
   onOpenFilters,
   recommendedBusinesses,
@@ -102,6 +104,14 @@ function Header({
   onOpenRecommendationsUpgrade,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
+  // Keeps the outline still-orange after a search finishes (until the user edits the text).
+  const [searchSettled, setSearchSettled] = useState(false);
+  const wasSearchingRef = useRef(false);
+  useEffect(() => {
+    if (isSearching) setSearchSettled(false);
+    else if (wasSearchingRef.current) setSearchSettled(true);
+    wasSearchingRef.current = isSearching;
+  }, [isSearching]);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -288,7 +298,7 @@ function Header({
           onSubmit={handleSubmit}
           className="relative min-w-0 flex-1 max-[430px]:order-1 max-[430px]:basis-full lg:flex-none lg:w-[420px] xl:w-[470px]"
         >
-          <div className="scoutly-search-focus-ring relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div data-searching={isSearching ? 'true' : undefined} data-settled={searchSettled && !isSearching ? 'true' : undefined} className="scoutly-search-focus-ring relative flex h-[46px] items-center rounded-2xl border border-white/10 bg-[#111418]/[0.94] shadow-[0_14px_44px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
 
             <input
@@ -297,6 +307,7 @@ function Header({
               onChange={(event) => {
                 const next = event.target.value;
                 setSearchInput(next);
+                setSearchSettled(false);
                 if (next.trim().length >= 2) setSuggestionsOpen(true);
               }}
               onKeyDown={handleInputKeyDown}
@@ -312,14 +323,21 @@ function Header({
               className="h-full w-full rounded-2xl bg-transparent pl-11 pr-[88px] text-[13px] text-white outline-none placeholder:text-stone-500 sm:pr-[104px]"
             />
 
-            {isSuggesting && (
+            {isSuggesting && !isSearching && (
               <Loader2 className="absolute right-[78px] h-3.5 w-3.5 animate-spin text-stone-500 sm:right-[92px]" />
             )}
 
             <button
               type="submit"
-              className="absolute right-1.5 flex h-8 items-center justify-center rounded-[11px] bg-[#FF5A12] px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#ff6a27] active:scale-[0.97] sm:px-4"
+              disabled={isSearching}
+              aria-busy={isSearching}
+              className={`absolute right-1.5 flex h-8 items-center justify-center gap-1.5 rounded-[11px] px-3 text-[10px] font-semibold uppercase tracking-[0.08em] transition sm:px-4 ${
+                isSearching
+                  ? 'cursor-not-allowed bg-white/[0.08] text-stone-400'
+                  : 'bg-[#FF5A12] text-white hover:bg-[#ff6a27] active:scale-[0.97]'
+              }`}
             >
+              {isSearching && <Loader2 className="h-3 w-3 animate-spin" />}
               Buscar
             </button>
           </div>

@@ -241,6 +241,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [socialVerification, setSocialVerification] = useState<
     Record<string, 'checking' | 'has_social' | 'no_social' | 'failed'>
@@ -741,11 +742,10 @@ export default function App() {
   // Business-first search. The current map viewport is searched first so generic
   // segments and company names behave like a real places finder. Geocoding is only
   // used as a fallback when no business matches the query.
-  const handleSearch = async (query: string) => {
+  const runSearch = async (query: string) => {
     const cleanQuery = query.trim();
     if (!cleanQuery) return;
 
-    setIsLocating(true);
     setBusinessesError(null);
 
     const normalizeLocalQuery = (value: string) =>
@@ -813,7 +813,6 @@ export default function App() {
           setSelectedBusiness(null);
           setModalBusiness(null);
           recordRecommendationSearch(cleanQuery, currentRegionName);
-          setIsLocating(false);
           return;
         }
       }
@@ -858,20 +857,17 @@ export default function App() {
         setSelectedBusiness(null);
         setModalBusiness(null);
         recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
-        setIsLocating(false);
         return;
       }
 
       if (localMatches.length > 0) {
         recordRecommendationSearch(cleanQuery, currentRegionName);
-        setIsLocating(false);
         return;
       }
     } catch (error: any) {
       console.warn('[Scoutly Search] Business search failed; trying location search:', error);
       if (localMatches.length > 0) {
         recordRecommendationSearch(cleanQuery, currentRegionName);
-        setIsLocating(false);
         return;
       }
     }
@@ -890,7 +886,16 @@ export default function App() {
       setIsListOpen(true);
     }
 
-    setIsLocating(false);
+  };
+
+  // Search progress is tracked apart from "near me" so each control shows only its own state.
+  const handleSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      await runSearch(query);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleBusinessSuggestions = useCallback(async (query: string): Promise<Business[]> => {
@@ -1568,6 +1573,7 @@ export default function App() {
                   onUseCurrentLocation={handleUseCurrentLocation}
                   onSelectPreset={handleSelectPreset}
                   isLocating={isLocating}
+                  isSearching={isSearching}
                   totalOpportunitiesCount={opportunitiesCount}
                   totalBusinessesCount={filteredBusinesses.length}
                   onOpenFilters={() => {
