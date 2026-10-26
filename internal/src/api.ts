@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import type { BusinessFeedback, DashboardData, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
+import type { BusinessFeedback, DashboardData, ManagedAccount, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
 
 const ENDPOINT = '/api/ai/suggestions';
 const GATE_STORAGE_KEY = 'scoutly_internal_gate_session';
@@ -118,4 +118,19 @@ export async function fetchAudit(): Promise<any[]> {
 export async function fetchFeedbacks(rating?: 'up' | 'down'): Promise<BusinessFeedback[]> {
   const data = await internalAction('internal-feedback-list', rating ? { rating } : {});
   return data.feedback || [];
+}
+
+export async function fetchManagedAccount(uid: string): Promise<ManagedAccount> {
+  return internalAction('internal-subscription-get', { uid });
+}
+
+export async function applyManagedPlan(
+  uid: string,
+  payload: { plan: string; days?: number | null; until?: string | null; note?: string },
+): Promise<ManagedAccount> {
+  return internalAction('internal-subscription-set', { uid, ...payload });
+}
+
+export async function saveManagedFeatures(uid: string, enabled: string[], note?: string): Promise<ManagedAccount> {
+  return internalAction('internal-features-set', { uid, enabled, note });
 }

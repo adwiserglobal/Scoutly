@@ -117,3 +117,27 @@ export interface BusinessFeedback {
   created_at: string;
   updated_at: string;
 }
+
+export interface ManagedAccount {
+  user: { firebase_uid: string; email: string | null; display_name: string | null };
+  subscription: {
+    plan?: string;
+    status?: string;
+    provider?: string | null;
+    current_period_end?: string | null;
+    cancel_at_period_end?: boolean;
+  } | null;
+  effective: {
+    plan: string;
+    status: string;
+    reason: string;
+    isDeveloper: boolean;
+    viaTeam: boolean;
+    periodEnd: string | null;
+  };
+  origin: 'developer' | 'stripe' | 'manual' | 'none';
+  developerPlan: 'pro' | 'agency' | null;
+  stripeManaged: boolean;
+  features: Array<{ key: string; label: string; enabled: boolean }>;
+  overrideNote: string | null;
+}

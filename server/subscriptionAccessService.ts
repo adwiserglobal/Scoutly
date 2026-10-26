@@ -50,6 +50,13 @@ function developerAccess(plan: 'pro' | 'agency'): SubscriptionAccess {
   };
 }
 
+export function getDeveloperPlanByEmail(emailInput: unknown): 'pro' | 'agency' | null {
+  const email = String(emailInput || '').trim().toLowerCase();
+  if (SCOUTLY_AGENCY_DEVELOPER_EMAILS.has(email)) return 'agency';
+  if (SCOUTLY_PRO_DEVELOPER_EMAILS.has(email)) return 'pro';
+  return null;
+}
+
 async function getScoutlyDeveloperPlan(userUid: string): Promise<'pro' | 'agency' | null> {
   const rows = await appDataRequest<Array<{ email?: string | null }>>(
     `app_users?firebase_uid=eq.${dbValue(userUid)}&select=email&limit=1`
@@ -68,10 +75,20 @@ async function getOwnSubscriptionAccess(userUid: string): Promise<SubscriptionAc
   if (developerPlan) return developerAccess(developerPlan);
 
   const rows = await appDataRequest<any[]>(
-    `subscriptions?user_uid=eq.${dbValue(userUid)}&select=plan,status,current_period_start,current_period_end&limit=1`
+    `subscriptions?user_uid=eq.${dbValue(userUid)}&select=plan,status,current_period_start,current_period_end,provider&limit=1`
   );
   const subscription = rows[0] || null;
   if (!subscription) return freeAccess();
+
+  // Manual grants made from Scoutly Internal may carry an end date. Stripe periods are renewed by
+  // webhooks, so only manual grants are expired here.
+  if (
+    subscription.provider === 'manual' &&
+    subscription.current_period_end &&
+    new Date(subscription.current_period_end).getTime() < Date.now()
+  ) {
+    return freeAccess();
+  }
 
   const plan = String(subscription.plan || 'trial').toLowerCase();
   const status = String(subscription.status || 'pending').toLowerCase();

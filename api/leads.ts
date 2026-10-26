@@ -8,6 +8,7 @@ import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
+import { assertFeatureEnabled } from '../server/accountAdminService.js';
 import {
   acceptInvite, assertCanManageBilling, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, setMemberAdmin, renewInvite,
   revokeInvite, setExtraSeats, setPipelineMode,
@@ -391,6 +392,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const token = String(req.body?.sealedContactToken || '').trim();
       if (!businessId || !token) return res.status(400).json({ error: 'Dados protegidos do negócio são obrigatórios.' });
 
+      await assertFeatureEnabled(identity.uid, 'email_unlock');
       const contacts = unsealBusinessContacts(token, businessId);
       const alreadyUnlocked = await hasBusinessUnlockAccess(identity.uid, businessId);
       // Reopening the same business must not charge another credit.
@@ -628,14 +630,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'workspace-insights') return res.status(200).json(await getWorkspaceInsights(identity.uid, req.body?.days, req.body?.language));
 
     if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
-    if (action === 'flight-start') return res.status(200).json(await startFlight(identity.uid));
-    if (action === 'flight-tick') return res.status(200).json(await tickFlight(identity.uid));
+    if (action === 'flight-start') {
+      await assertFeatureEnabled(identity.uid, 'flight');
+      return res.status(200).json(await startFlight(identity.uid));
+    }
+    if (action === 'flight-tick') {
+      await assertFeatureEnabled(identity.uid, 'flight');
+      return res.status(200).json(await tickFlight(identity.uid));
+    }
 
     if (action === 'demo-site-get') {
       return res.status(200).json(await getDemoSiteForBusiness(identity.uid, String(req.body?.businessId || '')));
     }
 
     if (action === 'demo-site-create') {
+      await assertFeatureEnabled(identity.uid, 'demo_sites');
       const site = await createOrRegenerateDemoSite(identity.uid, req.body);
       return res.status(200).json({ site, ...(await getDemoSiteForBusiness(identity.uid, site ? String(req.body?.business?.id) : '')) });
     }

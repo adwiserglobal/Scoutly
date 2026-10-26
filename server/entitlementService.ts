@@ -1,5 +1,6 @@
 import { appDataRequest, dbValue } from './appDataService.js';
 import { getSubscriptionAccess } from './subscriptionAccessService.js';
+import { assertFeatureEnabled, getDisabledFeatures } from './accountAdminService.js';
 
 export type ProductPlan = 'free' | 'go' | 'pro' | 'agency';
 
@@ -22,6 +23,8 @@ export type CreditStatus = {
   aiDailyRemaining: number | null;
   recommendationsAllowed: boolean;
   aiAllowed: boolean;
+  /** Features switched off for this account from Scoutly Internal. */
+  disabledFeatures?: string[];
 };
 
 // recommendation_events has a legacy CHECK constraint that only accepts the
@@ -195,6 +198,18 @@ async function reserveLimitedEvent(options: {
 }
 
 export async function getCreditStatus(userUid: string): Promise<CreditStatus> {
+  const status = await computeCreditStatus(userUid);
+  const disabled = await getDisabledFeatures(userUid);
+  if (disabled.size === 0) return status;
+  return {
+    ...status,
+    aiAllowed: status.aiAllowed && !disabled.has('ai'),
+    recommendationsAllowed: status.recommendationsAllowed && !disabled.has('recommendations'),
+    disabledFeatures: Array.from(disabled),
+  };
+}
+
+async function computeCreditStatus(userUid: string): Promise<CreditStatus> {
   const access = await getSubscriptionAccess(userUid);
   const plan = normalizePlan(access.plan);
   const now = new Date();
@@ -383,6 +398,7 @@ export async function consumeBusinessCredit(
 }
 
 export async function consumeAiConversation(userUid: string, workspaceId: string) {
+  await assertFeatureEnabled(userUid, 'ai');
   const access = await getSubscriptionAccess(userUid);
   const plan = normalizePlan(access.plan);
 
@@ -413,6 +429,7 @@ export async function consumeAiConversation(userUid: string, workspaceId: string
 }
 
 export async function requireRecommendationsAccess(userUid: string) {
+  await assertFeatureEnabled(userUid, 'recommendations');
   const status = await getCreditStatus(userUid);
   if (!status.recommendationsAllowed) {
     httpError('Recomendações inteligentes são um recurso dos planos pagos.', 402, 'RECOMMENDATIONS_REQUIRE_PAID_PLAN');

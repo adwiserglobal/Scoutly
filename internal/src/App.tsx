@@ -17,6 +17,7 @@ import {
   TicketCheck,
   Users,
 } from 'lucide-react';
+import SubscriptionManager from './SubscriptionManager';
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import {
@@ -425,14 +426,23 @@ function CustomersView({
   onSearch,
   onSelect,
   billingOnly = false,
+  canManage = false,
 }: {
   users: UserSummary[];
   detail: UserDetail | null;
   onSearch: (query: string) => void;
   onSelect: (user: UserSummary) => void;
   billingOnly?: boolean;
+  canManage?: boolean;
 }) {
   const [query, setQuery] = useState('');
+  const [managing, setManaging] = useState(false);
+  const detailUid = detail?.user?.firebase_uid || '';
+
+  // Opening another customer always returns to its overview.
+  useEffect(() => {
+    setManaging(false);
+  }, [detailUid]);
 
   return (
     <>
@@ -483,6 +493,8 @@ function CustomersView({
               <h2>Selecione um cliente</h2>
               <p>Plano, uso, pipeline e atividade ficam disponíveis aqui.</p>
             </div>
+          ) : managing && canManage ? (
+            <SubscriptionManager uid={detail.user.firebase_uid} onBack={() => setManaging(false)} />
           ) : (
             <>
               <div className="customer-identity">
@@ -493,6 +505,11 @@ function CustomersView({
                   <h2>{detail.user.display_name || 'Sem nome'}</h2>
                   <p>{detail.user.email || detail.user.firebase_uid}</p>
                 </div>
+                {canManage && (
+                  <button className="primary-button manage-button" onClick={() => setManaging(true)}>
+                    <BadgeDollarSign size={14} /> Gerenciar assinatura
+                  </button>
+                )}
               </div>
 
               <div className="detail-grid">
@@ -760,6 +777,7 @@ export default function App() {
           onSearch={searchUsers}
           onSelect={openUser}
           billingOnly={tab === 'billing'}
+          canManage={bootstrap?.staff?.role === 'admin'}
         />
       );
     }

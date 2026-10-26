@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { appDataRequest, dbValue } from './appDataService.js';
 import type { FirebaseIdentity } from './firebaseTokenService.js';
 import { listBusinessFeedback } from './businessFeedbackService.js';
+import { getManagedAccount, setDisabledFeatures, setManagedPlan, MANAGED_FEATURE_KEYS } from './accountAdminService.js';
 
 type StaffRole = 'admin' | 'support' | 'viewer';
 
@@ -398,6 +399,45 @@ export async function handleInternalAction(
 
   if (action === 'internal-user-detail') {
     return { status: 200, body: await userDetail(String(payload?.uid || '')) };
+  }
+
+  // --- subscription management (admins only) ---
+  if (action === 'internal-subscription-get') {
+    requireRole(staff.role, ['admin']);
+    return { status: 200, body: await getManagedAccount(String(payload?.uid || '')) };
+  }
+
+  if (action === 'internal-subscription-set') {
+    requireRole(staff.role, ['admin']);
+    const uid = String(payload?.uid || '').trim();
+    const result = await setManagedPlan(uid, { plan: payload?.plan, days: payload?.days, until: payload?.until });
+    await writeAudit({
+      actorUid: identity.uid,
+      actorEmail: identity.email,
+      action: 'subscription.set_plan',
+      targetType: 'user',
+      targetId: uid,
+      metadata: { ...result, note: String(payload?.note || '').slice(0, 300) },
+    });
+    return { status: 200, body: await getManagedAccount(uid) };
+  }
+
+  if (action === 'internal-features-set') {
+    requireRole(staff.role, ['admin']);
+    const uid = String(payload?.uid || '').trim();
+    if (!uid) throwHttp('Usuário inválido.', 400);
+    const enabled = new Set((Array.isArray(payload?.enabled) ? payload.enabled : []).map(String));
+    const disabled = MANAGED_FEATURE_KEYS.filter((key) => !enabled.has(key));
+    await setDisabledFeatures(uid, disabled, identity.uid, payload?.note);
+    await writeAudit({
+      actorUid: identity.uid,
+      actorEmail: identity.email,
+      action: 'account.set_features',
+      targetType: 'user',
+      targetId: uid,
+      metadata: { disabled, note: String(payload?.note || '').slice(0, 300) },
+    });
+    return { status: 200, body: await getManagedAccount(uid) };
   }
 
   if (action === 'internal-feedback-list') {
