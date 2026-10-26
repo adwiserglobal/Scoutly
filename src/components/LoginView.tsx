@@ -192,6 +192,7 @@ export default function LoginView() {
         await signIn(email.trim(), password);
       }
     } catch (err: any) {
+      console.error('[Scoutly Auth] email/password failed:', err?.code || err?.message || err);
       setError(err?.message === t.resetEmailRequired ? t.resetEmailRequired : translateError(err));
     } finally {
       setIsLoading(false);
