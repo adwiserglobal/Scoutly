@@ -21,6 +21,7 @@ const SCOUTLY_AGENCY_DEVELOPER_EMAILS = new Set([
 
 const SCOUTLY_PRO_DEVELOPER_EMAILS = new Set([
   'rossivictor638@gmail.com',
+  'thamyflores@gmail.com',
 ]);
 
 function freeAccess(): SubscriptionAccess {
