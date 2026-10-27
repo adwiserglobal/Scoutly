@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Clock, Globe, Loader2, Lock, MapPin, Phone, Share2, Sparkles, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Business } from '../types';
@@ -225,9 +226,11 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
 
   const empty = Boolean(deck) && !cards.length;
 
-  return (
+  // Portaled to <body>: the workspace wraps its overlays in pointer-events-none layers, which made
+  // clicks and drags fall through to the map underneath.
+  return createPortal(
     <div
-      className="chest-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-3 py-3 backdrop-blur-xl"
+      className="pointer-events-auto chest-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-3 py-3 backdrop-blur-xl"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -326,6 +329,7 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
           <p className="mt-3 px-6 text-center text-[11px] text-stone-500">Novas cartas chegam amanhã, à meia-noite UTC.</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
