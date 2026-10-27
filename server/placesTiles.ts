@@ -19,7 +19,9 @@ import type { OverturePlace } from './overtureService.js';
 const DEFAULT_LEVELS = [7, 9, 11, 13, 15];
 const HEADER_FETCH_BYTES = 16384;
 const MAX_TILES_PER_QUERY = 48;
-const MAX_TILES_DEEP_QUERY = 160;
+const MAX_TILES_DEEP_QUERY = 80;
+/** Deep (search) reads give up after this long and use the tiles that already arrived. */
+const DEEP_BUDGET_MS = 5000;
 const TILE_CACHE_SIZE = 160;
 const DIRECTORY_CACHE_SIZE = 64;
 
@@ -498,7 +500,17 @@ export async function queryPlacesTiles(
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), deep ? 30000 : 5000));
   const maxTiles = deep ? MAX_TILES_DEEP_QUERY : MAX_TILES_PER_QUERY;
   const leaves = await coveringTiles(archive, west, south, east, north, maxTiles, !deep);
-  const tiles = await Promise.all(leaves.map(({ z, x, y }) => readTile(archive, z, x, y).catch(() => null)));
+  const arrived: Array<any[][] | null> = new Array(leaves.length).fill(null);
+  const reads = leaves.map(({ z, x, y }, index) =>
+    readTile(archive, z, x, y).then((rows) => { arrived[index] = rows; }).catch(() => undefined),
+  );
+  if (deep) {
+    // A search over a whole city must answer in bounded time: keep what arrived within the budget.
+    await Promise.race([Promise.all(reads), new Promise((resolve) => setTimeout(resolve, DEEP_BUDGET_MS))]);
+  } else {
+    await Promise.all(reads);
+  }
+  const tiles = arrived;
 
   const inside: any[][] = [];
   for (const rows of tiles) {

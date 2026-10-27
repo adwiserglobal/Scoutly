@@ -45,6 +45,17 @@ function rowToPlace(row: any): OverturePlace {
   };
 }
 
+// Area covered by the Supabase index (Grande São Paulo).
+const LOCAL_INDEX_BBOX = { west: -47.2, south: -24.2, east: -45.65, north: -23.15 };
+
+/** True when the center of the bbox lies inside the Supabase-indexed area (and the index is configured). */
+export function isCoveredByLocalIndex(bbox: { west: number; south: number; east: number; north: number }): boolean {
+  if (!hasBrazilPlacesDatabase()) return false;
+  const lng = (bbox.west + bbox.east) / 2;
+  const lat = (bbox.south + bbox.north) / 2;
+  return lng >= LOCAL_INDEX_BBOX.west && lng <= LOCAL_INDEX_BBOX.east && lat >= LOCAL_INDEX_BBOX.south && lat <= LOCAL_INDEX_BBOX.north;
+}
+
 export function hasBrazilPlacesDatabase(): boolean {
   return Boolean(process.env.SUPABASE_URL && getServerKey());
 }

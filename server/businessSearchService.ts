@@ -11,7 +11,7 @@ import {
 } from './cnpjService.js';
 import { fetchBusinessesFromSerper } from './serperService.js';
 import { fetchBusinessesFromRankFabrik } from './rankFabrikService.js';
-import { hasBrazilPlacesDatabase, queryBrazilPlacesByName, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
+import { hasBrazilPlacesDatabase, isCoveredByLocalIndex, queryBrazilPlacesByName, queryBrazilPlacesPrecise } from './brazilPlacesService.js';
 import { resolveSearchProfile, scoreAgainstProfile, normalizeSearchText, SearchProfile } from './searchProfiles.js';
 import { resolveSearchGeography, extractBusinessPhraseFromQuery } from './geographyService.js';
 
@@ -215,6 +215,9 @@ async function searchOvertureByTerms(
 ): Promise<OverturePlace[]> {
   const usefulTerms = terms.filter((term) => term.length >= 3).slice(0, 8);
   if (!usefulTerms.length) return [];
+  // The Supabase index already holds the same Overture data for this area; a second, much slower
+  // scan of the places archive would only duplicate it.
+  if (isCoveredByLocalIndex(bbox)) return [];
 
   try {
     // Keep the DuckDB/Overture native module in one isolated serverless function.
