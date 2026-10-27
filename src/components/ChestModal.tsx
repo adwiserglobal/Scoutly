@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, Clock, Globe, Loader2, Lock, MapPin, Phone, Share2, Sparkles, X } from 'lucide-react';
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Business } from '../types';
 import { ChestDeck, fetchChestDeck } from '../services/api';
 import { buildChestCandidates } from '../utils/chestDeck';
 import { translateCategory } from '../utils/categoryTranslator';
 import { formatMonthsOpen, getMonthsOpen } from '../utils/newCompanies';
 import ChestRays from './ChestRays';
+import { BrandIcon, brandFromUrl, type BrandName } from './BrandIcon';
 
 interface ChestModalProps {
   open: boolean;
@@ -51,22 +52,23 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
   const months = getMonthsOpen(card);
   const hasPhone = Boolean(card.phone || card.phones?.length);
   const socials = card.socials?.length || 0;
+  const brands = Array.from(new Set((card.socials || []).map((url) => brandFromUrl(url)).filter((brand): brand is BrandName => Boolean(brand))));
   const reasons = card.reasons?.length ? card.reasons : card.reason ? [card.reason] : [];
 
   return (
-    <article className="flex min-h-[440px] w-[286px] shrink-0 snap-center flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#14171c] shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:w-[300px]">
-      <div className="relative h-[104px] shrink-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
+    <article className="flex w-[270px] shrink-0 snap-center flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#14171c] shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:w-[280px]">
+      <div className="relative h-[76px] shrink-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
         <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
         <span className="absolute right-3.5 top-3.5 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
           {index + 1}/{total}
         </span>
-        <div className="absolute -bottom-7 left-5 flex h-[60px] w-[60px] items-center justify-center rounded-2xl border-4 border-[#14171c] bg-white text-[19px] font-extrabold shadow-lg" style={{ color: to }}>
+        <div className="absolute -bottom-6 left-4 flex h-[52px] w-[52px] items-center justify-center rounded-2xl border-4 border-[#14171c] bg-white text-[16px] font-extrabold shadow-lg" style={{ color: to }}>
           {initials(card.name)}
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col px-5 pb-5 pt-10">
-        <h3 className="break-words text-[18px] font-extrabold leading-snug text-white">{card.name}</h3>
+      <div className="flex flex-1 flex-col px-4 pb-4 pt-9">
+        <h3 className="break-words text-[16px] font-extrabold leading-snug text-white">{card.name}</h3>
         <p className="mt-1 text-[12px] font-semibold text-[#FF8A55]">{translateCategory(card.category)}</p>
         <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-stone-400">
           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-500" />
@@ -76,9 +78,19 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
         <div className="mt-3 flex flex-wrap gap-1.5">
           {!card.website && <Chip tone="blue"><Globe className="h-3 w-3" />Sem site</Chip>}
           {hasPhone && <Chip tone="green"><Phone className="h-3 w-3" />Telefone</Chip>}
-          {socials > 0 && <Chip tone="violet"><Share2 className="h-3 w-3" />{`${socials} ${socials === 1 ? 'rede' : 'redes'}`}</Chip>}
+          {socials > 0 && brands.length === 0 && <Chip tone="violet"><Share2 className="h-3 w-3" />{`${socials} ${socials === 1 ? 'rede' : 'redes'}`}</Chip>}
           {months !== null && <Chip><Clock className="h-3 w-3" />{`Aberta há ${formatMonthsOpen(months)}`}</Chip>}
         </div>
+
+        {brands.length > 0 && (
+          <div className="mt-3 flex items-center" aria-label="Redes sociais">
+            {brands.slice(0, 5).map((brand, position) => (
+              <span key={brand} className={`rounded-full ring-2 ring-[#14171c] ${position ? '-ml-2' : ''}`} style={{ zIndex: 10 - position }}>
+                <BrandIcon brand={brand} />
+              </span>
+            ))}
+          </div>
+        )}
 
         {reasons.length > 0 && (
           <div className="mt-4 rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] p-3">
@@ -86,7 +98,7 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
               <Sparkles className="h-3 w-3" /> Por que no seu baú
             </p>
             <ul className="space-y-1">
-              {reasons.slice(0, 3).map((reason) => (
+              {reasons.slice(0, 2).map((reason) => (
                 <li key={reason} className="break-words text-[12px] leading-snug text-stone-200">{reason}</li>
               ))}
             </ul>
@@ -96,7 +108,7 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
         <button
           type="button"
           onClick={onView}
-          className="mt-auto flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF7A2E] to-[#FF4D00] pt-0 text-[13px] font-extrabold text-white shadow-[0_8px_24px_rgba(255,90,18,0.35)] transition active:scale-[0.98]"
+          className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF7A2E] to-[#FF4D00] pt-0 text-[13px] font-extrabold text-white shadow-[0_8px_24px_rgba(255,90,18,0.35)] transition active:scale-[0.98]"
         >
           Ver empresa <ArrowRight className="h-4 w-4" />
         </button>
@@ -111,7 +123,6 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
-  const dragState = useRef<{ x: number; left: number; moved: boolean } | null>(null);
   const businessesRef = useRef(businesses);
   businessesRef.current = businesses;
 
@@ -141,6 +152,54 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Mouse drag-to-scroll (touch and trackpads scroll natively). Click suppression only applies
+  // right after a real drag, so the buttons inside the cards keep working.
+  useEffect(() => {
+    const node = scroller.current;
+    if (!open || !node) return;
+    let startX = 0;
+    let startLeft = 0;
+    let dragging = false;
+    let moved = false;
+    const down = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startX = event.clientX;
+      startLeft = node.scrollLeft;
+    };
+    const move = (event: MouseEvent) => {
+      if (!dragging) return;
+      const delta = event.clientX - startX;
+      if (!moved && Math.abs(delta) < 6) return;
+      moved = true;
+      node.style.scrollSnapType = 'none';
+      node.scrollLeft = startLeft - delta;
+    };
+    const up = () => {
+      if (!dragging) return;
+      dragging = false;
+      node.style.scrollSnapType = '';
+      if (moved) window.setTimeout(() => { moved = false; }, 0);
+    };
+    const click = (event: MouseEvent) => {
+      if (moved) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    node.addEventListener('mousedown', down);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    node.addEventListener('click', click, true);
+    return () => {
+      node.removeEventListener('mousedown', down);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      node.removeEventListener('click', click, true);
+    };
+  }, [open, loading, deck]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -164,38 +223,18 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
 
   if (!open) return null;
 
-  // Mouse drag to scroll (touch screens scroll natively).
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== 'mouse' || !scroller.current) return;
-    dragState.current = { x: event.clientX, left: scroller.current.scrollLeft, moved: false };
-  };
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const state = dragState.current;
-    if (!state || !scroller.current) return;
-    const delta = event.clientX - state.x;
-    if (Math.abs(delta) > 4) state.moved = true;
-    if (state.moved) {
-      scroller.current.style.scrollSnapType = 'none';
-      scroller.current.scrollLeft = state.left - delta;
-    }
-  };
-  const endDrag = () => {
-    if (scroller.current) scroller.current.style.scrollSnapType = '';
-    window.setTimeout(() => { dragState.current = null; }, 0);
-  };
-
   const empty = Boolean(deck) && !cards.length;
 
   return (
     <div
-      className="chest-backdrop-in fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/55 px-3 py-6 backdrop-blur-2xl"
+      className="chest-backdrop-in fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-3 py-3 backdrop-blur-xl"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Baú de oportunidades"
     >
       <div
-        className="relative w-[min(980px,100%)] rounded-[32px] border border-white/10 bg-[#0d0f13]/90 pb-6 pt-4 shadow-[0_40px_120px_rgba(0,0,0,0.65)]"
+        className="relative flex max-h-full w-[min(920px,100%)] flex-col overflow-y-auto rounded-[28px] border border-white/10 bg-[#0d0f13]/95 pb-4 pt-3 shadow-[0_40px_120px_rgba(0,0,0,0.65)]"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -208,11 +247,11 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
         </button>
 
         <div className="flex flex-col items-center px-6">
-          <div className="relative h-[120px] w-[120px] shrink-0">
+          <div className="relative h-[84px] w-[84px] shrink-0">
             <ChestRays intense />
-            <img src="/chest-open.png" alt="" width={92} height={80} draggable={false} className="chest-img absolute inset-0 m-auto h-[84px] w-auto object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
+            <img src="/chest-open.png" alt="" width={70} height={60} draggable={false} className="chest-img absolute inset-0 m-auto h-[60px] w-auto object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
           </div>
-          <h2 className="mt-1 text-center text-[19px] font-extrabold tracking-tight text-white">Baú de oportunidades</h2>
+          <h2 className="text-center text-[17px] font-extrabold tracking-tight text-white">Baú de oportunidades</h2>
           <p className="mt-1 max-w-[560px] text-center text-[12px] leading-relaxed text-stone-300">
             {deck
               ? `${deck.used} de ${deck.limit} ${deck.limit === 1 ? 'carta liberada' : 'cartas liberadas'} hoje`
@@ -221,7 +260,7 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
           </p>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-3">
           {loading && (
             <div className="mx-6 flex h-[300px] items-center justify-center rounded-[26px] border border-white/10 bg-[#14171c]/80">
               <Loader2 className="h-6 w-6 animate-spin text-[#FF6A26]" />
@@ -249,17 +288,8 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
               )}
               <div
                 ref={scroller}
-                className="flex cursor-grab snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-6 pb-3 pt-1 [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={endDrag}
-                onPointerLeave={endDrag}
-                onClickCapture={(event) => {
-                  if (dragState.current?.moved) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }
-                }}
+                className="flex cursor-grab select-none snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                onDragStart={(event) => event.preventDefault()}
               >
                 {cards.map((card, index) => (
                   <CompanyCard key={card.id} card={card} index={index} total={cards.length} onView={() => onViewBusiness(card as Business)} />

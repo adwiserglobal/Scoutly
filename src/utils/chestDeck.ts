@@ -42,7 +42,9 @@ export function buildChestCandidates(
     : ranked.map((business) => ({ business, query: null as string | null }));
 
   const candidates = pick.slice(0, CHEST_MAX_CARDS).map(({ business, query }) => {
-    const reasons = getRecommendationReasons(business.id).filter((reason) => reason !== 'Sem site');
+    const reasons = getRecommendationReasons(business.id).filter(
+      (reason) => reason !== 'Sem site' && !(query && /^Combina com suas buscas/i.test(reason)),
+    );
     const withQuery = query ? [`Combina com sua busca: ${query}`, ...reasons] : reasons;
     return { ...business, reason: withQuery[0] || null, reasons: withQuery.slice(0, 4) };
   });
