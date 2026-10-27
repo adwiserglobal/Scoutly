@@ -12,10 +12,9 @@ import type { FlightModelId } from '../flight/models';
 import type { FlightLimit, FlightSummary } from '../flight/summary';
 import { startFlightSession } from '../services/api';
 import { getRecentlyViewedBusinessIds, RECENTLY_VIEWED_EVENT } from '../utils/recentBusinesses';
-import { getActiveLanguage } from '../i18n/language';
 
 // Businesses with no website are the main sales opportunity: they get their own marker colour.
-const NO_WEBSITE_COLOR = '#8B5CF6';
+const NO_WEBSITE_COLOR = '#2D9CFF';
 
 // Configure worker URL explicitly for Vite so vector tiles are fetched and parsed
 if (typeof window !== 'undefined' && maplibregl.setWorkerUrl) {
@@ -486,8 +485,7 @@ function InteractiveMap({
         const styleFonts: string[][] = (map.getStyle().layers || [])
           .map((layer: any) => layer?.layout?.['text-font'])
           .filter((font: unknown): font is string[] => Array.isArray(font) && font.length > 0 && font.every((name) => typeof name === 'string'));
-        const regularFont = styleFonts.find((font) => /regular/i.test(font.join(' '))) || styleFonts[0];
-        const strongFont = styleFonts.find((font) => /semibold|bold|medium/i.test(font.join(' '))) || regularFont;
+        const strongFont = styleFonts.find((font) => /semibold|bold|medium/i.test(font.join(' '))) || styleFonts[0];
 
         // 4a-1. Business name under each dot. Collision detection hides labels in dense areas, so only
         // what fits is drawn and more names appear as the user zooms in.
@@ -499,83 +497,22 @@ function InteractiveMap({
           filter: ['!', ['has', 'point_count']],
           layout: {
             'text-field': ['get', 'name'],
-            ...(regularFont ? { 'text-font': regularFont } : {}),
-            'text-size': 10,
+            ...(strongFont ? { 'text-font': strongFont } : {}),
+            'text-size': 11.5,
             'text-anchor': 'top',
-            'text-offset': [0, 0.85],
-            'text-max-width': 7,
+            'text-offset': [0, 0.95],
+            'text-max-width': 8,
             'text-padding': 2,
             'text-allow-overlap': false,
             'text-ignore-placement': false,
           },
           paint: {
-            'text-color': '#F5F5F4',
-            'text-halo-color': 'rgba(12, 10, 9, 0.92)',
-            'text-halo-width': 1.6,
-            'text-halo-blur': 0.4,
+            'text-color': '#FFFFFF',
+            'text-halo-color': 'rgba(6, 8, 12, 0.96)',
+            'text-halo-width': 2.4,
+            'text-halo-blur': 0.6,
           },
         });
-
-        // 4a-2. "Sem site" speech bubble above businesses with no website. The bubble is a 9-slice
-        // image (fixed corners and tail, stretchable body) fitted around the label text.
-        try {
-          const bubbleW = 96;
-          const bubbleH = 52;
-          const canvas = document.createElement('canvas');
-          canvas.width = bubbleW;
-          canvas.height = bubbleH;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            const bodyH = 36;
-            ctx.fillStyle = NO_WEBSITE_COLOR;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            if (typeof ctx.roundRect === 'function') ctx.roundRect(2, 2, bubbleW - 4, bodyH - 2, 14);
-            else ctx.rect(2, 2, bubbleW - 4, bodyH - 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(bubbleW / 2 - 7, bodyH - 3);
-            ctx.lineTo(bubbleW / 2, bodyH + 12);
-            ctx.lineTo(bubbleW / 2 + 7, bodyH - 3);
-            ctx.closePath();
-            ctx.fillStyle = NO_WEBSITE_COLOR;
-            ctx.fill();
-            if (!map.hasImage('no-website-bubble')) {
-              map.addImage('no-website-bubble', ctx.getImageData(0, 0, bubbleW, bubbleH), {
-                pixelRatio: 2,
-                stretchX: [[16, 42], [54, 80]],
-                stretchY: [[14, 24]],
-                content: [14, 6, 82, 30],
-              });
-            }
-            map.addLayer({
-              id: 'no-website-label',
-              type: 'symbol',
-              source: 'businesses',
-              filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'noWebsite'], true]],
-              layout: {
-                'text-field': getActiveLanguage() === 'en' ? 'No website' : 'Sem site',
-                ...(strongFont ? { 'text-font': strongFont } : {}),
-                'text-size': 10,
-                'text-offset': [0, -1.75],
-                'text-anchor': 'bottom',
-                'text-allow-overlap': false,
-                'text-ignore-placement': false,
-                'icon-image': 'no-website-bubble',
-                'icon-text-fit': 'both',
-                'icon-text-fit-padding': [2, 6, 2, 6],
-                'icon-allow-overlap': false,
-              },
-              paint: {
-                'text-color': '#ffffff',
-              },
-            });
-          }
-        } catch (error) {
-          console.warn('Could not add the "Sem site" bubble layer', error);
-        }
 
         // 4b. Load and add WhatsApp Icon Layer (Conditional)
         map.loadImage('/whatsapp_icone.png')
@@ -841,7 +778,6 @@ function InteractiveMap({
               outlineWidth,
               markerRadius,
               showWhatsappIcon,
-              noWebsite: !hasWebsite,
               recentlyViewed: isRecentlyViewed,
             },
           };
