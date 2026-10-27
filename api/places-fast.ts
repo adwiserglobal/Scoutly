@@ -89,7 +89,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // the same speed in any city. Falls through to OSM only if it is not configured or fails.
     if (hasPlacesTiles()) {
       try {
-        const tiles = await queryPlacesTiles(west, south, east, north, safeLimit);
+        // Wide views are clustered anyway: 2,500 of the most confident places is plenty and halves the payload.
+        const tiles = await queryPlacesTiles(west, south, east, north, zoom && zoom >= 15 ? safeLimit : Math.min(safeLimit, 2500));
         if (tiles.places.length > 0) {
           res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
           res.setHeader('X-Scoutly-Places-Source', `tiles:${tiles.release || 'unknown'}:${tiles.tiles}`);

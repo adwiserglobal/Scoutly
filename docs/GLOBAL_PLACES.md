@@ -75,3 +75,8 @@ Custo recorrente esperado: **R$ 0** (GitHub Actions free, R2 free, Vercel free).
 ## O que continua no Supabase
 
 A Grande SP segue no índice PostGIS (busca por segmento/nome com RPCs próprios) até validarmos o mundo inteiro em produção. Depois disso dá para aposentá-lo e liberar o banco.
+
+## Visão geral por zoom (overview tiles)
+
+Em cidades densas (Miami, Nova York, São Paulo) uma tela inteira cobre dezenas de células folha. Ler todas levava ~5 s e estourava o tempo da função. Por isso o build grava, para cada célula interior do quadtree, um tile de visão geral com as 600 empresas de maior confiança (guardado um zoom acima do nível da célula). A API escolhe o nível mais fino que cabe em até 16 células e lê só esses tiles: uma tela de cidade passou de ~5,4 s para ~0,2 s (15 tiles) e a de região metropolitana para ~40 ms (4 tiles). Buscas por segmento/nome continuam lendo todas as folhas da área. Arquivos antigos (sem visão geral) continuam funcionando, só mais lentos nas telas largas.
+

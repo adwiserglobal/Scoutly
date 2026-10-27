@@ -298,61 +298,109 @@ const latToY = (lat: number, z: number) => {
   return Math.min(2 ** z - 1, Math.max(0, y));
 };
 
-/** Leaf tiles (as [z, x, y]) that cover the bbox, descending the adaptive quadtree. */
-async function coveringTiles(archive: Archive, west: number, south: number, east: number, north: number, maxTiles: number) {
-  const found: Array<[number, number, number]> = [];
+interface TileRef {
+  /** Zoom the tile is stored at (leaf level, or level + 1 for an overview). */
+  z: number;
+  x: number;
+  y: number;
+  /** Level of the quadtree cell this tile describes. */
+  level: number;
+}
+
+const LOD_MAX_CELLS = 16;
+
+/**
+ * Tiles to read for a bbox.
+ *  - exact (deep) mode descends to every leaf: all places of the area, used by searches;
+ *  - overview mode stops at the finest level that needs at most LOD_MAX_CELLS cells and reads the
+ *    overview tile of cells that are not leaves, so a city-sized viewport costs a handful of reads.
+ * When more tiles than allowed remain, the ones closest to the bbox center win.
+ */
+async function coveringTiles(
+  archive: Archive,
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+  maxTiles: number,
+  overview: boolean,
+): Promise<TileRef[]> {
+  const found: TileRef[] = [];
   const levels = archive.levels;
-  const tilesAt = (level: number) => {
+  const cellsAt = (level: number) => {
     const x0 = lonToX(west, level);
     const x1 = lonToX(east, level);
     const y0 = latToY(north, level);
     const y1 = latToY(south, level);
-    const cells: Array<[number, number]> = [];
-    for (let x = x0; x <= x1; x += 1) for (let y = y0; y <= y1; y += 1) cells.push([x, y]);
-    return cells;
+    return { x0, x1, y0, y1, count: (x1 - x0 + 1) * (y1 - y0 + 1) };
   };
 
-  let frontier = tilesAt(levels[0]);
-  if (frontier.length > maxTiles * 4) return found; // continent-sized viewport
+  // Overview level: the finest one whose cell count stays small.
+  let targetLevel = levels[0];
+  if (overview) {
+    for (const level of levels) {
+      if (cellsAt(level).count <= LOD_MAX_CELLS) targetLevel = level;
+    }
+  }
+
+  const first = cellsAt(levels[0]);
+  if (first.count > maxTiles * 4) return found; // continent-sized viewport
+  let frontier: Array<[number, number]> = [];
+  for (let x = first.x0; x <= first.x1; x += 1) for (let y = first.y0; y <= first.y1; y += 1) frontier.push([x, y]);
 
   for (let li = 0; li < levels.length && frontier.length; li += 1) {
     const level = levels[li];
-    const kinds = await Promise.all(frontier.map(([x, y]) => tileKind(archive, level, x, y)));
+    const kinds = await Promise.all(frontier.map(([x, y]) => cellKind(archive, level, x, y)));
     const next: Array<[number, number]> = [];
-    kinds.forEach((kind, index) => {
+    kinds.forEach((info, index) => {
       const [x, y] = frontier[index];
-      if (kind === 'leaf') {
-        found.push([level, x, y]);
-      } else if (kind === 'interior' && li + 1 < levels.length) {
-        const shift = levels[li + 1] - level;
-        const size = 2 ** shift;
-        const nextLevel = levels[li + 1];
-        const cx0 = Math.max(x * size, lonToX(west, nextLevel));
-        const cx1 = Math.min(x * size + size - 1, lonToX(east, nextLevel));
-        const cy0 = Math.max(y * size, latToY(north, nextLevel));
-        const cy1 = Math.min(y * size + size - 1, latToY(south, nextLevel));
-        for (let cx = cx0; cx <= cx1; cx += 1) for (let cy = cy0; cy <= cy1; cy += 1) next.push([cx, cy]);
+      if (info.kind === 'leaf') {
+        found.push({ z: level, x, y, level });
+      } else if (info.kind === 'interior') {
+        if (overview && info.hasPreview && level >= targetLevel) {
+          found.push({ z: level + 1, x, y, level });
+        } else if (li + 1 < levels.length) {
+          const nextLevel = levels[li + 1];
+          const size = 2 ** (nextLevel - level);
+          const cx0 = Math.max(x * size, lonToX(west, nextLevel));
+          const cx1 = Math.min(x * size + size - 1, lonToX(east, nextLevel));
+          const cy0 = Math.max(y * size, latToY(north, nextLevel));
+          const cy1 = Math.min(y * size + size - 1, latToY(south, nextLevel));
+          for (let cx = cx0; cx <= cx1; cx += 1) for (let cy = cy0; cy <= cy1; cy += 1) next.push([cx, cy]);
+        }
       }
     });
     frontier = next;
     if (found.length + frontier.length > maxTiles * 4) break;
   }
-  return found;
+
+  if (found.length <= maxTiles) return found;
+  const centerLon = (west + east) / 2;
+  const centerLat = (south + north) / 2;
+  const distance = (tile: TileRef) => {
+    const n = 2 ** tile.level;
+    const lon = ((tile.x + 0.5) / n) * 360 - 180;
+    const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (tile.y + 0.5)) / n))) * 180) / Math.PI;
+    return (lon - centerLon) ** 2 + (lat - centerLat) ** 2;
+  };
+  return found.sort((a, b) => distance(a) - distance(b)).slice(0, maxTiles);
 }
 
 type TileKind = 'leaf' | 'interior' | 'none';
 
-/** Interior cells of the quadtree are stored as tiny marker tiles; leaves carry the places. */
-const MARKER_MAX_BYTES = 40;
+/** Archives built before overview tiles marked interior cells with a tiny shared tile. */
+const LEGACY_MARKER_MAX_BYTES = 40;
 
-async function tileKind(archive: Archive, z: number, x: number, y: number): Promise<TileKind> {
-  // Directory lookups only (no tile bytes): resolve the entry for this exact tile id.
-  const tileId = zxyToTileId(z, x, y);
+function hasEntry(archive: Archive, z: number, x: number, y: number): Promise<{ length: number } | null> {
+  return findTileEntry(archive, zxyToTileId(z, x, y));
+}
+
+async function findTileEntry(archive: Archive, tileId: number): Promise<{ length: number } | null> {
   let entries = archive.root;
   for (let depth = 0; depth < 4; depth += 1) {
     const entry = findEntry(entries, tileId);
-    if (!entry) return 'none';
-    if (entry.runLength > 0) return entry.length <= MARKER_MAX_BYTES ? 'interior' : 'leaf';
+    if (!entry) return null;
+    if (entry.runLength > 0) return { length: entry.length };
     const leafKey = `dir/${archive.source}/${entry.offset}`;
     let leaf = directoryCache.get(leafKey);
     if (!leaf) {
@@ -361,7 +409,22 @@ async function tileKind(archive: Archive, z: number, x: number, y: number): Prom
     }
     entries = leaf;
   }
-  return 'none';
+  return null;
+}
+
+/**
+ * What a quadtree cell is: a leaf (tile at its own level), an interior cell (overview tile stored one
+ * zoom above, or a legacy marker), or nothing. Directory lookups only; no tile bytes are read.
+ */
+async function cellKind(archive: Archive, level: number, x: number, y: number): Promise<{ kind: TileKind; hasPreview: boolean }> {
+  const own = await hasEntry(archive, level, x, y);
+  if (own) {
+    return own.length <= LEGACY_MARKER_MAX_BYTES
+      ? { kind: 'interior', hasPreview: false }
+      : { kind: 'leaf', hasPreview: false };
+  }
+  const preview = await hasEntry(archive, level + 1, x, y);
+  return preview ? { kind: 'interior', hasPreview: true } : { kind: 'none', hasPreview: false };
 }
 
 function emailKey(): Buffer | null {
@@ -434,8 +497,8 @@ export async function queryPlacesTiles(
   const archive = await getArchive();
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), deep ? 30000 : 5000));
   const maxTiles = deep ? MAX_TILES_DEEP_QUERY : MAX_TILES_PER_QUERY;
-  const leaves = (await coveringTiles(archive, west, south, east, north, maxTiles)).slice(0, maxTiles);
-  const tiles = await Promise.all(leaves.map(([z, x, y]) => readTile(archive, z, x, y).catch(() => null)));
+  const leaves = await coveringTiles(archive, west, south, east, north, maxTiles, !deep);
+  const tiles = await Promise.all(leaves.map(({ z, x, y }) => readTile(archive, z, x, y).catch(() => null)));
 
   const inside: any[][] = [];
   for (const rows of tiles) {

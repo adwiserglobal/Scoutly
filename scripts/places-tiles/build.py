@@ -63,6 +63,7 @@ def main() -> int:
     parser.add_argument("--bbox", default="", help="west,south,east,north")
     parser.add_argument("--min-confidence", type=float, default=0.35)
     parser.add_argument("--leaf-max", type=int, default=2500)
+    parser.add_argument("--preview-size", type=int, default=600, help="places kept in the overview tile of every interior cell")
     parser.add_argument("--batch-rows", type=int, default=3_000_000, help="rows aggregated per pass (memory knob)")
     parser.add_argument("--threads", type=int, default=0)
     parser.add_argument("--memory-limit", default="")
@@ -205,10 +206,35 @@ def main() -> int:
             GROUP BY ALL
         """
 
+    def preview_sql(batch, level):
+        """Overview tile for an interior cell: its most confident places, so wide views stay cheap."""
+        keys = ",".join(f"({x}::BIGINT * 65536 + {y}::BIGINT)" for x, y in batch)
+        shift = MAX_Z - level
+        return f"""
+            SELECT {level} AS z, x, y, count(*) AS n,
+                   CAST(to_json(list(json_array(
+                       id, name, lon, lat, category, taxonomy, confidence,
+                       coalesce(websites, []), coalesce(phones, []), coalesce(socials, []),
+                       address, blob, status
+                   ) ORDER BY confidence DESC NULLS LAST, id)) AS VARCHAR) AS payload
+            FROM (
+                SELECT l.*, em.blob, (l.tx >> {shift}) AS x, (l.ty >> {shift}) AS y,
+                       row_number() OVER (
+                           PARTITION BY (l.tx >> {shift}), (l.ty >> {shift})
+                           ORDER BY l.confidence DESC NULLS LAST, l.id
+                       ) AS rn
+                FROM leafed l LEFT JOIN em ON em.id = l.id
+                WHERE l.lz > {level}
+                  AND ((l.tx >> {MAX_Z - 7})::BIGINT * 65536 + (l.ty >> {MAX_Z - 7})::BIGINT) IN ({keys})
+            )
+            WHERE rn <= {int(args.preview_size)}
+            GROUP BY ALL
+        """
+
     lon_min, lat_min, lon_max, lat_max = con.execute("SELECT min(lon), min(lat), max(lon), max(lat) FROM leafed").fetchone()
 
     out_tmp = args.out + ".partial"
-    stats = {"tiles": 0, "places": 0, "bytes": 0, "maxTile": 0, "byZ": {}, "leafKeys": []}
+    stats = {"tiles": 0, "places": 0, "bytes": 0, "maxTile": 0, "byZ": {}}
     with open(out_tmp, "wb") as fh:
         writer = Writer(fh)
         for index, batch in enumerate(batches):
@@ -225,7 +251,18 @@ def main() -> int:
                     stats["bytes"] += len(blob)
                     stats["maxTile"] = max(stats["maxTile"], len(blob))
                     stats["byZ"][int(z)] = stats["byZ"].get(int(z), 0) + 1
-                    stats["leafKeys"].append((int(z), int(x), int(y)))
+            # Overview tiles are stored one zoom above their cell (a free namespace: leaves use odd levels).
+            for level in LEVELS[:-1]:
+                pcur = con.cursor().execute(preview_sql(batch, level))
+                while True:
+                    prows = pcur.fetchmany(500)
+                    if not prows:
+                        break
+                    for _z, x, y, n, payload in prows:
+                        blob = gzip.compress(payload.encode("utf-8"), compresslevel=9, mtime=0)
+                        writer.write_tile(zxy_to_tileid(level + 1, int(x), int(y)), blob)
+                        stats["previewTiles"] = stats.get("previewTiles", 0) + 1
+                        stats["previewBytes"] = stats.get("previewBytes", 0) + len(blob)
             log(f"batch {index + 1}/{len(batches)}: {stats['tiles']:,} tiles, {stats['places']:,} places, {stats['bytes'] / 1e9:.2f} GB")
         header = {
             "tile_type": TileType.UNKNOWN,
@@ -249,21 +286,10 @@ def main() -> int:
             "countries": countries or "world",
             "minConfidence": args.min_confidence,
             "emailsIncluded": bool(key and em_rows),
+            "previews": True,
+            "previewSize": args.preview_size,
             "stats": stats,
         }
-        # Interior quadtree cells get a tiny shared marker tile so readers can tell
-        # "descend further" (marker) from "nothing here" (no entry) without probing every child.
-        marker = gzip.compress(b"{}", compresslevel=9, mtime=0)
-        interior = set()
-        for z, x, y in stats.pop("leafKeys"):
-            for parent_z in LEVELS:
-                if parent_z >= z:
-                    break
-                shift = z - parent_z
-                interior.add((parent_z, x >> shift, y >> shift))
-        for z, x, y in interior:
-            writer.write_tile(zxy_to_tileid(z, x, y), marker)
-        stats["interiorTiles"] = len(interior)
         writer.finalize(header, metadata)
     os.replace(out_tmp, args.out)
     size = os.path.getsize(args.out)
