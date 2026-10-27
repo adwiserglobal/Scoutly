@@ -242,6 +242,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [socialBatch, setSocialBatch] = useState(0);
 
   const [socialVerification, setSocialVerification] = useState<
     Record<string, 'checking' | 'has_social' | 'no_social' | 'failed'>
@@ -338,12 +339,15 @@ export default function App() {
 
     let cancelled = false;
 
-    const candidates = businesses.filter((business) => {
+    const pending = businesses.filter((business) => {
       const hasKnownSocials = Boolean(business.socials && business.socials.length > 0);
       const status = socialVerificationRef.current[business.id];
 
       return !hasKnownSocials && Boolean(business.website) && !status;
     });
+    // Verify in batches: a worldwide map can hold thousands of sites, and each check is a live fetch.
+    const candidates = pending.slice(0, 150);
+    const hasMoreBatches = pending.length > candidates.length;
 
     if (candidates.length === 0) {
       setIsSocialVerificationRunning(false);
@@ -410,13 +414,15 @@ export default function App() {
     );
 
     Promise.allSettled(workers).then(() => {
-      if (!cancelled) setIsSocialVerificationRunning(false);
+      if (cancelled) return;
+      setIsSocialVerificationRunning(false);
+      if (hasMoreBatches) setSocialBatch((current) => current + 1);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [activeFilters.semRedeSocial, businessIdSignature]);
+  }, [activeFilters.semRedeSocial, businessIdSignature, socialBatch]);
 
   // Hydrate all account-scoped data from the Scoutly App DB after Firebase auth.
   useEffect(() => {
@@ -1175,9 +1181,18 @@ export default function App() {
     return businesses.filter((b) => !b.website).length;
   }, [businesses]);
 
-  // Count only explicit WhatsApp evidence. A phone number alone is not WhatsApp.
+  // WhatsApp evidence: an explicit wa.me / whatsapp.com link, or a Brazilian mobile number
+  // (DDD + 9xxxx-xxxx), which is how WhatsApp Business is used in practice. Landlines never count.
+  const isBrazilianMobile = (value: unknown) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length === 13 && digits.startsWith('55')) return digits[4] === '9';
+    if (digits.length === 11) return digits[2] === '9';
+    return false;
+  };
   const hasExplicitWhatsApp = (business: Business) =>
-    Boolean((business.socials || []).some((url) => /wa\.me\/|whatsapp\.com\//i.test(String(url || ''))));
+    Boolean((business.socials || []).some((url) => /wa\.me\/|whatsapp\.com\//i.test(String(url || '')))) ||
+    isBrazilianMobile(business.phone) ||
+    (business.phones || []).some(isBrazilianMobile);
 
   const whatsappCount = useMemo(() => {
     return businesses.filter(hasExplicitWhatsApp).length;
@@ -1190,19 +1205,17 @@ export default function App() {
 
   // Social-network filter uses live site verification to avoid stale dataset false positives.
   const noSocialCandidatesCount = useMemo(() => {
-    return businesses.filter(
-      (business) =>
-        (!business.socials || business.socials.length === 0) &&
-        Boolean(business.website)
-    ).length;
+    return businesses.filter((business) => !business.socials || business.socials.length === 0).length;
   }, [businesses]);
 
+  // A business with no website and no listed social profile has nothing to verify: it counts right
+  // away. Those with a website count once the site was checked and showed no social links.
+  const isConfirmedNoSocial = (business: Business) =>
+    (!business.socials || business.socials.length === 0) &&
+    (!business.website || socialVerification[business.id] === 'no_social');
+
   const verifiedNoSocialCount = useMemo(() => {
-    return businesses.filter(
-      (business) =>
-        (!business.socials || business.socials.length === 0) &&
-        socialVerification[business.id] === 'no_social'
-    ).length;
+    return businesses.filter(isConfirmedNoSocial).length;
   }, [businesses, socialVerification]);
 
   const noSocialsCount = activeFilters.semRedeSocial
@@ -1235,7 +1248,7 @@ export default function App() {
         return false;
       }
 
-      // Multi-filter: Com WhatsApp. Phone-only records are intentionally excluded.
+      // Multi-filter: Com WhatsApp (explicit link or Brazilian mobile number).
       if (activeFilters.comWhatsapp && !hasExplicitWhatsApp(biz)) {
         return false;
       }
@@ -1256,7 +1269,7 @@ export default function App() {
           return false;
         }
 
-        if (socialVerification[biz.id] !== 'no_social') {
+        if (!isConfirmedNoSocial(biz)) {
           return false;
         }
       }
