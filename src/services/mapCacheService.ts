@@ -49,6 +49,10 @@ class MapCacheService {
     this.targetedSearchQuery = null;
   }
 
+  public getTargetedSearchResults(): Business[] {
+    return this.targetedSearchResults ? [...this.targetedSearchResults] : [];
+  }
+
   public isTargetedSearchActive(): boolean {
     return this.targetedSearchResults !== null;
   }
@@ -154,12 +158,9 @@ class MapCacheService {
         return Number.isFinite(lat) && Number.isFinite(lng) &&
           lat >= bounds.south && lat <= bounds.north && lng >= bounds.west && lng <= bounds.east;
       });
-      // Leaving the area of the search results ends the search view: normal loading resumes.
-      if (visibleTargeted.length > 0) {
-        onPlacesUpdated(visibleTargeted, true);
-        return;
-      }
-      this.clearTargetedSearch();
+      // A search stays in force until the user clears it, wherever the map goes.
+      onPlacesUpdated(visibleTargeted, true);
+      return;
     }
 
     const t0 = performance.now();

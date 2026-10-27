@@ -243,6 +243,10 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  // A search stays in force (and keeps loading results for wherever the map goes) until it is cleared.
+  const stickySearchRef = useRef<{ query: string; covered: MapBounds[]; loading: boolean } | null>(null);
+  const stickyTimerRef = useRef<any>(null);
+  const stickyRefreshRef = useRef<(bounds: MapBounds) => void>(() => {});
   const [fitBoundsRequest, setFitBoundsRequest] = useState<{ id: number; bounds: MapBounds } | null>(null);
   const [socialBatch, setSocialBatch] = useState(0);
   // Hiring signals by business id, filled while the "Contratando" filter is on.
@@ -753,6 +757,13 @@ export default function App() {
 
       setIsZoomTooLow(false);
 
+      // Active search: keep showing its results; fetch more when the map reaches new ground.
+      if (stickySearchRef.current) {
+        void mapCacheService.loadViewport(bounds, zoom, (visible) => setBusinesses(visible));
+        stickyRefreshRef.current(bounds);
+        return;
+      }
+
       // Debounce the query between 200-350ms (280ms optimal for Google Maps-like fluidity)
       debounceTimerRef.current = setTimeout(async () => {
         setIsBusinessesLoading(true);
@@ -823,7 +834,6 @@ export default function App() {
     const cleanQuery = query.trim();
     if (!cleanQuery) return;
 
-    mapCacheService.clearTargetedSearch();
     setBusinessesError(null);
 
     const normalizeLocalQuery = (value: string) =>
@@ -864,6 +874,10 @@ export default function App() {
       setIsListOpen(false);
       return;
     }
+
+    // A new business search replaces the previous one.
+    mapCacheService.clearTargetedSearch();
+    stickySearchRef.current = null;
 
     // One company with exactly the searched name: show it on the map and open it.
     const focusExactCompany = (found: Business[]) => {
@@ -909,10 +923,12 @@ export default function App() {
         }
       }
 
-      // Keep a city-wide result set on the map while panning, and frame it.
+      // The result set stays on the map (and the search stays active) until the user clears it.
       const showCityResults = (found: Business[]) => {
-        if (!searchedWholeCity || found.length === 0) return;
+        if (found.length === 0) return;
         mapCacheService.setTargetedSearchResults(found, cleanQuery);
+        stickySearchRef.current = { query: cleanQuery, covered: viewportBounds ? [viewportBounds] : [], loading: false };
+        if (!searchedWholeCity) return;
         const lats = found.map((business) => business.latitude);
         const lngs = found.map((business) => business.longitude);
         setFitBoundsRequest({
@@ -1043,11 +1059,74 @@ export default function App() {
     }
   };
 
+  // While a search is active, searching again for the city under the map whenever it moves to ground
+  // the results don't cover yet. Results accumulate, so places visited before stay available.
+  stickyRefreshRef.current = (bounds: MapBounds) => {
+    const sticky = stickySearchRef.current;
+    if (!sticky) return;
+    const center = { lat: (bounds.south + bounds.north) / 2, lng: (bounds.west + bounds.east) / 2 };
+    const covered = sticky.covered.some(
+      (area) => center.lng >= area.west && center.lng <= area.east && center.lat >= area.south && center.lat <= area.north,
+    );
+    if (covered) return;
+
+    if (stickyTimerRef.current) clearTimeout(stickyTimerRef.current);
+    stickyTimerRef.current = setTimeout(async () => {
+      const current = stickySearchRef.current;
+      if (!current || current !== sticky || sticky.loading) return;
+      sticky.loading = true;
+      setIsBusinessesLoading(true);
+      try {
+        let searchBounds: MapBounds = bounds;
+        const city = await resolveCityArea(center.lat, center.lng);
+        if (city) {
+          searchBounds = {
+            west: Math.min(city.bbox.west, bounds.west),
+            south: Math.min(city.bbox.south, bounds.south),
+            east: Math.max(city.bbox.east, bounds.east),
+            north: Math.max(city.bbox.north, bounds.north),
+          };
+        }
+        const regionName = city?.name || currentRegionName;
+        let found = (await searchBusinessesByQuery(sticky.query, regionName, searchBounds, 'name'))?.businesses || [];
+        if (found.length === 0) found = (await searchBusinessesByQuery(sticky.query, regionName, searchBounds))?.businesses || [];
+        if (stickySearchRef.current !== sticky) return; // cleared or replaced meanwhile
+
+        const currentLeads = leadsMapRef.current;
+        const currentFavorites = favoritesMapRef.current;
+        const fresh = found.map((business: Business) => {
+          const saved = currentLeads[business.id];
+          return {
+            ...business,
+            isFavorite: Boolean(currentFavorites[business.id]),
+            leadStatus: saved ? (saved.status as LeadStatus) : business.leadStatus || 'NOVO',
+            notes: saved ? saved.notes : business.notes || '',
+          };
+        });
+        const union = new Map(mapCacheService.getTargetedSearchResults().map((business) => [business.id, business]));
+        for (const business of fresh) union.set(business.id, business);
+        mapCacheService.setTargetedSearchResults(Array.from(union.values()), sticky.query);
+        sticky.covered.push(searchBounds);
+        setBusinessesError(
+          fresh.length === 0 ? `Nenhum resultado para "${sticky.query}" nesta região.` : null,
+        );
+        void mapCacheService.loadViewport(bounds, currentZoom, (visible) => setBusinesses(visible));
+      } catch (error) {
+        console.warn('[Scoutly Search] Could not extend the active search:', error);
+      } finally {
+        sticky.loading = false;
+        setIsBusinessesLoading(false);
+      }
+    }, 500);
+  };
+
   // Clearing the search box returns the map to what is visible now: results of the last search go
   // away and the current viewport is loaded again.
   const handleClearSearch = useCallback(() => {
     suppressNextBoundsFetchRef.current = false;
     mapCacheService.clearTargetedSearch();
+    stickySearchRef.current = null;
+    if (stickyTimerRef.current) clearTimeout(stickyTimerRef.current);
     setBusinessesError(null);
     setIsListOpen(false);
     setSelectedBusiness(null);
@@ -1096,7 +1175,6 @@ export default function App() {
 
   // Preset region click
   const handleSelectPreset = (preset: { name: string; lat: number; lng: number }) => {
-    mapCacheService.clearTargetedSearch();
     userPickedLocationRef.current = true;
     setIsListOpen(false);
     setCenterCoordinates({ lat: preset.lat, lng: preset.lng });
