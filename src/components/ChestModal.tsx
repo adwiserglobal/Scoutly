@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Clock, Globe, Loader2, Lock, MapPin, Phone, Share2, Sparkles, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Business } from '../types';
+import { Business, LeadStatus } from '../types';
 import { ChestDeck, fetchChestDeck } from '../services/api';
 import { buildChestCandidates } from '../utils/chestDeck';
 import { translateCategory } from '../utils/categoryTranslator';
 import { formatMonthsOpen, getMonthsOpen } from '../utils/newCompanies';
 import ChestRays from './ChestRays';
+import BusinessDetailsModal from './BusinessDetailsModal';
 import { BrandIcon, brandFromUrl, type BrandName } from './BrandIcon';
 
 interface ChestModalProps {
@@ -15,7 +16,8 @@ interface ChestModalProps {
   onClose: () => void;
   businesses: Business[];
   center?: { lat: number; lng: number } | null;
-  onViewBusiness: (business: Business) => void;
+  onUpdateStatus?: (id: string, status: LeadStatus, notes?: string) => void;
+  onToggleFavorite?: (business: Business) => void;
   onUpgrade: () => void;
   onDeckChange?: (deck: ChestDeck | null) => void;
 }
@@ -94,7 +96,7 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
         )}
 
         {reasons.length > 0 && (
-          <div className="mt-4 rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] p-3">
+          <div className="mt-4 mb-4 rounded-2xl border border-[#FF5A12]/20 bg-[#FF5A12]/[0.07] p-3">
             <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#FF8A55]">
               <Sparkles className="h-3 w-3" /> Por que no seu baú
             </p>
@@ -109,7 +111,7 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
         <button
           type="button"
           onClick={onView}
-          className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF7A2E] to-[#FF4D00] pt-0 text-[13px] font-extrabold text-white shadow-[0_8px_24px_rgba(255,90,18,0.35)] transition active:scale-[0.98]"
+          className="mt-auto flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF7A2E] to-[#FF4D00] pt-0 text-[13px] font-extrabold text-white shadow-[0_8px_24px_rgba(255,90,18,0.35)] transition active:scale-[0.98]"
         >
           Ver empresa <ArrowRight className="h-4 w-4" />
         </button>
@@ -118,11 +120,12 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
   );
 }
 
-export default function ChestModal({ open, onClose, businesses, center, onViewBusiness, onUpgrade, onDeckChange }: ChestModalProps) {
+export default function ChestModal({ open, onClose, businesses, center, onUpdateStatus, onToggleFavorite, onUpgrade, onDeckChange }: ChestModalProps) {
   const [deck, setDeck] = useState<ChestDeck | null>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Business | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const businessesRef = useRef(businesses);
   businessesRef.current = businesses;
@@ -132,6 +135,7 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setDetail(null);
     const { candidates, query: matchedQuery } = buildChestCandidates(businessesRef.current, center);
     setQuery(matchedQuery);
     fetchChestDeck(candidates)
@@ -204,6 +208,7 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
+      if (detail) return;
       if (event.key === 'Escape') onClose();
       else if (event.key === 'ArrowRight') scrollByCard(1);
       else if (event.key === 'ArrowLeft') scrollByCard(-1);
@@ -295,7 +300,7 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
                 onDragStart={(event) => event.preventDefault()}
               >
                 {cards.map((card, index) => (
-                  <CompanyCard key={card.id} card={card} index={index} total={cards.length} onView={() => onViewBusiness(card as Business)} />
+                  <CompanyCard key={card.id} card={card} index={index} total={cards.length} onView={() => setDetail(card as Business)} />
                 ))}
               </div>
               {cards.length > 1 && <p className="mt-1 text-center text-[11px] text-stone-500">Arraste para o lado para ver todas</p>}
@@ -328,6 +333,15 @@ export default function ChestModal({ open, onClose, businesses, center, onViewBu
         {deck && deck.plan !== 'free' && !loading && deck.remaining <= 0 && cards.length > 0 && (
           <p className="mt-3 px-6 text-center text-[11px] text-stone-500">Novas cartas chegam amanhã, à meia-noite UTC.</p>
         )}
+      </div>
+      {/* Company details open on top of the chest; closing returns to the same card. */}
+      <div onClick={(event) => event.stopPropagation()}>
+        <BusinessDetailsModal
+          business={detail}
+          onClose={() => setDetail(null)}
+          onUpdateStatus={onUpdateStatus}
+          onToggleFavorite={onToggleFavorite}
+        />
       </div>
     </div>,
     document.body,
