@@ -221,10 +221,69 @@ async function fetchNominatim(fragment: string): Promise<Suggestion[]> {
   }
 }
 
+/** City that contains a point, with its bounding box. Worldwide (no country filter). */
+async function reverseCity(lat: number, lng: number) {
+  const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
+  if (apiKey) {
+    try {
+      const params = new URLSearchParams({ lat: String(lat), lon: String(lng), type: 'city', format: 'json', lang: 'pt', apiKey });
+      const response = await fetch(`https://api.geoapify.com/v1/geocode/reverse?${params.toString()}`, { signal: AbortSignal.timeout(4000) });
+      if (response.ok) {
+        const row = (await response.json())?.results?.[0];
+        const bbox = row?.bbox;
+        if (row?.city && bbox && [bbox.lon1, bbox.lat1, bbox.lon2, bbox.lat2].every(Number.isFinite)) {
+          return {
+            name: String(row.city),
+            state: String(row.state_code || row.state || ''),
+            countryCode: String(row.country_code || '').toUpperCase(),
+            bbox: { west: Number(bbox.lon1), south: Number(bbox.lat1), east: Number(bbox.lon2), north: Number(bbox.lat2) },
+          };
+        }
+      }
+    } catch (error: any) {
+      console.warn('[Location Reverse] Geoapify fallback:', error?.message || error);
+    }
+  }
+
+  const params = new URLSearchParams({ format: 'jsonv2', zoom: '10', addressdetails: '1', lat: String(lat), lon: String(lng) });
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+    headers: { Accept: 'application/json', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5', 'User-Agent': 'Scoutly-Location-Resolver/2.0 (scoutly.pro)' },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return null;
+  const row: NominatimResult = await response.json();
+  const box = (row.boundingbox || []).map(Number); // south, north, west, east
+  const address = row.address || {};
+  const name = address.city || address.town || address.municipality || address.village || address.county || '';
+  if (!name || box.length !== 4 || !box.every(Number.isFinite)) return null;
+  return {
+    name,
+    state: address.state_code || address['ISO3166-2-lvl4']?.split('-')[1] || address.state || '',
+    countryCode: String(address.country_code || '').toUpperCase(),
+    bbox: { west: box[2], south: box[0], east: box[3], north: box[1] },
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+  }
+
+  if (req.query.reverse === '1') {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ error: 'lat and lng are required', city: null });
+    }
+    try {
+      const city = await reverseCity(lat, lng);
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+      return res.status(200).json({ city });
+    } catch (error: any) {
+      console.warn('[Location Reverse] Error', error?.message || error);
+      return res.status(200).json({ city: null });
+    }
   }
 
   const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';

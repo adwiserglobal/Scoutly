@@ -4,7 +4,7 @@ import type { FlightSummary } from './flight/summary';
 import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './utils/startLocation';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, HiringInfo, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
-import { findPlaceForQuery, searchAddressOrCity } from './services/geocoding';
+import { findPlaceForQuery, resolveCityArea, searchAddressOrCity } from './services/geocoding';
 import { checkBusinessSocials, confirmCheckoutSession, fetchBusinessJobs, placeOfBusiness, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
@@ -243,6 +243,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [fitBoundsRequest, setFitBoundsRequest] = useState<{ id: number; bounds: MapBounds } | null>(null);
   const [socialBatch, setSocialBatch] = useState(0);
   // Hiring signals by business id, filled while the "Contratando" filter is on.
   const [hiringInfo, setHiringInfo] = useState<Record<string, HiringInfo>>({});
@@ -822,6 +823,7 @@ export default function App() {
     const cleanQuery = query.trim();
     if (!cleanQuery) return;
 
+    mapCacheService.clearTargetedSearch();
     setBusinessesError(null);
 
     const normalizeLocalQuery = (value: string) =>
@@ -884,7 +886,40 @@ export default function App() {
     try {
       const hasExplicitLocation =
         /\b(em|no|na|nos|nas|perto\s+de|perto\s+do|perto\s+da|regi[aã]o\s+de|regi[aã]o\s+do|regi[aã]o\s+da)\b/i.test(cleanQuery);
-      const viewportBounds = hasExplicitLocation ? null : currentMapBoundsRef.current;
+      let viewportBounds = hasExplicitLocation ? null : currentMapBoundsRef.current;
+
+      // "despachante" / "sorveteria" without a place: search the whole city under the map, not just
+      // the visible area. The city is taken from the map center; if it can't be resolved the visible
+      // area is used as before.
+      let searchedWholeCity = false;
+      if (viewportBounds) {
+        const center = {
+          lat: (viewportBounds.south + viewportBounds.north) / 2,
+          lng: (viewportBounds.west + viewportBounds.east) / 2,
+        };
+        const city = await resolveCityArea(center.lat, center.lng);
+        if (city) {
+          searchedWholeCity = true;
+          viewportBounds = {
+            west: Math.min(city.bbox.west, viewportBounds.west),
+            south: Math.min(city.bbox.south, viewportBounds.south),
+            east: Math.max(city.bbox.east, viewportBounds.east),
+            north: Math.max(city.bbox.north, viewportBounds.north),
+          };
+        }
+      }
+
+      // Keep a city-wide result set on the map while panning, and frame it.
+      const showCityResults = (found: Business[]) => {
+        if (!searchedWholeCity || found.length === 0) return;
+        mapCacheService.setTargetedSearchResults(found, cleanQuery);
+        const lats = found.map((business) => business.latitude);
+        const lngs = found.map((business) => business.longitude);
+        setFitBoundsRequest({
+          id: Date.now(),
+          bounds: { west: Math.min(...lngs), south: Math.min(...lats), east: Math.max(...lngs), north: Math.max(...lats) },
+        });
+      };
 
       // PinDrop-like behavior: for a plain term, literal business-name matches win.
       if (viewportBounds) {
@@ -916,6 +951,7 @@ export default function App() {
           setListContactFilter('TODOS');
           recordRecommendationSearch(cleanQuery, currentRegionName);
           if (focusExactCompany(merged)) return;
+          showCityResults(merged);
           setIsListOpen(true);
           setIsFiltersOpen(false);
           setSelectedBusiness(null);
@@ -961,6 +997,7 @@ export default function App() {
         setListContactFilter('TODOS');
         recordRecommendationSearch(cleanQuery, region?.name || currentRegionName);
         if (focusExactCompany(merged)) return;
+        showCityResults(merged);
         setIsListOpen(true);
         setIsFiltersOpen(false);
         setSelectedBusiness(null);
@@ -1059,6 +1096,7 @@ export default function App() {
 
   // Preset region click
   const handleSelectPreset = (preset: { name: string; lat: number; lng: number }) => {
+    mapCacheService.clearTargetedSearch();
     userPickedLocationRef.current = true;
     setIsListOpen(false);
     setCenterCoordinates({ lat: preset.lat, lng: preset.lng });
@@ -1674,6 +1712,7 @@ export default function App() {
             selectedBusiness={selectedBusiness}
             onSelectBusiness={handleMapBusinessSelect}
             centerCoordinates={centerCoordinates}
+            fitBoundsRequest={fitBoundsRequest}
             zoom={14}
             activeFilters={activeFilters}
             onMapLoad={() => setIsMapLoading(false)}

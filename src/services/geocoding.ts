@@ -247,3 +247,54 @@ export async function findPlaceForQuery(query: string, currentRegionName = ''): 
   return null;
 }
 
+export interface CityArea {
+  name: string;
+  bbox: { west: number; south: number; east: number; north: number };
+}
+
+const cityCache = new Map<string, CityArea | null>();
+let lastCity: CityArea | null = null;
+
+/** Widest area a "whole city" search may cover (degrees around the map center, ~55 km). */
+const MAX_CITY_HALF_SPAN = 0.25;
+
+/**
+ * The city under a map point, with a bbox capped to a sane size so huge municipalities
+ * (Amazonas, Texas counties...) don't turn a segment search into a state-wide scan.
+ */
+export async function resolveCityArea(lat: number, lng: number): Promise<CityArea | null> {
+  if (lastCity) {
+    const { bbox } = lastCity;
+    if (lng >= bbox.west && lng <= bbox.east && lat >= bbox.south && lat <= bbox.north) return lastCity;
+  }
+  const key = `${lat.toFixed(1)},${lng.toFixed(1)}`;
+  if (cityCache.has(key)) return cityCache.get(key) ?? null;
+
+  let area: CityArea | null = null;
+  try {
+    const response = await fetch(`/api/location-suggestions?reverse=1&lat=${lat.toFixed(5)}&lng=${lng.toFixed(5)}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (response.ok) {
+      const city = (await response.json())?.city;
+      const box = city?.bbox;
+      if (city?.name && box && [box.west, box.south, box.east, box.north].every(Number.isFinite)) {
+        area = {
+          name: String(city.name),
+          bbox: {
+            west: Math.max(box.west, lng - MAX_CITY_HALF_SPAN),
+            east: Math.min(box.east, lng + MAX_CITY_HALF_SPAN),
+            south: Math.max(box.south, lat - MAX_CITY_HALF_SPAN),
+            north: Math.min(box.north, lat + MAX_CITY_HALF_SPAN),
+          },
+        };
+      }
+    }
+  } catch {
+    /* fall back to the visible area */
+  }
+  cityCache.set(key, area);
+  if (area) lastCity = area;
+  return area;
+}
+

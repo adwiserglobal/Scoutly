@@ -154,8 +154,12 @@ class MapCacheService {
         return Number.isFinite(lat) && Number.isFinite(lng) &&
           lat >= bounds.south && lat <= bounds.north && lng >= bounds.west && lng <= bounds.east;
       });
-      onPlacesUpdated(visibleTargeted, true);
-      return;
+      // Leaving the area of the search results ends the search view: normal loading resumes.
+      if (visibleTargeted.length > 0) {
+        onPlacesUpdated(visibleTargeted, true);
+        return;
+      }
+      this.clearTargetedSearch();
     }
 
     const t0 = performance.now();

@@ -58,6 +58,8 @@ interface InteractiveMapProps {
   routeStops?: VisitRouteStop[];
   onFlightModeChange?: (flying: boolean) => void;
   onFlightEnd?: (summary: FlightSummary) => void;
+  /** Asks the map to frame an area (e.g. every result of a city-wide search). `id` must change per request. */
+  fitBoundsRequest?: { id: number; bounds: MapBounds } | null;
 }
 
 function escapeHtml(str: string) {
@@ -75,6 +77,7 @@ function InteractiveMap({
   onSelectBusiness,
   centerCoordinates,
   zoom = 14,
+  fitBoundsRequest,
   activeFilters,
   onMapLoad,
   onMapError,
@@ -720,6 +723,19 @@ function InteractiveMap({
       essential: true,
     });
   }, [centerCoordinates.lat, centerCoordinates.lng]);
+
+  // Frame the requested area (city-wide search results).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fitBoundsRequest) return;
+    const { west, south, east, north } = fitBoundsRequest.bounds;
+    map.fitBounds([[west, south], [east, north]], {
+      padding: { top: 120, bottom: 70, left: 70, right: 70 },
+      maxZoom: 15.5,
+      duration: 900,
+      essential: true,
+    });
+  }, [fitBoundsRequest?.id]);
 
   // Update GeoJSON source when businesses change
   useEffect(() => {
