@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchBusinessJobs } from '../services/api';
+import { fetchBusinessJobs, placeOfBusiness } from '../services/api';
 import type { Business, BusinessJobs } from '../types';
 
 /**
@@ -13,7 +13,7 @@ export function useBusinessJobs(business: Business, expanded: boolean) {
   const [error, setError] = useState<string | null>(null);
   const aggregatorRequested = useRef<string | null>(null);
 
-  const input = { name: business.name, website: business.website, location: business.municipio || undefined };
+  const input = { name: business.name, website: business.website, ...placeOfBusiness(business) };
 
   useEffect(() => {
     const controller = new AbortController();

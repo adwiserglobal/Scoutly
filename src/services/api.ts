@@ -106,14 +106,26 @@ export async function checkBusinessSocials(url: string): Promise<{
   return res.json();
 }
 
+/** City and state of a business, from the CNPJ record or the address ("street, city, ST, postcode, CC"). */
+export function placeOfBusiness(business: Pick<Business, 'municipio' | 'uf' | 'address'>): { city: string; region: string } {
+  if (business.municipio) return { city: business.municipio, region: business.uf || '' };
+  const parts = String(business.address || '').split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length && /^[A-Z]{2}$/.test(parts[parts.length - 1])) parts.pop(); // country code
+  if (parts.length && /\d/.test(parts[parts.length - 1])) parts.pop(); // postcode
+  const region = parts.length >= 3 && parts[parts.length - 1].length <= 40 ? parts.pop() || '' : '';
+  const city = parts.length >= 2 ? parts[parts.length - 1] : '';
+  return { city, region };
+}
+
 /** Hiring signals for a business. `aggregator` also asks Jooble (uses its daily quota; panel only). */
 export async function fetchBusinessJobs(
-  input: { name: string; website?: string | null; location?: string | null },
+  input: { name: string; website?: string | null; city?: string | null; region?: string | null },
   options: { aggregator?: boolean; signal?: AbortSignal } = {},
 ): Promise<BusinessJobs> {
   const params = new URLSearchParams({ name: input.name });
   if (input.website) params.set('url', input.website);
-  if (input.location) params.set('location', input.location);
+  if (input.city) params.set('city', input.city);
+  if (input.region) params.set('region', input.region);
   if (options.aggregator) params.set('aggregator', '1');
   const res = await authenticatedFetch(`/api/jobs?${params.toString()}`, {
     headers: { Accept: 'application/json' },

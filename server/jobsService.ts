@@ -62,6 +62,31 @@ function sameCompany(a: string, b: string) {
   return shared / Math.max(xs.size, ys.length) >= 0.7;
 }
 
+const fold = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+export interface Place {
+  city: string;
+  region: string;
+}
+
+/**
+ * National chains (a pizza brand, a bank) publish openings for every city. Keep only the ones in the
+ * business's own city, plus remote roles. Openings with no location are kept only when the company
+ * lists few of them (a small business site), because a long location-less list is a national board.
+ */
+function keepLocal(jobs: JobPostingItem[], place: Place): JobPostingItem[] {
+  const city = fold(place.city);
+  if (!city) return jobs;
+  const local = jobs.filter((job) => {
+    const where = fold(job.location || '');
+    if (!where) return false;
+    return where.includes(city) || /\b(remot|home office|anywhere|work from home)/.test(where);
+  });
+  const unlocated = jobs.filter((job) => !fold(job.location || ''));
+  return unlocated.length > 0 && jobs.length <= 5 ? [...local, ...unlocated] : local;
+}
+
 function dedupe(jobs: JobPostingItem[]) {
   const seen = new Set<string>();
   return jobs.filter((job) => {
@@ -238,9 +263,11 @@ async function readWebsite(website: string) {
 
 // --- Jooble -----------------------------------------------------------------
 
-async function jobsFromJooble(name: string, location: string): Promise<JobPostingItem[]> {
+async function jobsFromJooble(name: string, place: Place): Promise<JobPostingItem[]> {
   const key = String(process.env.JOOBLE_API_KEY || '').trim();
-  if (!key || !name) return [];
+  // Without a city the aggregator would answer with the brand's openings anywhere in the world.
+  if (!key || !name || !fold(place.city)) return [];
+  const location = [place.city, place.region].filter(Boolean).join(', ');
   try {
     const response = await fetch(`https://jooble.org/api/${encodeURIComponent(key)}`, {
       method: 'POST',
@@ -276,15 +303,17 @@ export function hasJoobleKey() {
 export async function findJobsForBusiness(input: {
   name: string;
   website?: string | null;
-  location?: string | null;
+  /** City / state of the business (used to keep only local openings). */
+  city?: string | null;
+  region?: string | null;
   /** Also ask the Jooble aggregator (uses the daily quota). */
   aggregator?: boolean;
 }): Promise<JobsResult> {
   const name = clean(input.name, 160);
   const website = clean(input.website, 400);
-  const location = clean(input.location, 120);
+  const place: Place = { city: clean(input.city, 80), region: clean(input.region, 40) };
   const useAggregator = Boolean(input.aggregator) && hasJoobleKey();
-  const cacheKey = `${website.toLowerCase()}|${name.toLowerCase()}|${useAggregator ? 'agg' : 'site'}`;
+  const cacheKey = `${website.toLowerCase()}|${name.toLowerCase()}|${fold(place.city)}|${useAggregator ? 'agg' : 'site'}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
 
@@ -311,14 +340,14 @@ export async function findJobsForBusiness(input: {
   }
 
   if (useAggregator) {
-    const extra = await jobsFromJooble(name, location);
+    const extra = keepLocal(await jobsFromJooble(name, place), place);
     if (extra.length) {
       jobs.push(...extra);
       sources.add('jooble');
     }
   }
 
-  jobs = dedupe(jobs).slice(0, MAX_JOBS);
+  jobs = dedupe(keepLocal(jobs, place)).slice(0, MAX_JOBS);
   const status: JobsResult['status'] = jobs.length
     ? 'hiring'
     : careersUrl

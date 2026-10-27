@@ -33,7 +33,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const result = await findJobsForBusiness({
         name,
         website,
-        location: str(req.query.location),
+        city: str(req.query.city),
+        region: str(req.query.region),
         aggregator: req.query.aggregator === '1',
       });
       res.setHeader('Cache-Control', 'private, max-age=600');

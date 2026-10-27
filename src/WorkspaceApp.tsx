@@ -5,7 +5,7 @@ import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './u
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { Business, ActiveFilters, HiringInfo, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { findPlaceForQuery, searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, confirmCheckoutSession, fetchBusinessJobs, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
+import { checkBusinessSocials, confirmCheckoutSession, fetchBusinessJobs, placeOfBusiness, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -467,7 +467,7 @@ export default function App() {
           const result = await fetchBusinessJobs({
             name: business.name,
             website: business.website,
-            location: business.municipio || undefined,
+            ...placeOfBusiness(business),
           });
           if (cancelled) return;
           setHiringInfo((prev) => {
