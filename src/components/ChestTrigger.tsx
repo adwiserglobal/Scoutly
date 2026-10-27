@@ -20,7 +20,7 @@ export default function ChestTrigger({ open, remaining, onToggle }: ChestTrigger
         <ChestRays />
       </span>
       <img
-        src={open ? '/chest-open.svg' : '/chest-closed.svg'}
+        src={open ? '/chest-open.png' : '/chest-closed.png'}
         alt=""
         width={56}
         height={56}

@@ -43,4 +43,8 @@ export const EN_JOBS: Record<string, string> = {
   "No plano Free você ganha 1 carta por dia.": "On the Free plan you get 1 card per day.",
   "Aberta há {0}": "Open for {0}",
   "Não foi possível abrir o baú agora.": "Couldn't open the chest right now.",
+  "Arraste para o lado para ver todas": "Drag sideways to see them all",
+  "Carta anterior": "Previous card",
+  "Próxima carta": "Next card",
+  "Novas cartas chegam amanhã, à meia-noite UTC.": "New cards arrive tomorrow at midnight UTC.",
 };

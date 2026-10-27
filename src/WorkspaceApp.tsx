@@ -1945,10 +1945,7 @@ export default function App() {
               onClose={() => setIsChestOpen(false)}
               businesses={recommendationCandidates}
               center={centerCoordinates}
-              onSelectBusiness={(business) => {
-                setIsChestOpen(false);
-                handleSelectRecommended(business);
-              }}
+              onViewBusiness={handleCardSelect}
               onUpgrade={() => setIsPlansOpen(true)}
               onDeckChange={(deck) => setChestRemaining(deck ? deck.remaining : null)}
             />
