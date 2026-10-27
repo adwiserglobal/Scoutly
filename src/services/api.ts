@@ -934,3 +934,24 @@ export interface FlightStatus {
 export const getFlightStatus = () => demoRequest<FlightStatus>('flight-status', {}, 10000);
 export const startFlightSession = () => demoRequest<FlightStatus>('flight-start', {}, 10000);
 export const tickFlightSession = () => demoRequest<FlightStatus>('flight-tick', {}, 10000);
+
+export interface ChestDeck {
+  plan: 'free' | 'go' | 'pro' | 'agency';
+  limit: number;
+  used: number;
+  remaining: number;
+  cards: Array<Business & { reason?: string | null; reasons?: string[] }>;
+  resetsAt: string;
+}
+
+/** Today's chest cards. Pass the ranked candidates to fill the free slots of the day. */
+export async function fetchChestDeck(candidates?: unknown[]): Promise<ChestDeck> {
+  const res = await appDataAction(candidates ? 'chest-open' : 'chest-status', candidates ? { candidates } : {});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(data?.cards)) {
+    const error: any = new Error(data?.error || 'Não foi possível abrir o baú agora.');
+    error.code = data?.code;
+    throw error;
+  }
+  return data as ChestDeck;
+}

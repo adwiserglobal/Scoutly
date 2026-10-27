@@ -710,3 +710,55 @@ body {
     transform: none !important;
   }
 }
+
+/* ---- Treasure chest: rotating light rays, glow and sparkles behind the chest ---- */
+@keyframes chestRaysSpin { to { transform: rotate(360deg); } }
+@keyframes chestRaysSpinReverse { to { transform: rotate(-360deg); } }
+@keyframes chestGlowPulse { 0%, 100% { opacity: 0.55; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes chestFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes chestSparkle { 0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+@keyframes chestCardIn { from { opacity: 0; transform: translateY(28px) scale(0.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes chestBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+
+.chest-rays,
+.chest-rays-slow {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle, #000 0%, #000 28%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 0%, #000 28%, transparent 70%);
+}
+.chest-rays {
+  background: repeating-conic-gradient(from 0deg, rgba(255, 190, 90, 0.85) 0deg 7deg, rgba(255, 190, 90, 0) 7deg 30deg);
+  animation: chestRaysSpin 9s linear infinite;
+}
+.chest-rays-slow {
+  background: repeating-conic-gradient(from 12deg, rgba(255, 106, 38, 0.6) 0deg 4deg, rgba(255, 106, 38, 0) 4deg 18deg);
+  animation: chestRaysSpinReverse 15s linear infinite;
+}
+.chest-glow {
+  position: absolute;
+  inset: 12%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 196, 110, 0.95) 0%, rgba(255, 106, 38, 0.45) 45%, rgba(255, 106, 38, 0) 72%);
+  animation: chestGlowPulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.chest-sparkle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #ffe9b8;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: chestSparkle 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.chest-img { animation: chestFloat 3.2s ease-in-out infinite; }
+.chest-card-in { animation: chestCardIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.chest-backdrop-in { animation: chestBackdropIn 0.25s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chest-rays, .chest-rays-slow, .chest-glow, .chest-sparkle, .chest-img, .chest-card-in { animation: none; }
+  .chest-sparkle { opacity: 0.8; }
+}

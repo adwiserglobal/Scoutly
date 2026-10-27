@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { CreditAccessStatus, fetchAccessStatus } from '../services/api';
 
@@ -7,11 +8,29 @@ function currentPath() {
 }
 
 const HOME_PATH = '/dashboard';
+const SLOT_ID = 'scoutly-credit-slot';
+
+/** The header's credits slot, when the map screen is mounted (the pill then sits in the top bar). */
+function useCreditSlot() {
+  const [slot, setSlot] = useState<HTMLElement | null>(() => document.getElementById(SLOT_ID));
+  useEffect(() => {
+    const sync = () => {
+      const next = document.getElementById(SLOT_ID);
+      setSlot((current) => (current === next ? current : next));
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+  return slot;
+}
 
 export default function CreditBalancePill() {
   const { user } = useAuth();
   const [access, setAccess] = useState<CreditAccessStatus | null>(null);
   const [pathname, setPathname] = useState(currentPath);
+  const slot = useCreditSlot();
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -134,12 +153,12 @@ export default function CreditBalancePill() {
     window.dispatchEvent(new CustomEvent('scoutly-open-plans'));
   };
 
-  return (
+  const pill = (
     <button
       type="button"
       data-credit-pill
       onClick={handleClick}
-      className={`fixed right-[78px] top-[22px] z-[30] flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-left pointer-events-auto xl:right-[104px] ${clickable ? 'cursor-pointer transition active:scale-95' : 'cursor-default'}`}
+      className={`${slot ? 'h-[46px] rounded-2xl border border-white/10 bg-[#111418]/[0.94] px-3 shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl' : 'fixed right-[78px] top-[22px] z-[30] rounded-full py-0.5 pl-0.5 pr-1.5 xl:right-[104px]'} flex items-center gap-1.5 text-left pointer-events-auto ${clickable ? 'cursor-pointer transition active:scale-95' : 'cursor-default'}`}
       title={access.plan === 'free' && !access.isUnlimited ? 'Free: 5 créditos por dia, limitado a 25 por mês' : detail}
       aria-label={`${primary}. ${secondary}`}
     >
@@ -157,4 +176,6 @@ export default function CreditBalancePill() {
       </span>
     </button>
   );
+
+  return slot ? createPortal(pill, slot) : pill;
 }

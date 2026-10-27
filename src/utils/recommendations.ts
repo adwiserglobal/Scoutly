@@ -277,3 +277,21 @@ export function getRecommendedBusinesses(businesses: Business[], limit = 12, opt
 export function getRecommendationReasons(businessId: string): string[] {
   return reasonsByBusiness.get(businessId) || [];
 }
+
+const CHEST_QUERY_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** Searches from the last few hours, newest first: what the user is looking for right now. */
+export function getRecentSearchQueries(max = 3): string[] {
+  const cutoff = Date.now() - CHEST_QUERY_WINDOW_MS;
+  const seen = new Set<string>();
+  const queries: string[] = [];
+  for (const search of [...readSignals().searches].reverse()) {
+    if (search.at < cutoff) break;
+    const key = normalize(search.query);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    queries.push(search.query);
+    if (queries.length >= max) break;
+  }
+  return queries;
+}

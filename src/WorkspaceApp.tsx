@@ -11,8 +11,8 @@ import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
 import BottomMenu from './components/BottomMenu';
 import Header from './components/Header';
-import RecommendationsPanel from './components/RecommendationsPanel';
-import { getNewCompanies } from './utils/newCompanies';
+import ChestTrigger from './components/ChestTrigger';
+import ChestModal from './components/ChestModal';
 import FilterBar from './components/FilterBar';
 import InteractiveMap, { MapBounds, RadarPinState } from './components/InteractiveMap';
 import BusinessCard from './components/BusinessCard';
@@ -154,7 +154,8 @@ export default function App() {
   
   const [isListOpen, setIsListOpen] = useState(false); // New state for businesses list drawer
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // New state for filters drawer
-  const [isRecommendationsOpen, setIsRecommendationsOpen] = useState(false); // Right-side recommendations card
+  const [isChestOpen, setIsChestOpen] = useState(false); // Treasure chest modal
+  const [chestRemaining, setChestRemaining] = useState<number | null>(null);
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [listCategoryFilter, setListCategoryFilter] = useState('TODAS');
   const [listWebsiteFilter, setListWebsiteFilter] = useState<'TODOS' | 'COM_SITE' | 'SEM_SITE'>('TODOS');
@@ -1726,18 +1727,6 @@ export default function App() {
     return [...byId.values()];
   }, [businesses, recommendationHistoryBusinesses]);
 
-  const recommendedBusinesses = useMemo(
-    () => getRecommendedBusinesses(recommendationCandidates, 12, { center: centerCoordinates }),
-    // The map center is deliberately read at recompute time only: panning must not reshuffle the list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recommendationCandidates, recommendationRevision]
-  );
-
-  const newCompanies = useMemo(
-    () => getNewCompanies(recommendationCandidates),
-    [recommendationCandidates]
-  );
-
   const recommendationsLocked = !hasRecommendationsAccess(billingStatus);
 
   // Opportunities that passed near the flight path but were never opened (ranked like the recommendations card)
@@ -1753,18 +1742,6 @@ export default function App() {
     const status = userLeadsMap[business.id]?.status || business.leadStatus;
     return Boolean(status && status !== 'NOVO' && status !== 'ARQUIVADO');
   }, [userLeadsMap]);
-
-  // The card steps aside while another right-side surface (business panel, filters, list, AI) is open
-  const showRecommendations =
-    isRecommendationsOpen &&
-    !recommendationsLocked &&
-    currentTab === 'INICIO' &&
-    !isFlightMode &&
-    !selectedBusiness &&
-    !modalBusiness &&
-    !isFiltersOpen &&
-    !isListOpen &&
-    !isAIChatOpen;
 
   const handleSelectRecommended = useCallback((business: Business) => {
     rememberRecommendationBusiness(business);
@@ -1864,32 +1841,33 @@ export default function App() {
                       return next;
                     });
                   }}
-                  recommendedBusinesses={recommendedBusinesses}
-                  newCompaniesCount={newCompanies.length}
-                  recommendationsLocked={recommendationsLocked}
-                  recommendationsOpen={showRecommendations}
-                  onToggleRecommendations={() => setIsRecommendationsOpen((current) => !current)}
-                  onOpenRecommendationsUpgrade={() => setIsPlansOpen(true)}
+                  trailing={(
+                    <button
+                      type="button"
+                      onClick={handleToggleRouteMode}
+                      className={`flex h-[46px] items-center justify-center gap-2 rounded-2xl border px-3.5 text-[11px] font-semibold shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition active:scale-[0.97] ${
+                        isRouteMode
+                          ? 'border-[#FF5A12] bg-[#FF5A12] text-white'
+                          : 'border-white/10 bg-[#111418]/[0.94] text-stone-200 hover:border-[#FF5A12]/35 hover:bg-[#171a1f]'
+                      }`}
+                      title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                      aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
+                    >
+                      <Route className="h-4 w-4" />
+                      <span className="hidden xl:inline">{isRouteMode ? 'Encerrar rota' : 'Rota'}</span>
+                    </button>
+                  )}
                 />
               </div>
             </div>
 
             {!selectedBusiness && !modalBusiness && !isFiltersOpen && !isListOpen && (
-              <div className="absolute right-4 top-4 z-30 pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={handleToggleRouteMode}
-                  className={`flex h-[46px] items-center justify-center gap-2 rounded-2xl border px-3.5 text-[11px] font-semibold shadow-[0_14px_44px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition active:scale-[0.97] ${
-                    isRouteMode
-                      ? 'border-[#FF5A12] bg-[#FF5A12] text-white'
-                      : 'border-white/10 bg-[#111418]/[0.94] text-stone-200 hover:border-[#FF5A12]/35 hover:bg-[#171a1f]'
-                  }`}
-                  title={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                  aria-label={isRouteMode ? 'Encerrar rota' : 'Traçar rota'}
-                >
-                  <Route className="h-4 w-4" />
-                  <span className="hidden xl:inline">{isRouteMode ? 'Encerrar rota' : 'Rota'}</span>
-                </button>
+              <div className="absolute right-4 top-[9px] z-30 pointer-events-auto">
+                <ChestTrigger
+                  open={isChestOpen}
+                  remaining={chestRemaining}
+                  onToggle={() => setIsChestOpen((current) => !current)}
+                />
               </div>
             )}
 
@@ -1962,14 +1940,17 @@ export default function App() {
               </div>
             </div>
             
-            {/* Right-side recommendations card */}
-            <RecommendationsPanel
-              open={showRecommendations}
-              onClose={() => setIsRecommendationsOpen(false)}
-              recommended={recommendedBusinesses}
-              newCompanies={newCompanies}
-              selectedBusinessId={selectedBusiness?.id}
-              onSelectBusiness={handleSelectRecommended}
+            <ChestModal
+              open={isChestOpen}
+              onClose={() => setIsChestOpen(false)}
+              businesses={recommendationCandidates}
+              center={centerCoordinates}
+              onSelectBusiness={(business) => {
+                setIsChestOpen(false);
+                handleSelectRecommended(business);
+              }}
+              onUpgrade={() => setIsPlansOpen(true)}
+              onDeckChange={(deck) => setChestRemaining(deck ? deck.remaining : null)}
             />
 
             {/* Zoom Alert Overlay */}

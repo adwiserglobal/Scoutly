@@ -1,7 +1,7 @@
 import { FormEvent, KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Business } from '../types';
-import RecommendedTrigger from './RecommendedTrigger';
 import { getActiveLocale } from '../i18n/language';
 import { localizeSearchQuery } from '../i18n/searchQuery';
 
@@ -20,12 +20,8 @@ interface HeaderProps {
   totalOpportunitiesCount: number;
   totalBusinessesCount: number;
   onOpenFilters: () => void;
-  recommendedBusinesses: Business[];
-  newCompaniesCount: number;
-  recommendationsLocked: boolean;
-  recommendationsOpen: boolean;
-  onToggleRecommendations: () => void;
-  onOpenRecommendationsUpgrade: () => void;
+  /** Credits pill and route button, rendered where the recommendations button used to be. */
+  trailing?: ReactNode;
 }
 
 interface LocationSuggestion {
@@ -100,12 +96,7 @@ function Header({
   isSearching = false,
   totalBusinessesCount,
   onOpenFilters,
-  recommendedBusinesses,
-  newCompaniesCount,
-  recommendationsLocked,
-  recommendationsOpen,
-  onToggleRecommendations,
-  onOpenRecommendationsUpgrade,
+  trailing,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
   // Keeps the outline still-orange after a search finishes (until the user edits the text).
@@ -497,15 +488,9 @@ function Header({
           </span>
         </button>
 
-        <div className="hidden xl:block">
-          <RecommendedTrigger
-            count={recommendedBusinesses.length}
-            newCount={newCompaniesCount}
-            locked={recommendationsLocked}
-            open={recommendationsOpen}
-            onToggle={onToggleRecommendations}
-            onUpgrade={onOpenRecommendationsUpgrade}
-          />
+        <div className="flex shrink-0 items-center gap-2 max-[430px]:order-2 max-[430px]:w-full max-[430px]:justify-between">
+          <div id="scoutly-credit-slot" className="flex items-center empty:hidden" />
+          {trailing}
         </div>
 
       </div>

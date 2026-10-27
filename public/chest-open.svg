@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8631f"/><stop offset="1" stop-color="#6e3410"/></linearGradient>
+    <linearGradient id="inner" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a2208"/><stop offset="1" stop-color="#2a1204"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe59a"/><stop offset=".5" stop-color="#f6b73c"/><stop offset="1" stop-color="#b9731a"/></linearGradient>
+    <radialGradient id="beam" cx=".5" cy="1" r="1"><stop offset="0" stop-color="#fff2c4" stop-opacity=".95"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="128" cy="226" rx="92" ry="14" fill="#000" opacity=".35"/>
+  <path d="M60 122l-14-70c30-18 134-18 164 0l-14 70z" fill="url(#wood)"/>
+  <path d="M46 52c30-18 134-18 164 0" fill="none" stroke="url(#gold)" stroke-width="8"/>
+  <path d="M60 122L46 52M196 122l14-70" stroke="url(#gold)" stroke-width="12"/>
+  <path d="M76 120l-9-58c24-10 98-10 122 0l-9 58z" fill="url(#inner)"/>
+  <path d="M60 128l68-50 68 50-10-34-58-30-58 30z" fill="url(#beam)" opacity=".0"/>
+  <path d="M70 124h116L228 6H28z" fill="url(#beam)" opacity=".55"/>
+  <path d="M40 124h176v92a12 12 0 0 1-12 12H52a12 12 0 0 1-12-12z" fill="url(#wood)"/>
+  <ellipse cx="128" cy="124" rx="84" ry="14" fill="url(#inner)"/>
+  <g fill="url(#gold)" stroke="#8a5412" stroke-width="2"><ellipse cx="92" cy="118" rx="14" ry="6"/><ellipse cx="118" cy="114" rx="14" ry="6"/><ellipse cx="146" cy="116" rx="14" ry="6"/><ellipse cx="170" cy="120" rx="13" ry="5.5"/><ellipse cx="130" cy="122" rx="14" ry="6"/></g>
+  <path d="M40 124h176v14H40z" fill="url(#gold)"/>
+  <path d="M60 220V128M196 220V128" stroke="url(#gold)" stroke-width="14"/>
+  <path d="M40 206h176v16a4 4 0 0 1-4 4H44a4 4 0 0 1-4-4z" fill="url(#gold)"/>
+  <rect x="112" y="128" width="32" height="34" rx="6" fill="url(#gold)" stroke="#8a5412" stroke-width="3"/>
+  <circle cx="128" cy="142" r="5" fill="#5a2c0a"/>
+  <g fill="#fff3c9"><path d="M54 40l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/><path d="M204 28l2.5 7 7 2.5-7 2.5-2.5 7-2.5-7-7-2.5 7-2.5z"/><path d="M128 14l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></g>
+</svg>

@@ -8,6 +8,7 @@ import { unsealBusinessContacts } from '../server/businessSealService.js';
 import { getUserProfile, saveUserProfileData } from '../server/userProfileService.js';
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
+import { getChestDeck, openChest } from '../server/chestService.js';
 import { assertFeatureEnabled } from '../server/accountAdminService.js';
 import {
   acceptInvite, assertCanManageBilling, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, setMemberAdmin, renewInvite,
@@ -628,6 +629,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'team-settings') return res.status(200).json(await setPipelineMode(identity.uid, req.body?.pipelineMode));
     if (action === 'team-seats') return res.status(200).json(await setExtraSeats(identity.uid, req.body?.extraSeats));
     if (action === 'workspace-insights') return res.status(200).json(await getWorkspaceInsights(identity.uid, req.body?.days, req.body?.language));
+
+    if (action === 'chest-status') return res.status(200).json(await getChestDeck(identity.uid));
+    if (action === 'chest-open') return res.status(200).json(await openChest(identity.uid, workspaceId, req.body?.candidates));
 
     if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
     if (action === 'flight-start') {
