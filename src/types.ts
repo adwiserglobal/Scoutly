@@ -11,6 +11,7 @@ export interface ActiveFilters {
   comWhatsapp: boolean;
   comRedeSocial: boolean;
   semRedeSocial: boolean;
+  contratando: boolean;
 }
 
 export type WebsiteFilter =
@@ -36,8 +37,33 @@ export type NavigationTab =
   | 'WORKSPACE'
   | 'CONFIGURACOES';
 
+/** Hiring signal found for a business (website, public job boards, or Jooble). */
+export interface HiringInfo {
+  status: 'hiring' | 'careers' | 'none' | 'unreachable';
+  jobsCount: number;
+  careersUrl: string | null;
+}
+
+export interface JobPosting {
+  title: string;
+  location: string | null;
+  url: string | null;
+  postedAt: string | null;
+  department: string | null;
+  source: string;
+}
+
+export interface BusinessJobs extends HiringInfo {
+  jobs: JobPosting[];
+  sources: string[];
+  checkedAt: string;
+  aggregatorAvailable?: boolean;
+}
+
 export interface Business {
   id: string;
+  /** Filled client-side once the company's hiring signals were checked. */
+  hiring?: HiringInfo;
   name: string;
   latitude: number;
   longitude: number;

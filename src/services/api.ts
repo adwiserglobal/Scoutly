@@ -1,5 +1,5 @@
 import type { BrandProfile, OutreachProfile, UserProfile } from '../lib/userProfile';
-import { Business, PageSpeedData } from '../types';
+import { Business, BusinessJobs, PageSpeedData } from '../types';
 import { translateCategory } from '../utils/categories';
 import { auth } from '../lib/firebase';
 
@@ -104,6 +104,32 @@ export async function checkBusinessSocials(url: string): Promise<{
     throw new Error(data.error || 'Erro ao verificar redes sociais.');
   }
   return res.json();
+}
+
+/** Hiring signals for a business. `aggregator` also asks Jooble (uses its daily quota; panel only). */
+export async function fetchBusinessJobs(
+  input: { name: string; website?: string | null; location?: string | null },
+  options: { aggregator?: boolean; signal?: AbortSignal } = {},
+): Promise<BusinessJobs> {
+  const params = new URLSearchParams({ name: input.name });
+  if (input.website) params.set('url', input.website);
+  if (input.location) params.set('location', input.location);
+  if (options.aggregator) params.set('aggregator', '1');
+  const res = await authenticatedFetch(`/api/jobs?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal: options.signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Não foi possível buscar as vagas.');
+  return {
+    status: data.status || 'none',
+    jobsCount: Array.isArray(data.jobs) ? data.jobs.length : 0,
+    careersUrl: data.careersUrl || null,
+    jobs: Array.isArray(data.jobs) ? data.jobs : [],
+    sources: Array.isArray(data.sources) ? data.sources : [],
+    checkedAt: data.checkedAt || new Date().toISOString(),
+    aggregatorAvailable: Boolean(data.aggregatorAvailable),
+  };
 }
 
 async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {

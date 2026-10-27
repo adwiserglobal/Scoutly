@@ -78,6 +78,10 @@
       "dest": "/api/pagespeed.ts?__scoutly_handler=geo"
     },
     {
+      "src": "/api/jobs",
+      "dest": "/api/enrich.ts?__scoutly_handler=jobs"
+    },
+    {
       "src": "/api/flash-promo",
       "dest": "/api/pagespeed.ts?__scoutly_handler=flash-promo"
     },

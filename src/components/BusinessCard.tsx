@@ -205,6 +205,12 @@ function BusinessCard({
               {hasWebsite ? 'Com site' : 'Sem site'}
             </span>
 
+            {business.hiring?.status === 'hiring' && (
+              <span className="rounded-full bg-emerald-500/[0.12] px-2.5 py-1 text-[10.5px] font-semibold text-emerald-400">
+                Contratando
+              </span>
+            )}
+
             {business.openStatus === 'ABERTO_AGORA' && (
               <span className="rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[10.5px] font-medium text-emerald-400">
                 Aberto agora

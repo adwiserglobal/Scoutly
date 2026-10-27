@@ -5,6 +5,7 @@ import { requireFirebaseIdentity } from '../server/firebaseTokenService.js';
 import { hasBusinessUnlockAccess } from '../server/entitlementService.js';
 import { getSubscriptionAccess } from '../server/subscriptionAccessService.js';
 import { fetchBusinessesFromSerper } from '../server/serperService.js';
+import { findJobsForBusiness, hasJoobleKey } from '../server/jobsService.js';
 
 function stripPaidEmail(result: any, allowEmail: boolean) {
   if (!result || typeof result !== 'object') return result;
@@ -16,6 +17,34 @@ function stripPaidEmail(result: any, allowEmail: boolean) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Hiring signals ("Contratando"): company website + public job boards, and Jooble when a key is set.
+  if (req.query.__scoutly_handler === 'jobs') {
+    if (req.method !== 'GET') {
+      res.setHeader('Allow', ['GET']);
+      return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+    }
+    try {
+      await requireFirebaseIdentity(req as any);
+      const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+      const name = str(req.query.name);
+      const website = str(req.query.url);
+      if (!name && !website) return res.status(400).json({ error: 'name or url is required' });
+
+      const result = await findJobsForBusiness({
+        name,
+        website,
+        location: str(req.query.location),
+        aggregator: req.query.aggregator === '1',
+      });
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      return res.status(200).json({ ...result, aggregatorAvailable: hasJoobleKey() });
+    } catch (error: any) {
+      const status = Number(error?.statusCode || 500);
+      console.error('[Scoutly Jobs Error]:', error?.message || error);
+      return res.status(status).json({ error: error?.message || 'Erro ao buscar vagas.' });
+    }
+  }
+
   if (req.query.__scoutly_handler === 'social-check') {
     if (req.method !== 'GET') {
       res.setHeader('Allow', ['GET']);

@@ -742,6 +742,12 @@ function InteractiveMap({
           const hasPhone = Boolean(biz.phone || (biz.phones && biz.phones.length > 0));
           const hasSocial = Boolean(biz.socials && biz.socials.length > 0);
 
+          if (biz.hiring?.status === 'hiring') {
+            outlineColor = '#22C55E'; // green ring: confirmed open positions
+            outlineWidth = 3.5;
+            markerRadius = 8;
+          }
+
           if (isInRoute) {
             outlineColor = '#FF4D00';
             outlineWidth = 4;

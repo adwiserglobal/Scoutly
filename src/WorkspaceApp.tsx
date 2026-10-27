@@ -3,9 +3,9 @@ import { lazy, Suspense, useState, useMemo, useRef, useCallback, useEffect } fro
 import type { FlightSummary } from './flight/summary';
 import { DEFAULT_START, loadSavedStartLocation, resolveStartLocation } from './utils/startLocation';
 import { ChevronDown, ChevronUp, Filter, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
-import { Business, ActiveFilters, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
+import { Business, ActiveFilters, HiringInfo, LeadStatus, NavigationTab, VisitRouteStop, VisitStatus } from './types';
 import { findPlaceForQuery, searchAddressOrCity } from './services/geocoding';
-import { checkBusinessSocials, confirmCheckoutSession, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
+import { checkBusinessSocials, confirmCheckoutSession, fetchBusinessJobs, fetchUserLeads, refreshSubscriptionFromStripe, saveUserLead, saveVisitRoute, searchBusinessesByQuery } from './services/api';
 import { mapCacheService } from './services/mapCacheService';
 import { useAuth } from './context/AuthContext';
 import { getBoundsForRadius, calculateDistanceInMeters } from './utils/geoUtils';
@@ -237,12 +237,19 @@ export default function App() {
     comWhatsapp: false,
     comRedeSocial: false,
     semRedeSocial: false,
+    contratando: false,
   });
   const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
   const [sortBy, setSortBy] = useState<'CONFIDENCE' | 'NOME' | 'COM_CONTATO'>('CONFIDENCE');
   const [isLocating, setIsLocating] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [socialBatch, setSocialBatch] = useState(0);
+  // Hiring signals by business id, filled while the "Contratando" filter is on.
+  const [hiringInfo, setHiringInfo] = useState<Record<string, HiringInfo>>({});
+  const hiringInfoRef = useRef<Record<string, HiringInfo>>({});
+  const hiringRequestedRef = useRef<Set<string>>(new Set());
+  const [isHiringVerificationRunning, setIsHiringVerificationRunning] = useState(false);
+  const [hiringBatch, setHiringBatch] = useState(0);
 
   const [socialVerification, setSocialVerification] = useState<
     Record<string, 'checking' | 'has_social' | 'no_social' | 'failed'>
@@ -291,6 +298,7 @@ export default function App() {
         comWhatsapp: false,
         comRedeSocial: false,
         semRedeSocial: false,
+        contratando: false,
       });
       return;
     }
@@ -311,6 +319,8 @@ export default function App() {
       } else if (filterKey === 'semRedeSocial') {
         next.semRedeSocial = !prev.semRedeSocial;
         if (next.semRedeSocial) next.comRedeSocial = false;
+      } else if (filterKey === 'contratando') {
+        next.contratando = !prev.contratando;
       }
       return next;
     });
@@ -423,6 +433,66 @@ export default function App() {
       cancelled = true;
     };
   }, [activeFilters.semRedeSocial, businessIdSignature, socialBatch]);
+
+  hiringInfoRef.current = hiringInfo;
+
+  // "Contratando": check company websites (and their public job boards) in batches while the filter is on.
+  useEffect(() => {
+    if (!activeFilters.contratando) {
+      setIsHiringVerificationRunning(false);
+      return;
+    }
+
+    let cancelled = false;
+    const pending = businesses.filter(
+      (business) => Boolean(business.website) && !hiringInfoRef.current[business.id] && !hiringRequestedRef.current.has(business.id),
+    );
+    const candidates = pending.slice(0, 120);
+    const hasMoreBatches = pending.length > candidates.length;
+    if (candidates.length === 0) {
+      setIsHiringVerificationRunning(false);
+      return;
+    }
+
+    // Reserve the batch so overlapping runs never check the same company twice.
+    for (const business of candidates) hiringRequestedRef.current.add(business.id);
+    setIsHiringVerificationRunning(true);
+
+    const queue = [...candidates];
+    const worker = async () => {
+      while (!cancelled && queue.length > 0) {
+        const business = queue.shift();
+        if (!business) continue;
+        try {
+          const result = await fetchBusinessJobs({
+            name: business.name,
+            website: business.website,
+            location: business.municipio || undefined,
+          });
+          if (cancelled) return;
+          setHiringInfo((prev) => {
+            return {
+              ...prev,
+              [business.id]: { status: result.status, jobsCount: result.jobsCount, careersUrl: result.careersUrl },
+            };
+          });
+        } catch (error) {
+          if (cancelled) return;
+          console.warn('[Scoutly Hiring Check]:', business.name, error);
+        }
+      }
+    };
+
+    Promise.allSettled(Array.from({ length: Math.min(4, candidates.length) }, () => worker())).then(() => {
+      if (cancelled) return;
+      setIsHiringVerificationRunning(false);
+      if (hasMoreBatches) setHiringBatch((current) => current + 1);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilters.contratando, businessIdSignature, hiringBatch]);
 
   // Hydrate all account-scoped data from the Scoutly App DB after Firebase auth.
   useEffect(() => {
@@ -1218,13 +1288,18 @@ export default function App() {
     return businesses.filter(isConfirmedNoSocial).length;
   }, [businesses, socialVerification]);
 
+  const hiringCount = useMemo(
+    () => businesses.filter((business) => hiringInfo[business.id]?.status === 'hiring').length,
+    [businesses, hiringInfo],
+  );
+
   const noSocialsCount = activeFilters.semRedeSocial
     ? verifiedNoSocialCount
     : noSocialCandidatesCount;
 
   // Filter & Sort businesses
   const filteredBusinesses = useMemo(() => {
-    let list = businesses.filter((biz) => {
+    let list = businesses.map((biz) => (hiringInfo[biz.id] ? { ...biz, hiring: hiringInfo[biz.id] } : biz)).filter((biz) => {
       // Pin Radar Filter: if enabled, only show businesses within the pin's radius
       if (filterOnlyInRadius && radarPin && radarPin.active) {
         const dist = calculateDistanceInMeters(
@@ -1245,6 +1320,11 @@ export default function App() {
 
       // Multi-filter: Com site
       if (activeFilters.comSite && !biz.website) {
+        return false;
+      }
+
+      // Multi-filter: Contratando (confirmed postings only)
+      if (activeFilters.contratando && biz.hiring?.status !== 'hiring') {
         return false;
       }
 
@@ -1297,7 +1377,7 @@ export default function App() {
     }
 
     return list;
-  }, [businesses, activeFilters, selectedCategory, sortBy, socialVerification]);
+  }, [businesses, activeFilters, selectedCategory, sortBy, socialVerification, hiringInfo]);
 
   const businessListRegionName = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1723,6 +1803,8 @@ export default function App() {
                   socialsCount={socialsCount}
                   noSocialsCount={noSocialsCount}
                   noSocialCandidatesCount={noSocialCandidatesCount}
+                  hiringCount={hiringCount}
+                  isHiringVerificationRunning={isHiringVerificationRunning}
                   isNoSocialVerificationRunning={isSocialVerificationRunning}
                 />
               </div>

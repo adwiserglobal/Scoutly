@@ -17,6 +17,8 @@ interface FilterBarProps {
   socialsCount: number;
   noSocialsCount: number;
   noSocialCandidatesCount: number;
+  hiringCount: number;
+  isHiringVerificationRunning: boolean;
   isNoSocialVerificationRunning: boolean;
 }
 
@@ -35,6 +37,8 @@ function FilterBar({
   socialsCount,
   noSocialsCount,
   noSocialCandidatesCount,
+  hiringCount,
+  isHiringVerificationRunning,
   isNoSocialVerificationRunning,
 }: FilterBarProps) {
   const isAll =
@@ -42,7 +46,8 @@ function FilterBar({
     !activeFilters.comSite &&
     !activeFilters.comWhatsapp &&
     !activeFilters.comRedeSocial &&
-    !activeFilters.semRedeSocial;
+    !activeFilters.semRedeSocial &&
+    !activeFilters.contratando;
 
   return (
     <div className="flex flex-col gap-6 w-full shrink-0 pb-8">
@@ -210,6 +215,43 @@ function FilterBar({
                 {isNoSocialVerificationRunning
                   ? 'Verificando os sites para remover falsos positivos...'
                   : 'Resultados confirmados após checagem do site oficial.'}
+              </p>
+            )}
+          </div>
+
+          {/* Button: Contratando */}
+          <div>
+            <button
+              type="button"
+              onClick={() => onToggleFilter('contratando')}
+              className={`w-full text-xs font-semibold px-4 py-3 rounded-xl transition border flex items-center justify-between gap-1.5 backdrop-blur-md ${
+                activeFilters.contratando
+                  ? 'bg-[#FF4D00] text-white border-[#FF4D00] shadow-lg shadow-[#FF4D00]/25'
+                  : 'bg-white/5 text-stone-200 border-white/10 hover:bg-white/10 hover:border-green-400/40 hover:text-white shadow-sm'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {activeFilters.contratando && isHiringVerificationRunning ? (
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                ) : (
+                  <div className={`w-2.5 h-2.5 rounded-full ${activeFilters.contratando ? 'bg-white' : 'bg-green-500'}`} />
+                )}
+                <span>Contratando</span>
+              </div>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  activeFilters.contratando ? 'bg-white/20 text-white' : 'bg-green-500/20 text-green-300'
+                }`}
+              >
+                {hiringCount}
+              </span>
+            </button>
+
+            {activeFilters.contratando && (
+              <p className="px-1 pt-2 text-[9px] leading-relaxed text-stone-500">
+                {isHiringVerificationRunning
+                  ? 'Procurando vagas nos sites das empresas...'
+                  : 'Vagas encontradas no site da empresa. Empresas sem site não são verificadas.'}
               </p>
             )}
           </div>

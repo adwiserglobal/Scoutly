@@ -108,7 +108,7 @@ async function resolveHostSafe(host: string): Promise<string[]> {
   return ips;
 }
 
-async function safeFetch(
+export async function safeFetch(
   urlStr: string,
   redirects = 0,
   timeoutMs = 4500,
@@ -296,7 +296,7 @@ function addEmail(result: EnrichmentResult, value: string, sourceUrl: string, ve
   }
 }
 
-function walkJsonLd(value: any, visitor: (item: any) => void) {
+export function walkJsonLd(value: any, visitor: (item: any) => void) {
   if (!value) return;
 
   if (Array.isArray(value)) {

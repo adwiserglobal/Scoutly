@@ -33,6 +33,7 @@ import {
   getWhatsAppLink,
 } from '../services/api';
 import { translateCategory } from '../utils/categoryTranslator';
+import { useBusinessJobs } from '../hooks/useBusinessJobs';
 import { usePageSpeed } from '../hooks/usePageSpeed';
 import { useDiagnosticPdf } from '../hooks/useDiagnosticPdf';
 import { markBusinessRecentlyViewed } from '../utils/recentBusinesses';
@@ -159,11 +160,66 @@ function isLockedEmail(value?: string | null) {
   return Boolean(value && value.includes('•'));
 }
 
+const JOB_SOURCE_LABEL: Record<string, string> = {
+  site: 'Site da empresa',
+  greenhouse: 'Greenhouse',
+  lever: 'Lever',
+  ashby: 'Ashby',
+  workable: 'Workable',
+  recruitee: 'Recruitee',
+  jooble: 'Jooble',
+};
+
+function JobsList({ jobs }: { jobs: ReturnType<typeof useBusinessJobs> }) {
+  const { data, loading, error } = jobs;
+  if (loading && !data) return <div className="flex items-center gap-2 rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] text-[#a5abb5]"><LoaderRing /> Procurando vagas...</div>;
+  if (error && !data) return <p className="rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] text-[#a5abb5]">{error}</p>;
+  if (!data) return null;
+  return (
+    <div className="space-y-2">
+      {data.jobs.map((job, index) => (
+        <a
+          key={`${job.url || job.title}-${index}`}
+          href={job.url || data.careersUrl || undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-start gap-2 rounded-xl bg-[#171b20] px-3.5 py-3 transition hover:bg-[#1c2128]"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-semibold text-white">{job.title}</p>
+            <p className="mt-0.5 truncate text-[10px] text-[#a4aab5]">
+              {[job.location, job.department].filter(Boolean).join(' · ') || 'Local não informado'}
+              {JOB_SOURCE_LABEL[job.source] ? ` · ${JOB_SOURCE_LABEL[job.source]}` : ''}
+            </p>
+          </div>
+          <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#969ca6]" />
+        </a>
+      ))}
+      {data.jobs.length === 0 && (
+        <p className="rounded-xl bg-[#171b20] px-3.5 py-3 text-[11px] leading-relaxed text-[#a5abb5]">
+          {data.status === 'careers'
+            ? 'A empresa tem uma página de vagas, mas não foi possível ler as vagas abertas.'
+            : data.status === 'unreachable'
+              ? 'Não foi possível acessar o site da empresa para procurar vagas.'
+              : 'Nenhuma vaga aberta encontrada no site da empresa.'}
+        </p>
+      )}
+      {data.careersUrl && (
+        <a href={data.careersUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-1 text-[10px] font-semibold text-[#ff9c70]">
+          Ver página de vagas <ArrowUpRight className="h-3 w-3" />
+        </a>
+      )}
+      {loading && <p className="flex items-center gap-2 px-1 text-[10px] text-[#8b919a]"><LoaderRing /> Buscando em mais fontes...</p>}
+    </div>
+  );
+}
+
 export default function BusinessSidePanel({ business, onClose, onToggleFavorite, onAddToPipeline, onAskAgentic }: BusinessSidePanelProps) {
   const [enrichment, setEnrichment] = useState<any>(null);
   const [whatsappPending, setWhatsappPending] = useState(false);
   const [showPipelinePrompt, setShowPipelinePrompt] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ channels: true, audit: false, ads: false, approach: false, details: false });
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ channels: true, jobs: false, audit: false, ads: false, approach: false, details: false });
+  const jobs = useBusinessJobs(business, Boolean(openSections.jobs));
   const [trackingAudit, setTrackingAudit] = useState<any>(null);
   const [isEnrichmentLoading, setIsEnrichmentLoading] = useState(false);
   const [isTrackingLoading, setIsTrackingLoading] = useState(false);
@@ -466,7 +522,10 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             </div>
           </div>
           <h2 className="break-words text-[24px] font-semibold leading-[1.18] tracking-[-0.05em] text-[#f6f6f7]">{business.name}</h2>
-          <p className="mt-2 text-[12px] text-[#bbc0c9]">{translateCategory(business.category)}</p>
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[#bbc0c9]">
+            {translateCategory(business.category)}
+            {jobs.data?.status === 'hiring' && <span className="rounded-full bg-emerald-500/12 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">Contratando</span>}
+          </p>
           {business.address && <p className="mt-3 flex items-start gap-2 text-[11px] leading-[1.65] text-[#a4aab5]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ff7439]" />{business.address}</p>}
           <button type="button" onClick={() => onAskAgentic?.(business)} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#ff7138]/30 bg-[#ff5a12]/[0.12] text-[12px] font-semibold text-[#ffad83] transition hover:border-[#ff7138]/55 hover:bg-[#ff5a12]/[0.19]">
             <Sparkles className="h-4 w-4" /> Pedir ao Scoutly Agentic <ChevronRight className="h-3.5 w-3.5" />
@@ -568,6 +627,10 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
                 {socialLinks.length > 0 && <div className="flex flex-wrap gap-2">{socialLinks.map((item) => <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.11] bg-[#171b20] px-3 py-2.5 text-[11px] font-medium text-[#dee0e5] transition hover:border-white/[0.26]"><SocialLogo network={item.network} url={item.url} />{item.network}<ArrowUpRight className="h-3 w-3 text-[#a4aab5]" /></a>)}</div>}
                 <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 py-2 text-[11px] text-[#c8ccd3] transition hover:text-white"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Ver no Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>
               </div>}
+            </section>
+            <section>
+              {expandedSection('jobs', 'Vagas abertas', jobs.data?.status === 'hiring' ? `${jobs.data.jobs.length} ${jobs.data.jobs.length === 1 ? 'vaga encontrada' : 'vagas encontradas'}` : jobs.loading ? 'Procurando vagas...' : 'Empresa contratando?')}
+              {openSections.jobs && <div className="pb-4"><JobsList jobs={jobs} /></div>}
             </section>
             <section>
               {expandedSection('audit', 'Auditoria digital', 'Tags, rastreamento e velocidade', hasWebsite && (isTrackingLoading || isPageSpeedLoading) ? undefined : unconfirmedAuditCount)}
