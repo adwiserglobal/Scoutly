@@ -1006,6 +1006,18 @@ export default function App() {
     }
   };
 
+  // Clearing the search box returns the map to what is visible now: results of the last search go
+  // away and the current viewport is loaded again.
+  const handleClearSearch = useCallback(() => {
+    suppressNextBoundsFetchRef.current = false;
+    mapCacheService.clearTargetedSearch();
+    setBusinessesError(null);
+    setIsListOpen(false);
+    setSelectedBusiness(null);
+    const bounds = currentMapBoundsRef.current;
+    if (bounds) handleBoundsChange(bounds, currentZoom);
+  }, [currentZoom, handleBoundsChange]);
+
   const handleBusinessSuggestions = useCallback(async (query: string): Promise<Business[]> => {
     const cleanQuery = query.trim();
     const bounds = currentMapBoundsRef.current;
@@ -1693,6 +1705,7 @@ export default function App() {
                 <Header
                   currentRegionName={currentRegionName}
                   onSearch={handleSearch}
+                  onClearSearch={handleClearSearch}
                   onSuggestBusinesses={handleBusinessSuggestions}
                   businesses={businesses}
                   onSelectBusiness={handleMapBusinessSelect}

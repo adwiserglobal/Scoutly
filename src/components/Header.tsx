@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal } from 'lucide-react';
+import { Loader2, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Business } from '../types';
 import RecommendedTrigger from './RecommendedTrigger';
 import { getActiveLocale } from '../i18n/language';
@@ -8,6 +8,8 @@ import { localizeSearchQuery } from '../i18n/searchQuery';
 interface HeaderProps {
   currentRegionName: string;
   onSearch: (query: string) => void;
+  /** Called when the user empties the search box with the X button. */
+  onClearSearch?: () => void;
   onSuggestBusinesses: (query: string) => Promise<Business[]>;
   businesses: Business[];
   onSelectBusiness: (business: Business) => void;
@@ -88,6 +90,7 @@ function kindLabel(kind: string): string {
 function Header({
   currentRegionName,
   onSearch,
+  onClearSearch,
   onSuggestBusinesses,
   businesses,
   onSelectBusiness,
@@ -108,6 +111,7 @@ function Header({
   // Keeps the outline still-orange after a search finishes (until the user edits the text).
   const [searchSettled, setSearchSettled] = useState(false);
   const wasSearchingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (isSearching) setSearchSettled(false);
     else if (wasSearchingRef.current) setSearchSettled(true);
@@ -236,6 +240,18 @@ function Header({
     onSelectBusiness(business);
   };
 
+  const clearSearch = () => {
+    suggestionsAbortRef.current?.abort();
+    setSearchInput('');
+    setSuggestions([]);
+    setRemoteBusinessSuggestions([]);
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
+    setSearchSettled(false);
+    onClearSearch?.();
+    inputRef.current?.focus();
+  };
+
   const searchCurrentArea = () => {
     const query = searchInput.trim();
     if (!query) return;
@@ -309,6 +325,7 @@ function Header({
             <Search className="pointer-events-none absolute left-4 h-4 w-4 text-stone-400" />
 
             <input
+              ref={inputRef}
               type="text"
               value={searchInput}
               onChange={(event) => {
@@ -327,11 +344,27 @@ function Header({
               autoComplete="off"
               aria-autocomplete="list"
               aria-expanded={suggestionsOpen}
-              className="h-full w-full rounded-2xl bg-transparent pl-11 pr-[88px] text-[13px] text-white outline-none placeholder:text-stone-500 sm:pr-[104px]"
+              className={`h-full w-full rounded-2xl bg-transparent pl-11 text-[13px] text-white outline-none placeholder:text-stone-500 ${
+                searchInput ? 'pr-[120px] sm:pr-[136px]' : 'pr-[88px] sm:pr-[104px]'
+              }`}
             />
 
+            {searchInput && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className={`absolute flex h-6 w-6 items-center justify-center rounded-full text-stone-500 transition hover:bg-white/10 hover:text-white ${
+                  isSearching ? 'right-[102px] sm:right-[116px]' : 'right-[84px] sm:right-[98px]'
+                }`}
+                aria-label="Limpar busca"
+                title="Limpar busca"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+
             {isSuggesting && !isSearching && (
-              <Loader2 className="absolute right-[78px] h-3.5 w-3.5 animate-spin text-stone-500 sm:right-[92px]" />
+              <Loader2 className={`absolute h-3.5 w-3.5 animate-spin text-stone-500 ${searchInput ? 'right-[112px] sm:right-[128px]' : 'right-[78px] sm:right-[92px]'}`} />
             )}
 
             <button

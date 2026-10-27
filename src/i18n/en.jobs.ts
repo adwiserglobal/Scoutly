@@ -16,4 +16,5 @@ export const EN_JOBS: Record<string, string> = {
   "Vagas encontradas no site da empresa. Empresas sem site não são verificadas.": "Jobs found on the company's website. Businesses without a website aren't checked.",
   "{0} · Site da empresa": "{0} · Company website",
   "Site da empresa": "Company website",
+  "Limpar busca": "Clear search",
 };
