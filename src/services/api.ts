@@ -428,7 +428,8 @@ export async function searchBusinessesByQuery(
   query: string,
   currentRegionName: string,
   bounds?: { west: number; south: number; east: number; north: number } | null,
-  mode?: 'name'
+  mode?: 'name',
+  signal?: AbortSignal
 ) {
   const params = new URLSearchParams({ q: query, currentRegionName });
   if (mode) params.set('mode', mode);
@@ -438,7 +439,7 @@ export async function searchBusinessesByQuery(
     params.set('east', String(bounds.east));
     params.set('north', String(bounds.north));
   }
-  const res = await fetch(`/api/search?${params.toString()}`, { headers: { Accept: 'application/json' } });
+  const res = await fetch(`/api/search?${params.toString()}`, { headers: { Accept: 'application/json' }, signal });
   const data = await readJsonResponse<any>(res, 'Não foi possível concluir a busca.');
   if (!res.ok) throw new Error(data?.error || 'Não foi possível concluir a busca.');
 

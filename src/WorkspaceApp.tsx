@@ -906,6 +906,7 @@ export default function App() {
       // the visible area. The city is taken from the map center; if it can't be resolved the visible
       // area is used as before.
       let searchedWholeCity = false;
+      const visibleBounds = viewportBounds;
       if (viewportBounds) {
         const center = {
           lat: (viewportBounds.south + viewportBounds.north) / 2,
@@ -937,15 +938,36 @@ export default function App() {
         });
       };
 
+      // Literal business-name matches win for a plain term; otherwise the segment search runs.
+      type SearchOutcome = { mode: 'name' | 'general'; businesses: Business[]; result?: any };
+      const searchIn = async (bounds: MapBounds | null, signal?: AbortSignal): Promise<SearchOutcome | null> => {
+        try {
+          if (bounds) {
+            const byName = await searchBusinessesByQuery(cleanQuery, currentRegionName, bounds, 'name', signal);
+            const named = Array.isArray(byName?.businesses) ? byName.businesses : [];
+            if (named.length > 0) return { mode: 'name', businesses: named };
+          }
+          const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, bounds, undefined, signal);
+          return { mode: 'general', businesses: Array.isArray(result?.businesses) ? result.businesses : [], result };
+        } catch (error) {
+          console.warn('[Scoutly Search] Search request failed:', error);
+          return null;
+        }
+      };
+
+      let outcome = await searchIn(viewportBounds, searchedWholeCity ? AbortSignal.timeout(9000) : undefined);
+      // The whole-city search can be slow or come back empty for a big city: fall back to the visible area.
+      if (searchedWholeCity && (!outcome || outcome.businesses.length === 0)) {
+        console.info('[Scoutly Search] City-wide search had no results; trying the visible area.');
+        searchedWholeCity = false;
+        viewportBounds = visibleBounds;
+        outcome = await searchIn(visibleBounds);
+      }
+      if (!outcome) throw new Error('A busca não respondeu. Tente novamente.');
+
       // PinDrop-like behavior: for a plain term, literal business-name matches win.
-      if (viewportBounds) {
-        const nameResult = await searchBusinessesByQuery(
-          cleanQuery,
-          currentRegionName,
-          viewportBounds,
-          'name'
-        );
-        const nameBusinesses = Array.isArray(nameResult?.businesses) ? nameResult.businesses : [];
+      if (viewportBounds && outcome.mode === 'name') {
+        const nameBusinesses = outcome.businesses;
 
         if (nameBusinesses.length > 0) {
           const currentLeads = leadsMapRef.current;
@@ -976,8 +998,8 @@ export default function App() {
         }
       }
 
-      const result = await searchBusinessesByQuery(cleanQuery, currentRegionName, viewportBounds);
-      const nextBusinesses = Array.isArray(result?.businesses) ? result.businesses : [];
+      const result = outcome.mode === 'general' ? outcome.result : null;
+      const nextBusinesses = outcome.mode === 'general' ? outcome.businesses : [];
       const region = result?.region;
       const isViewportSearch = result?.searchMode === 'viewport';
 
