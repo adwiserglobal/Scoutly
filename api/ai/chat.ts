@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { message, history, businesses, currentRegionName, conversationContext, focusedLead, responseLanguage } = req.body || {};
+    const { message, history, businesses, currentRegionName, conversationContext, focusedLead, responseLanguage, recentSearches } = req.body || {};
     const wantsEnglish = responseLanguage === 'en';
     const localize = async <T extends { text?: string }>(payload: T): Promise<T> =>
       wantsEnglish && typeof payload.text === 'string' ? { ...payload, text: await translateReplyToEnglish(payload.text) } : payload;
@@ -52,6 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         currentRegionName:
           typeof currentRegionName === 'string' && currentRegionName.trim() ? currentRegionName.trim() : 'São Paulo - SP',
         language: wantsEnglish ? 'en' : 'pt',
+        recentSearches: Array.isArray(recentSearches) ? recentSearches.filter((item: unknown) => typeof item === 'string').slice(0, 6) : [],
         conversationContext: conversationContext && typeof conversationContext === 'object' ? conversationContext : null,
       });
       if (agent) {

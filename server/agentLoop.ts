@@ -36,16 +36,22 @@ export interface AgentInput {
   currentRegionName: string;
   language: 'pt' | 'en';
   conversationContext?: Record<string, any> | null;
+  /** Segments the user searched recently (newest first): what they are working on. */
+  recentSearches?: string[];
 }
 
 const clip = (value: unknown, max: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+
+/** Some sources leak raw JSON-ish fragments into text fields ("[null,null,269,...]"): drop them. */
+const clean = (value: unknown, max: number) =>
+  clip(String(value ?? '').replace(/,?\s*\[[^\]]*(?:null|\d+,\d+)[^\]]*\]+,?/g, ' ').replace(/\s*[·,]\s*$/g, ''), max);
 
 function compact(business: BusinessSummary) {
   return {
     id: business.id,
     name: clip(business.name, 70),
-    category: clip(business.category, 40),
-    address: clip(business.address, 80),
+    category: clean(business.category, 40),
+    address: clean(business.address, 80),
     website: business.website ? 'sim' : 'não',
     phone: business.phone || business.phones?.length ? 'sim' : 'não',
     socials: business.socials?.length || 0,
@@ -169,6 +175,9 @@ FERRAMENTAS (responda SEMPRE com UM único objeto JSON por vez, sem texto fora d
 4. {"thought":"...","tool":"finish","args":{"answer":"resposta em markdown","businessIds":["id1","id2"],"addToPipeline":false,"followUps":["pergunta curta 1","pergunta curta 2"]}}
 
 REGRAS:
+- Primeiro entenda a INTENÇÃO do pedido. Use search_businesses SOMENTE quando o usuário pediu para achar/listar/mostrar empresas de um segmento (dito por ele agora, ou claramente continuando a conversa). Perguntas de estratégia, abordagem, preço, mercado, "o que fazer", comparações ou sobre os resultados já na tela NÃO são buscas: responda (com web_search se precisar de dados externos).
+- NUNCA escolha um segmento que o usuário não mencionou. Se o pedido é vago ("me ajude a prospectar", "quero clientes") ou falta o segmento, NÃO busque: faça UMA pergunta curta e use followUps com 3 segmentos concretos como opções (priorize os das buscas recentes do usuário abaixo, se houver).
+- Pedidos com vários passos ("ache X e diga como abordar", "compare A e B") exigem usar as ferramentas necessárias em sequência antes do finish.
 - No máximo ${MAX_STEPS} chamadas de ferramenta antes do finish. Prefira 1–3. Se a pergunta é conversa simples ou sobre os resultados já na tela, vá direto ao finish.
 - Para "encontre/liste/mostre empresas": use search_businesses. Combine com web_search quando o usuário quiser contexto (ex.: "quais segmentos crescem aqui?").
 - Em businessIds do finish, coloque só ids que apareceram nos resultados das ferramentas ou na lista "Resultados atuais" e que realmente atendem ao pedido (ordene do melhor para o pior). Sem ids = não mostra cartões.
@@ -184,6 +193,7 @@ function contextBlock(input: AgentInput) {
   const noSite = input.businesses.filter((business) => !business.website).length;
   const withPhone = input.businesses.filter((business) => business.phone || business.phones?.length).length;
   const lines = [
+    input.recentSearches?.length ? `Buscas recentes do usuário (mais recente primeiro): ${input.recentSearches.slice(0, 5).map((item) => clip(item, 40)).join(' | ')}.` : null,
     input.conversationContext?.businessType ? `Contexto da conversa: segmento "${input.conversationContext.businessType}" em ${input.conversationContext.regionName || input.currentRegionName}.` : null,
     `Resultados atuais na tela: ${input.businesses.length} empresas (${noSite} sem site, ${withPhone} com telefone).`,
     list.length ? `Primeiros resultados (id|nome|categoria|site|telefone|redes):\n${list.map((item) => `${item.id}|${item.name}|${item.category}|${item.website}|${item.phone}|${item.socials}`).join('\n')}` : null,

@@ -1,6 +1,7 @@
 import type { Business } from '../types';
 import { auth } from '../lib/firebase';
 import { getActiveLanguage } from '../i18n/language';
+import { getRecentSearchQueries } from '../utils/recommendations';
 
 export interface AgenticConversationContext {
   businessType?: string;
@@ -71,6 +72,7 @@ export async function sendAgenticChatMessage(payload: AgenticChatPayload): Promi
     body: JSON.stringify({
       message: payload.message,
       responseLanguage: getActiveLanguage(),
+      recentSearches: getRecentSearchQueries(5),
       history: payload.history || [],
       conversationContext: payload.conversationContext || null,
       focusedLead: payload.focusedLead ? {

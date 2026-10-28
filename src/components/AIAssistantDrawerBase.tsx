@@ -24,6 +24,11 @@ import {
   RECOMMENDATION_SIGNAL_EVENT,
 } from '../utils/recommendations';
 
+/** Drops raw JSON-ish fragments some sources leak into text fields ("[null,null,269,...]"). */
+function tidyText(value?: string | null) {
+  return String(value || '').replace(/,?\s*\[[^\]]*(?:null|\d+,\d+)[^\]]*\]+,?/g, ' ').replace(/\s+/g, ' ').replace(/\s*[·,]\s*$/g, '').trim();
+}
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -442,20 +447,20 @@ function AIAssistantDrawer({
                           <article key={business.id} className="rounded-2xl border border-white/[0.1] bg-[#0e1216] p-4">
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0">
-                                <h4 className="truncate text-[12px] font-semibold text-white">{business.name}</h4>
-                                <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[#787e85]">{business.category} · {business.address}</p>
+                                <h4 className="truncate text-[14px] font-semibold text-white">{business.name}</h4>
+                                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[#c3c8cf]">{[tidyText(business.category), tidyText(business.address)].filter(Boolean).join(' · ')}</p>
                               </div>
-                              <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${business.website ? 'bg-emerald-500/[0.09] text-emerald-400' : 'border border-[#FF5A12]/20 bg-[#FF5A12]/[0.06] text-[#FF7A3D]'}`}>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${business.website ? 'bg-emerald-500/[0.14] text-emerald-300' : 'border border-[#FF5A12]/30 bg-[#FF5A12]/[0.12] text-[#FF9A6B]'}`}>
                                 {business.website ? 'Com site' : 'Site não identificado'}
                               </span>
                             </div>
 
                             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-3">
                               {whatsappLink && (
-                                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/[0.11] px-3 py-2 text-[9px] font-medium text-[#a2a7ad] transition hover:text-white">WhatsApp</a>
+                                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.1] px-3 py-2 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/20">WhatsApp</a>
                               )}
                               {business.website && (
-                                <a href={business.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-white/[0.11] px-3 py-2 text-[9px] font-medium text-[#a2a7ad] transition hover:text-white">
+                                <a href={business.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-white/[0.16] bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-[#e4e7ec] transition hover:bg-white/[0.09] hover:text-white">
                                   Site <ExternalLink className="h-3 w-3" />
                                 </a>
                               )}
@@ -465,12 +470,12 @@ function AIAssistantDrawer({
                                   onUpdateLeadStatus(business.id, saved ? 'NOVO' : 'CONTATADO');
                                   setPipelineSaved((previous) => ({ ...previous, [business.id]: !saved }));
                                 }}
-                                className="inline-flex items-center gap-1 rounded-xl border border-white/[0.11] px-3 py-2 text-[9px] font-medium text-[#a2a7ad] transition hover:text-white"
+                                className="inline-flex items-center gap-1 rounded-xl border border-white/[0.16] bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-[#e4e7ec] transition hover:bg-white/[0.09] hover:text-white"
                               >
                                 {saved ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
                                 {saved ? 'No pipeline' : 'Pipeline'}
                               </button>
-                              <button type="button" onClick={() => onSelectBusiness(business)} className="ml-auto inline-flex items-center gap-1 text-[9px] font-semibold text-[#FF7A3D] transition hover:text-[#ff9a6d]">
+                              <button type="button" onClick={() => onSelectBusiness(business)} className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#FF8A55] transition hover:text-[#ffa77c]">
                                 Ver detalhes <ChevronRight className="h-3 w-3" />
                               </button>
                             </div>
