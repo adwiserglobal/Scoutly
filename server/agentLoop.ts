@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { generateText, type LlmMessage } from './llmChain.js';
 import { runScoutlyBusinessSearch } from './searchFacade.js';
+import { searchBusinessesInBounds } from './businessSearchService.js';
 import { resolveSearchProfile, scoreAgainstProfile } from './searchProfiles.js';
 import type { AIChatResponse, BusinessSummary, ChatMessage } from './aiService.js';
 
@@ -38,6 +39,12 @@ export interface AgentInput {
   conversationContext?: Record<string, any> | null;
   /** Segments the user searched recently (newest first): what they are working on. */
   recentSearches?: string[];
+}
+
+function normalizeLocation(value: string) {
+  const text = value.trim();
+  const uf: Record<string, string> = { sp: 'São Paulo - SP', rj: 'Rio de Janeiro - RJ', mg: 'Belo Horizonte - MG', pr: 'Curitiba - PR', rs: 'Porto Alegre - RS', sc: 'Florianópolis - SC', ba: 'Salvador - BA', df: 'Brasília - DF', go: 'Goiânia - GO', pe: 'Recife - PE', ce: 'Fortaleza - CE' };
+  return uf[text.toLowerCase()] || text;
 }
 
 const clip = (value: unknown, max: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -180,6 +187,7 @@ REGRAS:
 - Pedidos com vários passos ("ache X e diga como abordar", "compare A e B") exigem usar as ferramentas necessárias em sequência antes do finish.
 - No máximo ${MAX_STEPS} chamadas de ferramenta antes do finish. Prefira 1–3. Se a pergunta é conversa simples ou sobre os resultados já na tela, vá direto ao finish.
 - Para "encontre/liste/mostre empresas": use search_businesses. Combine com web_search quando o usuário quiser contexto (ex.: "quais segmentos crescem aqui?").
+- Se o usuário pediu N empresas e há N ou mais com atende_filtros=true, entregue N. Se há menos, tente UMA busca ampliada (cidade/região vizinha) antes de desistir, e diga com franqueza quantas achou.
 - Em businessIds do finish, coloque só ids que apareceram nos resultados das ferramentas ou na lista "Resultados atuais" e que realmente atendem ao pedido (ordene do melhor para o pior). Sem ids = não mostra cartões.
 - Nunca invente empresas, telefones, donos ou números. Só afirme o que veio das ferramentas; se não achou, diga e sugira o próximo passo.
 - Quando usar a web, cite as fontes no texto como links markdown [título](url), no máximo 3.
@@ -204,7 +212,7 @@ function contextBlock(input: AgentInput) {
 export async function runScoutlyAgent(input: AgentInput): Promise<AgentResponse | null> {
   const started = Date.now();
   const pool = new Map<string, BusinessSummary>(input.businesses.map((business) => [business.id, business]));
-  let lastSearch: { query: string; segment: string; region: { name: string; center: { lat: number; lng: number } }; businesses: BusinessSummary[]; shown: BusinessSummary[]; filters: string[] } | null = null;
+  let lastSearch: { query: string; segment: string; region: { name: string; center: { lat: number; lng: number } }; businesses: BusinessSummary[]; shown: BusinessSummary[]; matches: BusinessSummary[]; limit: number; filters: string[] } | null = null;
   let webSearches = 0;
   let pages = 0;
   let model = '';
@@ -252,34 +260,60 @@ export async function runScoutlyAgent(input: AgentInput): Promise<AgentResponse 
         if (!segment) {
           observation = { error: 'Informe o segmento.' };
         } else {
-          const location = clip(args.location, 80);
+          const location = normalizeLocation(clip(args.location, 80));
           const query = location ? `${segment} em ${location}` : segment;
           try {
             const result = await runScoutlyBusinessSearch(query, input.currentRegionName);
-            const profile = resolveSearchProfile(segment);
             let found = Array.isArray(result.businesses) ? result.businesses : [];
+
+            // Same engine as the search bar: a deep scan of the whole area (city), merged in.
+            const bbox = result.region?.bbox;
+            if (bbox && [bbox.west, bbox.south, bbox.east, bbox.north].every(Number.isFinite)) {
+              const cx = (bbox.west + bbox.east) / 2, cy = (bbox.south + bbox.north) / 2;
+              const halfW = Math.min((bbox.east - bbox.west) / 2, 0.3), halfH = Math.min((bbox.north - bbox.south) / 2, 0.3);
+              try {
+                const deep = await Promise.race([
+                  searchBusinessesInBounds(segment, { west: cx - halfW, east: cx + halfW, south: cy - halfH, north: cy + halfH }, result.region.name),
+                  new Promise<null>((resolve) => setTimeout(() => resolve(null), 14_000)),
+                ]);
+                if (deep?.businesses?.length) {
+                  const merged = new Map(found.map((business) => [business.id, business]));
+                  for (const business of deep.businesses) if (!merged.has(business.id)) merged.set(business.id, business);
+                  found = Array.from(merged.values());
+                }
+              } catch (error: any) {
+                console.warn('[Agent] deep area search failed:', error?.message || error);
+              }
+            }
+
+            const profile = resolveSearchProfile(segment);
             if (profile) {
               found = found.filter((business) => scoreAgainstProfile({
                 name: business.name, category: business.category, basicCategory: business.basicCategory, taxonomyPrimary: business.taxonomyPrimary,
               }, profile) > 0);
             }
             const filters: string[] = [];
-            let filtered = found;
-            if (args.noWebsite) { filtered = filtered.filter((business) => !business.website); filters.push('sem site identificado'); }
-            if (args.hasPhone) { filtered = filtered.filter((business) => business.phone || business.phones?.some(Boolean)); filters.push('com telefone/WhatsApp'); }
-            if (args.noSocial) { filtered = filtered.filter((business) => !business.socials?.some(Boolean)); filters.push('sem redes sociais identificadas'); }
+            const checks: Array<(business: BusinessSummary) => boolean> = [];
+            if (args.noWebsite) { checks.push((business) => !business.website); filters.push('sem site identificado'); }
+            if (args.hasPhone) { checks.push((business) => Boolean(business.phone || business.phones?.some(Boolean))); filters.push('com telefone/WhatsApp'); }
+            if (args.noSocial) { checks.push((business) => !business.socials?.some(Boolean)); filters.push('sem redes sociais identificadas'); }
+            const matches = found.filter((business) => checks.every((check) => check(business)));
             const limit = Math.max(1, Math.min(Number(args.limit) || 10, 20));
-            const shown = filtered.slice(0, limit);
+            // Matches first, then the rest (flagged), so the model can still help when the data is thin.
+            const matchSet = new Set(matches.map((business) => business.id));
+            const rest = found.filter((business) => !matchSet.has(business.id));
+            const listed = [...matches, ...rest].slice(0, 25);
             for (const business of found) pool.set(business.id, business);
             lastSearch = {
               query, segment, region: { name: result.region?.name || input.currentRegionName, center: result.region?.center || { lat: -23.5505, lng: -46.6333 } },
-              businesses: found, shown, filters,
+              businesses: found, shown: matches.slice(0, limit), matches, limit, filters,
             };
             observation = {
               regiao: lastSearch.region.name,
               encontradas_no_segmento: found.length,
-              apos_filtros: filtered.length,
-              resultados: shown.map(compact),
+              atendem_aos_filtros: matches.length,
+              nota: matches.length >= limit ? 'Há resultados suficientes: escolha os melhores entre os que atendem aos filtros.' : 'Poucos atendem aos filtros: tente UMA busca ampliada (região vizinha/estado) antes de responder, ou explique a escassez.',
+              resultados: listed.map((business) => ({ ...compact(business), atende_filtros: matchSet.has(business.id) })),
             };
           } catch (error: any) {
             observation = { error: `Busca falhou: ${clip(error?.message, 100)}` };
@@ -318,13 +352,23 @@ function finalize(
   args: { answer?: string; businessIds?: string[]; addToPipeline?: boolean; followUps?: string[] },
   input: AgentInput,
   pool: Map<string, BusinessSummary>,
-  lastSearch: { query: string; segment: string; region: { name: string; center: { lat: number; lng: number } }; businesses: BusinessSummary[]; shown: BusinessSummary[]; filters: string[] } | null,
+  lastSearch: { query: string; segment: string; region: { name: string; center: { lat: number; lng: number } }; businesses: BusinessSummary[]; shown: BusinessSummary[]; matches: BusinessSummary[]; limit: number; filters: string[] } | null,
   model: string,
 ): AgentResponse {
   const answer = String(args.answer || '').trim() || (input.language === 'en' ? 'Done.' : 'Pronto.');
   let ids = (Array.isArray(args.businessIds) ? args.businessIds : []).map(String).filter((id) => pool.has(id));
   ids = [...new Set(ids)].slice(0, 20);
   if (!ids.length && lastSearch && !Array.isArray(args.businessIds)) ids = lastSearch.shown.map((business) => business.id);
+
+  // The model asked for N companies but listed fewer than the matches available: complete the list.
+  const asked = Number(input.message.match(/\b(\d{1,2})\b/)?.[1]) || 0;
+  const wanted = Math.min(asked || ids.length, lastSearch?.limit || 0);
+  if (lastSearch && ids.length < wanted) {
+    for (const business of lastSearch.matches) {
+      if (ids.length >= wanted) break;
+      if (!ids.includes(business.id)) ids.push(business.id);
+    }
+  }
 
   const shownBusinesses = ids.map((id) => pool.get(id)!).filter(Boolean);
   const base: AgentResponse = {
@@ -337,7 +381,7 @@ function finalize(
 
   if (lastSearch) {
     base.searchSummary = {
-      requestedCount: Math.max(lastSearch.shown.length, shownBusinesses.length),
+      requestedCount: Math.max(asked || lastSearch.limit, shownBusinesses.length),
       availableCount: lastSearch.businesses.length,
       matchingCount: lastSearch.shown.length,
       shownCount: shownBusinesses.length,
