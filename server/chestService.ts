@@ -1,6 +1,7 @@
 import { appDataRequest, dbValue } from './appDataService.js';
 import { getSubscriptionAccess } from './subscriptionAccessService.js';
 import { assertFeatureEnabled } from './accountAdminService.js';
+import { getSegmentPhotos, segmentFor } from './segmentPhotoService.js';
 
 /**
  * Treasure chest: a small daily deck of recommended companies.
@@ -22,6 +23,22 @@ export interface ChestDeck {
   remaining: number;
   cards: Record<string, unknown>[];
   resetsAt: string;
+}
+
+/** Adds the segment cover photo (cached in the database, see segmentPhotoService) to each card. */
+async function withPhotos(deck: ChestDeck): Promise<ChestDeck> {
+  if (!deck.cards.length) return deck;
+  try {
+    const segments = deck.cards.map((card) => segmentFor(card.category, card.name));
+    const photos = await getSegmentPhotos(segments);
+    return {
+      ...deck,
+      cards: deck.cards.map((card, index) => ({ ...card, photo: photos[segments[index].key] || null })),
+    };
+  } catch (error: any) {
+    console.warn('[Chest] photos unavailable:', error?.message || error);
+    return deck;
+  }
 }
 
 const utcDay = (now = new Date()) => now.toISOString().slice(0, 10);
@@ -102,7 +119,7 @@ function sanitizeCard(raw: any): Record<string, unknown> | null {
 export async function getChestDeck(userUid: string): Promise<ChestDeck> {
   const access = await getSubscriptionAccess(userUid);
   const plan = planOf(access.plan);
-  return describe(plan, await readCards(userUid, utcDay()));
+  return withPhotos(describe(plan, await readCards(userUid, utcDay())));
 }
 
 export async function openChest(userUid: string, workspaceId: string, candidates: unknown): Promise<ChestDeck> {
@@ -112,7 +129,7 @@ export async function openChest(userUid: string, workspaceId: string, candidates
   const day = utcDay();
   const existing = await readCards(userUid, day);
   const current = describe(plan, existing);
-  if (current.remaining <= 0 || !Array.isArray(candidates)) return current;
+  if (current.remaining <= 0 || !Array.isArray(candidates)) return withPhotos(current);
 
   const taken = new Set(current.cards.map((card) => String(card.id)));
   const fresh: Record<string, unknown>[] = [];
@@ -123,7 +140,7 @@ export async function openChest(userUid: string, workspaceId: string, candidates
     taken.add(String(card.id));
     fresh.push(card);
   }
-  if (!fresh.length) return current;
+  if (!fresh.length) return withPhotos(current);
 
   // Insert one row per card; the quota is re-checked after the write so two parallel opens cannot exceed it.
   await appDataRequest('recommendation_events', {
@@ -138,5 +155,5 @@ export async function openChest(userUid: string, workspaceId: string, candidates
       metadata: { scoutly_ledger: true, plan, card },
     }))),
   });
-  return describe(plan, await readCards(userUid, day));
+  return withPhotos(describe(plan, await readCards(userUid, day)));
 }

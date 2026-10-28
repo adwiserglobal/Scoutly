@@ -940,7 +940,7 @@ export interface ChestDeck {
   limit: number;
   used: number;
   remaining: number;
-  cards: Array<Business & { reason?: string | null; reasons?: string[] }>;
+  cards: Array<Business & { reason?: string | null; reasons?: string[]; photo?: { src: string; credit: string; creditUrl: string } | null }>;
   resetsAt: string;
 }
 

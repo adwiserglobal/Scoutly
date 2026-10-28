@@ -60,11 +60,32 @@ function CompanyCard({ card, index, total, onView }: { card: ChestCard; index: n
 
   return (
     <article className="flex w-[270px] shrink-0 snap-center flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#14171c] shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:w-[280px]">
-      <div className="relative h-[76px] shrink-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
-        <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
-        <span className="absolute right-3.5 top-3.5 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+      <div className="relative h-[96px] shrink-0 overflow-hidden" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
+        {card.photo?.src && (
+          <img
+            src={`${card.photo.src}${card.photo.src.includes('?') ? '&' : '?'}auto=format&fit=crop&w=640&h=240&q=70`}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            referrerPolicy="no-referrer"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0" style={{ background: card.photo?.src ? `linear-gradient(180deg, ${from}33 0%, rgba(20,23,28,0.15) 45%, rgba(20,23,28,0.85) 100%)` : undefined }} />
+        <span className="absolute right-3.5 top-3.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
           {index + 1}/{total}
         </span>
+        {card.photo?.credit && (
+          <a
+            href={card.photo.creditUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-1 right-2 max-w-[60%] truncate text-[8px] font-medium text-white/60 hover:text-white"
+            title={`Foto de ${card.photo.credit} no Unsplash`}
+          >
+            {card.photo.credit} / Unsplash
+          </a>
+        )}
         <div className="absolute -bottom-6 left-4 flex h-[52px] w-[52px] items-center justify-center rounded-2xl border-4 border-[#14171c] bg-white text-[16px] font-extrabold shadow-lg" style={{ color: to }}>
           {initials(card.name)}
         </div>
