@@ -7,6 +7,9 @@ import { translateReplyToEnglish, translateRequestToPortuguese } from '../../ser
 import { runScoutlyAgent } from '../../server/agentLoop.js';
 import { researchFocusedLead, similarSearchQuery, wantsSimilarBusinesses } from '../../server/leadResearchService.js';
 
+// The tool-using agent can take a while (model + web search + page reads).
+export const config = { maxDuration: 60 };
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
