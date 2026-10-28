@@ -32,6 +32,7 @@ interface ChatMessage {
   businessesSnapshot?: Business[];
   searchSummary?: AgenticChatResult['searchSummary'];
   suggestedAction?: AgenticChatResult['suggestedAction'];
+  followUps?: string[];
   timestamp: string;
 }
 
@@ -224,6 +225,7 @@ function AIAssistantDrawer({
           businessesSnapshot,
           searchSummary: result.searchSummary,
           suggestedAction: result.suggestedAction,
+          followUps: result.followUps,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -370,11 +372,28 @@ function AIAssistantDrawer({
                         li: ({ children }) => <li className="text-[#dedede]">{children}</li>,
                         ul: ({ children }) => <ul className="my-2 list-disc pl-5 text-[#dedede]">{children}</ul>,
                         ol: ({ children }) => <ol className="my-2 list-decimal pl-5 text-[#dedede]">{children}</ol>,
+                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#FF7A3D] underline-offset-2 hover:underline">{children}</a>,
                       }}
                     >
                       {message.content}
                     </ReactMarkdown>
                   </div>
+
+                  {message.followUps && message.followUps.length > 0 && message.id === messages[messages.length - 1]?.id && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {message.followUps.map((followUp) => (
+                        <button
+                          key={followUp}
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => void handleSendMessage(followUp)}
+                          className="rounded-full border border-[#FF5A12]/25 bg-[#FF5A12]/[0.07] px-3 py-1.5 text-left text-[11px] font-medium text-[#ffab85] transition hover:bg-[#FF5A12]/[0.14] disabled:opacity-50"
+                        >
+                          {followUp}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {message.searchSummary && (
                     <div className="flex flex-wrap items-center gap-2 border-y border-white/[0.07] py-3 text-[9px] font-medium text-[#777d84]">

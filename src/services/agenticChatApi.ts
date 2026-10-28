@@ -24,6 +24,7 @@ export interface AgenticChatResult {
   text: string;
   matchedBusinessIds: string[];
   modelUsed?: string;
+  followUps?: string[];
   access?: any;
   searchSummary?: {
     requestedCount: number;

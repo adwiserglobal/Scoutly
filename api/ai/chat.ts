@@ -4,6 +4,7 @@ import { requireFirebaseIdentity } from '../../server/firebaseTokenService.js';
 import { ensureAppUser } from '../../server/appDataService.js';
 import { consumeAiConversation } from '../../server/entitlementService.js';
 import { translateReplyToEnglish, translateRequestToPortuguese } from '../../server/translateReply.js';
+import { runScoutlyAgent } from '../../server/agentLoop.js';
 import { researchFocusedLead, similarSearchQuery, wantsSimilarBusinesses } from '../../server/leadResearchService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,6 +37,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const research = await researchFocusedLead(focusedLead, userMessage.trim());
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ ...(await localize(research)), access });
+    }
+
+    // Tool-using agent (internal search + web search + page reading). Falls back to the deterministic
+    // orchestrator below when no model answers or when AGENTIC_LLM=off.
+    if (!similarRequest && String(process.env.AGENTIC_LLM || '').toLowerCase() !== 'off') {
+      const agent = await runScoutlyAgent({
+        message: message.trim(),
+        history: Array.isArray(history) ? history : [],
+        businesses: Array.isArray(businesses) ? businesses : [],
+        currentRegionName:
+          typeof currentRegionName === 'string' && currentRegionName.trim() ? currentRegionName.trim() : 'São Paulo - SP',
+        language: wantsEnglish ? 'en' : 'pt',
+        conversationContext: conversationContext && typeof conversationContext === 'object' ? conversationContext : null,
+      });
+      if (agent) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ ...agent, access });
+      }
     }
 
     const searchMessage = similarRequest ? similarSearchQuery(focusedLead, userMessage) : userMessage.trim();

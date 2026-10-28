@@ -1,4 +1,5 @@
 import DevWhatsAppTool from './DevWhatsAppTool';
+import SimilarAlertButton from './SimilarAlertButton';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
@@ -535,6 +536,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
             {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={recordWhatsAppClick} title="WhatsApp confirmado por evidência no site oficial" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1a3028] text-[12px] font-semibold text-[#acf0cc] transition hover:bg-[#204635]"><BrandIcon brand="whatsapp" className="h-[17px] w-[17px]" alt="WhatsApp" /> WhatsApp confirmado <ArrowUpRight className="h-3.5 w-3.5" /></a> : phoneToCopy ? <a href={`tel:${phoneToCopy}`} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-[#171b20] text-[12px] font-semibold text-[#d9dde3] transition hover:bg-[#20252b]" title="Telefone encontrado. WhatsApp não confirmado."><Phone className="h-4 w-4" /> Ligar <ArrowUpRight className="h-3.5 w-3.5" /></a> : <div className="flex h-11 items-center justify-center rounded-xl border border-white/[0.065] text-[11px] text-[#858b96]">Contato não identificado</div>}
             {hasWebsite ? <a href={websiteUrl!} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="website" className="h-[17px] w-[17px]" alt="Site" /> Ver site <ArrowUpRight className="h-3.5 w-3.5" /></a> : <a href={googleBusinessUrl} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-[#1b1e23] text-[12px] font-semibold text-[#e6e7eb] transition hover:bg-[#272c32]"><BrandIcon brand="googleMaps" className="h-4 w-4" alt="Google Maps" /> Google Maps <ArrowUpRight className="h-3.5 w-3.5" /></a>}
           </div>
+          <SimilarAlertButton business={business} />
           <DevWhatsAppTool />
           <button
             type="button"

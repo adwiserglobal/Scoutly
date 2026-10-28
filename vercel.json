@@ -134,6 +134,10 @@
     },
     "api/**/*.ts": {
       "excludeFiles": "{data/**,scripts/**,supabase/**}"
+    },
+    "api/ai/chat.ts": {
+      "maxDuration": 60,
+      "excludeFiles": "{data/**,scripts/**,supabase/**}"
     }
   },
   "crons": [

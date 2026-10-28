@@ -59,4 +59,7 @@ export const EN_JOBS: Record<string, string> = {
   "Ativar alerta": "Enable alert",
   "Remover alerta": "Remove alert",
   "Não foi possível carregar os alertas.": "Couldn't load your alerts.",
+  "Avisar de empresas semelhantes": "Alert me about similar companies",
+  "Alerta criado: você será avisado por e-mail": "Alert created: you'll be emailed",
+  "Não foi possível criar o alerta.": "Couldn't create the alert.",
 };
