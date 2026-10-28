@@ -956,3 +956,31 @@ export async function fetchChestDeck(candidates?: unknown[]): Promise<ChestDeck>
   }
   return data as ChestDeck;
 }
+
+export interface SearchAlert {
+  id: string;
+  query: string;
+  regionName: string | null;
+  enabled: boolean;
+  createdAt: string;
+  lastCheckedAt: string | null;
+  lastNotifiedAt: string | null;
+  totalFound: number;
+}
+
+async function alertAction(action: string, payload: Record<string, unknown> = {}): Promise<{ alerts: SearchAlert[]; limit: number }> {
+  const res = await appDataAction(action, payload);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(data?.alerts)) {
+    const error: any = new Error(data?.error || 'Não foi possível carregar os alertas.');
+    error.code = data?.code;
+    throw error;
+  }
+  return data;
+}
+
+export const fetchSearchAlerts = () => alertAction('alert-list');
+export const createSearchAlert = (scope: { query: string; regionName: string; bbox: { west: number; south: number; east: number; north: number } }) =>
+  alertAction('alert-create', scope);
+export const toggleSearchAlert = (id: string, enabled: boolean) => alertAction('alert-toggle', { id, enabled });
+export const deleteSearchAlert = (id: string) => alertAction('alert-delete', { id });

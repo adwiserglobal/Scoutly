@@ -70,6 +70,10 @@
       "dest": "/api/pagespeed.ts"
     },
     {
+      "src": "/api/cron-alerts",
+      "dest": "/api/leads.ts?__scoutly_handler=alerts-cron"
+    },
+    {
       "src": "/api/leads",
       "dest": "/api/leads.ts"
     },
@@ -131,5 +135,11 @@
     "api/**/*.ts": {
       "excludeFiles": "{data/**,scripts/**,supabase/**}"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-alerts",
+      "schedule": "0 11 * * *"
+    }
+  ]
 }

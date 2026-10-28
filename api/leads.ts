@@ -9,6 +9,7 @@ import { getUserProfile, saveUserProfileData } from '../server/userProfileServic
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
 import { getChestDeck, openChest } from '../server/chestService.js';
+import { createAlert, deleteAlert, listAlerts, runAlertsCron, updateAlert } from '../server/searchAlertsService.js';
 import { assertFeatureEnabled } from '../server/accountAdminService.js';
 import {
   acceptInvite, assertCanManageBilling, createInvite, getTeamContext, getTeamOverview, leaveTeam, previewInvite, removeMember, setMemberAdmin, renewInvite,
@@ -321,6 +322,11 @@ function publicError(error: any, statusCode: number) {
     'DEMO_NOT_FOUND',
     'DEMO_INVALID',
     'LLM_UNAVAILABLE',
+    'ALERT_NO_QUERY',
+    'ALERT_NO_AREA',
+    'ALERT_DUPLICATE',
+    'ALERT_LIMIT',
+    'ALERTS_MIGRATION_PENDING',
   ]);
   const code = String(error?.code || '');
   if (safeCodes.has(code)) {
@@ -351,6 +357,18 @@ async function servePublicDemo(req: VercelRequest, res: VercelResponse) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Daily cron (see vercel.json): authenticated by CRON_SECRET, which Vercel sends as a bearer token.
+  if (String(req.query?.__scoutly_handler || '') === 'alerts-cron') {
+    const secret = String(process.env.CRON_SECRET || '').trim();
+    if (!secret || req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      return res.status(200).json(await runAlertsCron());
+    } catch (error: any) {
+      console.error('[API /api/leads alerts-cron]:', error?.message || error);
+      return res.status(500).json({ error: error?.message || 'Falha ao verificar alertas.' });
+    }
+  }
+
   if (req.method === 'GET' && String(req.query?.view || '') === 'demo') {
     try {
       return await servePublicDemo(req, res);
@@ -632,6 +650,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'chest-status') return res.status(200).json(await getChestDeck(identity.uid));
     if (action === 'chest-open') return res.status(200).json(await openChest(identity.uid, workspaceId, req.body?.candidates));
+
+    if (action === 'alert-list') return res.status(200).json(await listAlerts(identity.uid));
+    if (action === 'alert-create') return res.status(200).json({ alert: await createAlert(identity.uid, req.body), ...(await listAlerts(identity.uid)) });
+    if (action === 'alert-toggle') return res.status(200).json(await updateAlert(identity.uid, String(req.body?.id || ''), { enabled: req.body?.enabled !== false }));
+    if (action === 'alert-delete') return res.status(200).json(await deleteAlert(identity.uid, String(req.body?.id || '')));
 
     if (action === 'flight-status') return res.status(200).json(await getFlightStatus(identity.uid));
     if (action === 'flight-start') {

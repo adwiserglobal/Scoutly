@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Business } from '../types';
 import { getActiveLocale } from '../i18n/language';
 import { localizeSearchQuery } from '../i18n/searchQuery';
+import SearchAlertsButton, { type AlertScope } from './SearchAlertsButton';
 
 interface HeaderProps {
   currentRegionName: string;
@@ -22,6 +23,8 @@ interface HeaderProps {
   onOpenFilters: () => void;
   /** Credits pill and route button, rendered where the recommendations button used to be. */
   trailing?: ReactNode;
+  /** Query + area of the active search, used to create a new-company alert. */
+  getAlertScope?: () => AlertScope | null;
 }
 
 interface LocationSuggestion {
@@ -97,6 +100,7 @@ function Header({
   totalBusinessesCount,
   onOpenFilters,
   trailing,
+  getAlertScope,
 }: HeaderProps) {
   const [searchInput, setSearchInput] = useState('');
   // Keeps the outline still-orange after a search finishes (until the user edits the text).
@@ -474,6 +478,8 @@ function Header({
           <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden text-[11px] font-semibold sm:inline">Filtros</span>
         </button>
+
+        {getAlertScope && <SearchAlertsButton getScope={getAlertScope} />}
 
         <button
           type="button"

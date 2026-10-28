@@ -1841,6 +1841,12 @@ export default function App() {
                       return next;
                     });
                   }}
+                  getAlertScope={() => {
+                    const sticky = stickySearchRef.current;
+                    const area = sticky?.covered?.[0];
+                    if (!sticky || !area) return null;
+                    return { query: sticky.query, regionName: currentRegionName, bbox: area };
+                  }}
                   trailing={(
                     <button
                       type="button"
