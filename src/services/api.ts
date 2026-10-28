@@ -164,6 +164,7 @@ export interface CreditAccessStatus {
   plan: 'free' | 'go' | 'pro' | 'agency';
   isFree: boolean;
   isUnlimited: boolean;
+  isCoreDeveloper?: boolean;
   remaining: number | null;
   dailyRemaining: number | null;
   dailyLimit: number | null;

@@ -9,6 +9,8 @@ export type CreditStatus = {
   isFree: boolean;
   isUnlimited: boolean;
   isDeveloper: boolean;
+  /** Scoutly core developers only (Agency developer allowlist): unlocks internal helper tools. */
+  isCoreDeveloper?: boolean;
   remaining: number | null;
   dailyRemaining: number | null;
   dailyLimit: number | null;
@@ -223,6 +225,7 @@ async function computeCreditStatus(userUid: string): Promise<CreditStatus> {
       isFree: false,
       isUnlimited: true,
       isDeveloper: access.isDeveloper,
+      isCoreDeveloper: access.isDeveloper && plan === 'agency',
       remaining: null,
       dailyRemaining: null,
       dailyLimit: null,

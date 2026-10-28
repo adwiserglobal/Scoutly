@@ -1,3 +1,4 @@
+import DevWhatsAppTool from './DevWhatsAppTool';
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, ExternalLink, Phone, X, Plus, Check, Columns3, Trash2, Star, ChevronDown, Sparkles, Copy, MessageCircle, RefreshCw, AlertCircle, CheckCircle2, Globe2, Activity, Mail, MapPin, FileText, Gauge } from 'lucide-react';
 import { Business, LeadStatus } from '../types';
@@ -498,6 +499,7 @@ export default function BusinessDetailsModal({
                 )}
                 <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar mensagem'}</span>
               </button>
+              <DevWhatsAppTool compact />
 
               <button
                 type="button"
