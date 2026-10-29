@@ -3,6 +3,7 @@ import * as maplibregl from 'maplibre-gl';
 // @ts-ignore
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { enableMap3D } from '../map3dSetup';
 import { Business, VisitRouteStop } from '../types';
 import { translateCategory } from '../utils/categoryTranslator';
 import { createGeoJSONCircle } from '../utils/geoUtils';
@@ -295,6 +296,7 @@ function InteractiveMap({
           clusterMaxZoom: 15,
           clusterRadius: 50,
         });
+        enableMap3D(map);
 
         // 1b. Add GeoJSON Source for Radar Circle Area
         map.addSource('radar-circle', {

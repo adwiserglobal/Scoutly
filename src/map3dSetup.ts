@@ -198,7 +198,7 @@ function ensureTreeImage(map: maplibregl.Map) {
   });
 }
 
-function addTreeLayers(map: maplibregl.Map, beforeId?: string) {
+function addTreeLayers(map: maplibregl.Map, beforeId?: string, vectorSource = 'carto') {
   ensureTreeImage(map);
   if (!map.hasImage(MAP_3D_TREE_IMAGE_ID)) return;
 
@@ -209,7 +209,7 @@ function addTreeLayers(map: maplibregl.Map, beforeId?: string) {
     map.addLayer({
       id: MAP_3D_PARK_TREES_LAYER_ID,
       type: 'symbol',
-      source: 'carto',
+      source: vectorSource,
       'source-layer': 'park',
       minzoom: 14.8,
       maxzoom: 19,
@@ -237,7 +237,7 @@ function addTreeLayers(map: maplibregl.Map, beforeId?: string) {
     map.addLayer({
       id: MAP_3D_GREEN_TREES_LAYER_ID,
       type: 'symbol',
-      source: 'carto',
+      source: vectorSource,
       'source-layer': 'landcover',
       minzoom: 15.2,
       maxzoom: 19,
@@ -265,86 +265,101 @@ function addTreeLayers(map: maplibregl.Map, beforeId?: string) {
   }
 }
 
+/** Finds the vector source that carries buildings/parks (CARTO's id has changed before). */
+function findVectorSourceId(map: maplibregl.Map): string | null {
+  if (map.getSource('carto')) return 'carto';
+  const layers = (map.getStyle()?.layers || []) as any[];
+  const building = layers.find((layer) => layer['source-layer'] === 'building' && layer.source);
+  return building?.source || null;
+}
+
+export function enableMap3D(map: maplibregl.Map) {
+  if (map.getLayer(MAP_3D_LAYER_ID) || !map.getSource('businesses')) return;
+  const vectorSource = findVectorSourceId(map);
+  if (!vectorSource) {
+    console.warn('[Scoutly Map] 3D mode skipped: no vector source with buildings in the style');
+    return;
+  }
+
+  try {
+    const styleLayers = map.getStyle()?.layers || [];
+    const firstSymbolLayerId = styleLayers.find((layer: any) => layer.type === 'symbol')?.id;
+    const height = buildingHeightExpression();
+
+    // One native GPU extrusion layer only. No terrain DEM, no textures, no
+    // custom WebGL scene and no animation loop.
+    map.addLayer(
+      {
+        id: MAP_3D_LAYER_ID,
+        type: 'fill-extrusion',
+        source: vectorSource,
+        'source-layer': 'building',
+        minzoom: 15,
+        maxzoom: 19,
+        layout: {
+          visibility: 'none',
+        },
+        paint: {
+          'fill-extrusion-color': [
+            'interpolate',
+            ['linear'],
+            height,
+            0, '#151a20',
+            24, '#1b232c',
+            60, '#232d38',
+            120, '#2a3541',
+          ],
+          'fill-extrusion-height': height,
+          'fill-extrusion-base': buildingBaseExpression(),
+          'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-vertical-gradient': true,
+        },
+      } as any,
+      firstSymbolLayerId
+    );
+
+    addTreeLayers(map, firstSymbolLayerId, vectorSource);
+
+    // A single cheap circle layer creates a subtle night glow around the pins.
+    if (!map.getLayer(MAP_3D_GLOW_LAYER_ID)) {
+      map.addLayer({
+        id: MAP_3D_GLOW_LAYER_ID,
+        type: 'circle',
+        source: 'businesses',
+        minzoom: 15,
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          visibility: 'none',
+        },
+        paint: {
+          'circle-color': ['get', 'markerColor'],
+          'circle-radius': ['*', ['get', 'markerRadius'], 1.9],
+          'circle-opacity': 0.2,
+          'circle-blur': 0.72,
+          'circle-stroke-width': 0,
+        },
+      } as any);
+    }
+
+    applyMapMode(map, 'classic', false);
+    console.info('[Scoutly Map] Lightweight night 3D mode enabled');
+  } catch (error) {
+    console.error('[Scoutly Map] Could not enable 3D mode:', error);
+  }
+
+  // The switcher is added on its own so a failure above never hides it.
+  if (!(map as any).__scoutlyMapModeControlAdded) {
+    map.addControl(new ScoutlyMapModeControl(), 'top-right');
+    (map as any).__scoutlyMapModeControlAdded = true;
+  }
+}
+
 if (!proto.__scoutly3dPatched) {
   const originalAddSource = proto.addSource;
 
   proto.addSource = function (id: string, source: any) {
     const result = originalAddSource.call(this, id, source);
-
-    if (id === 'businesses' && !this.getLayer(MAP_3D_LAYER_ID) && this.getSource('carto')) {
-      try {
-        const styleLayers = this.getStyle()?.layers || [];
-        const firstSymbolLayerId = styleLayers.find((layer: any) => layer.type === 'symbol')?.id;
-        const height = buildingHeightExpression();
-
-        // One native GPU extrusion layer only. No terrain DEM, no textures, no
-        // custom WebGL scene and no animation loop.
-        this.addLayer(
-          {
-            id: MAP_3D_LAYER_ID,
-            type: 'fill-extrusion',
-            source: 'carto',
-            'source-layer': 'building',
-            minzoom: 15,
-            maxzoom: 19,
-            layout: {
-              visibility: 'none',
-            },
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                height,
-                0, '#151a20',
-                24, '#1b232c',
-                60, '#232d38',
-                120, '#2a3541',
-              ],
-              'fill-extrusion-height': height,
-              'fill-extrusion-base': buildingBaseExpression(),
-              'fill-extrusion-opacity': 0.9,
-              'fill-extrusion-vertical-gradient': true,
-            },
-          } as any,
-          firstSymbolLayerId
-        );
-
-        addTreeLayers(this, firstSymbolLayerId);
-
-        // A single cheap circle layer creates a subtle night glow around the pins.
-        if (!this.getLayer(MAP_3D_GLOW_LAYER_ID)) {
-          this.addLayer({
-            id: MAP_3D_GLOW_LAYER_ID,
-            type: 'circle',
-            source: 'businesses',
-            minzoom: 15,
-            filter: ['!', ['has', 'point_count']],
-            layout: {
-              visibility: 'none',
-            },
-            paint: {
-              'circle-color': ['get', 'markerColor'],
-              'circle-radius': ['*', ['get', 'markerRadius'], 1.9],
-              'circle-opacity': 0.2,
-              'circle-blur': 0.72,
-              'circle-stroke-width': 0,
-            },
-          } as any);
-        }
-
-        if (!(this as any).__scoutlyMapModeControlAdded) {
-          this.addControl(new ScoutlyMapModeControl(), 'top-right');
-          (this as any).__scoutlyMapModeControlAdded = true;
-        }
-
-        applyMapMode(this, 'classic', false);
-
-        console.info('[Scoutly Map] Lightweight night 3D mode enabled');
-      } catch (error) {
-        console.error('[Scoutly Map] Could not enable 3D mode:', error);
-      }
-    }
-
+    if (id === 'businesses') enableMap3D(this);
     return result;
   };
 
