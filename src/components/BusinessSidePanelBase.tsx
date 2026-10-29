@@ -498,7 +498,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
   return (
     <>
       <div className="fixed inset-0 z-[68] bg-black/45 backdrop-blur-[2px] pointer-events-auto" onClick={onClose} />
-      <aside data-no-flight-zoom className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col border-l border-white/[0.09] bg-[#0d1014] text-white shadow-[-28px_0_100px_rgba(0,0,0,0.48)] pointer-events-auto sm:w-[520px] lg:w-[550px]" aria-label={`Detalhes de ${business.name}`}>
+      <aside data-no-flight-zoom className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-y-auto overscroll-contain border-l [scrollbar-color:#31363d_transparent] border-white/[0.09] bg-[#0d1014] text-white shadow-[-28px_0_100px_rgba(0,0,0,0.48)] pointer-events-auto sm:w-[520px] lg:w-[550px]" aria-label={`Detalhes de ${business.name}`}>
         <header className="shrink-0 border-b border-white/[0.085] bg-[#101317] px-5 pb-5 pt-6 sm:px-7">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a1a6af]">Perfil da empresa</span>
@@ -583,7 +583,7 @@ export default function BusinessSidePanel({ business, onClose, onToggleFavorite,
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-color:#31363d_transparent] sm:px-7">
+        <div className="shrink-0 px-5 py-5 sm:px-7">
           {isAnythingLoading && <p className="mb-3 flex items-center gap-2 text-[10px] text-[#a6acb6]"><LoaderRing /> Atualizando informações do negócio</p>}
           <section className="rounded-2xl border border-white/[0.085] bg-[#14181d] p-4">
             <div className="mb-3 flex items-center justify-between">
