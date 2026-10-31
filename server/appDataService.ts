@@ -131,6 +131,9 @@ async function emitWelcomeEvent(identity: FirebaseIdentity) {
 }
 
 async function emitActivityEvent(identity: FirebaseIdentity) {
+  // Dynamic import: notificationPrefsService itself depends on this module.
+  const { wantsNotification } = await import('./notificationPrefsService.js');
+  if (!(await wantsNotification(identity.uid, 'productEmails'))) return;
   const appUrl = String(process.env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, '');
   await emitResendEvent('user.activity', identity, {
     user_name: firstNameForEmail(identity),

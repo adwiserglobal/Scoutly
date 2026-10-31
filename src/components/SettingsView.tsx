@@ -7,6 +7,7 @@ import { createBillingPortalSession, saveUserProfile, saveUserSettings } from '.
 import { useUserProfile } from '../hooks/useUserProfile';
 import OutreachProfileSection from './settings/OutreachProfileSection';
 import BrandSection from './settings/BrandSection';
+import NotificationsSection from './settings/NotificationsSection';
 import { getActiveLocale } from '../i18n/language';
 import { useLanguage } from '../i18n';
 
@@ -302,6 +303,8 @@ function SettingsView({ billing, onOpenPlans }: SettingsViewProps) {
               </div>
             </div>
           </section>
+
+          <NotificationsSection />
 
           <section className="rounded-[22px] border border-white/[0.08] bg-[#111418] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] md:p-6">
             <div className="mb-5">

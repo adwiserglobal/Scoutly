@@ -1,6 +1,7 @@
 import { appDataRequest, dbValue } from './appDataService.js';
 import { getSubscriptionAccess } from './subscriptionAccessService.js';
 import { assertFeatureEnabled } from './accountAdminService.js';
+import { wantsNotification } from './notificationPrefsService.js';
 import { searchBusinessesInBounds } from './businessSearchService.js';
 
 /**
@@ -206,7 +207,7 @@ ${group.total > group.companies.length ? `<p style="font-size:12px;color:#6b7280
 <p style="margin:0;line-height:1.6;color:#4b5260;font-size:14px">Apareceram desde o último aviso. Contatos e detalhes completos estão no Scoutly.</p>
 ${sections}
 <a href="${appUrl()}/dashboard" style="display:inline-block;margin-top:20px;background:#ff5a12;color:#fff;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:12px">Ver no Scoutly</a>
-<p style="margin:24px 0 0;font-size:12px;color:#8a909c">Você recebe este e-mail porque ativou alertas no Scoutly. Para pausar ou remover, abra a busca no app e clique no sino.</p></div>`;
+<p style="margin:24px 0 0;font-size:12px;color:#8a909c">Você recebe este e-mail porque ativou alertas no Scoutly. Para pausar ou remover, abra Configurações &gt; Notificações no Scoutly.</p></div>`;
   try {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -284,6 +285,7 @@ export async function runAlertsCron() {
       const users = await appDataRequest<Array<{ email?: string | null }>>(`app_users?firebase_uid=eq.${dbValue(userUid)}&select=email&limit=1`);
       const email = String(users[0]?.email || '').trim();
       if (!email) continue;
+      if (!(await wantsNotification(userUid, 'businessAlerts'))) continue;
       if (await sendAlertEmail(email, groups)) {
         emailed += 1;
         const now = new Date().toISOString();

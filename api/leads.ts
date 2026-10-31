@@ -9,6 +9,7 @@ import { getUserProfile, saveUserProfileData } from '../server/userProfileServic
 import { saveBusinessFeedback } from '../server/businessFeedbackService.js';
 import { getFlightStatus, startFlight, tickFlight } from '../server/flightService.js';
 import { getChestDeck, openChest } from '../server/chestService.js';
+import { getNotificationPrefs, saveNotificationPrefs } from '../server/notificationPrefsService.js';
 import { createAlert, deleteAlert, listAlerts, runAlertsCron, updateAlert } from '../server/searchAlertsService.js';
 import { assertFeatureEnabled } from '../server/accountAdminService.js';
 import {
@@ -327,6 +328,7 @@ function publicError(error: any, statusCode: number) {
     'ALERT_DUPLICATE',
     'ALERT_LIMIT',
     'ALERTS_MIGRATION_PENDING',
+    'NOTIFICATIONS_MIGRATION_PENDING',
   ]);
   const code = String(error?.code || '');
   if (safeCodes.has(code)) {
@@ -650,6 +652,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'chest-status') return res.status(200).json(await getChestDeck(identity.uid));
     if (action === 'chest-open') return res.status(200).json(await openChest(identity.uid, workspaceId, req.body?.candidates));
+
+    if (action === 'notification-prefs-get') return res.status(200).json(await getNotificationPrefs(identity.uid));
+    if (action === 'notification-prefs-save') return res.status(200).json(await saveNotificationPrefs(identity.uid, { businessAlerts: req.body?.businessAlerts, productEmails: req.body?.productEmails }));
 
     if (action === 'alert-list') return res.status(200).json(await listAlerts(identity.uid));
     if (action === 'alert-create') return res.status(200).json({ alert: await createAlert(identity.uid, req.body), ...(await listAlerts(identity.uid)) });

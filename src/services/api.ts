@@ -984,3 +984,22 @@ export const createSearchAlert = (scope: { query: string; regionName: string; bb
   alertAction('alert-create', scope);
 export const toggleSearchAlert = (id: string, enabled: boolean) => alertAction('alert-toggle', { id, enabled });
 export const deleteSearchAlert = (id: string) => alertAction('alert-delete', { id });
+
+export interface NotificationPrefs {
+  businessAlerts: boolean;
+  productEmails: boolean;
+}
+
+async function notificationAction(action: string, payload: Record<string, unknown> = {}): Promise<NotificationPrefs> {
+  const res = await appDataAction(action, payload);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data?.businessAlerts !== 'boolean') {
+    const error: any = new Error(data?.error || 'Não foi possível carregar as notificações.');
+    error.code = data?.code;
+    throw error;
+  }
+  return data;
+}
+
+export const fetchNotificationPrefs = () => notificationAction('notification-prefs-get');
+export const saveNotificationPrefs = (prefs: Partial<NotificationPrefs>) => notificationAction('notification-prefs-save', prefs);
