@@ -9,6 +9,7 @@ import {
   Headphones,
   LayoutDashboard,
   LogOut,
+  Mail,
   MessageSquareText,
   RefreshCw,
   Search,
@@ -24,6 +25,7 @@ import {
   createTicket,
   fetchAudit,
   fetchFeedbacks,
+  fetchMailboxes,
   fetchBootstrap,
   fetchTicket,
   fetchTickets,
@@ -32,6 +34,7 @@ import {
   replyTicket,
   updateTicket,
 } from './api';
+import MailView from './MailView';
 import FeedbacksView, { type FeedbackFilter } from './FeedbacksView';
 import type {
   BusinessFeedback,
@@ -51,6 +54,7 @@ const NAV: Array<{ id: InternalTab; label: string; icon: any }> = [
   { id: 'customers', label: 'Clientes', icon: Users },
   { id: 'billing', label: 'Billing', icon: BadgeDollarSign },
   { id: 'feedbacks', label: 'Feedbacks', icon: ThumbsDown },
+  { id: 'mail', label: 'E-mail', icon: Mail },
   { id: 'audit', label: 'Auditoria', icon: ShieldCheck },
 ];
 
@@ -629,8 +633,21 @@ export default function App() {
   const [feedbacks, setFeedbacks] = useState<BusinessFeedback[]>([]);
   const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilter>('down');
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [mailUnread, setMailUnread] = useState(0);
   const [appError, setAppError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Unread badge on the sidebar, even before the mail tab is opened.
+  useEffect(() => {
+    if (!bootstrap) return;
+    const refresh = () => {
+      if (document.hidden) return;
+      fetchMailboxes().then((boxes) => setMailUnread(boxes.reduce((sum, box) => sum + box.unread, 0))).catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    return () => window.clearInterval(timer);
+  }, [bootstrap]);
 
   useEffect(() =>
     onAuthStateChanged(auth, (user) => {
@@ -795,6 +812,9 @@ export default function App() {
         />
       );
     }
+    if (tab === 'mail') {
+      return <MailView canSend={bootstrap?.staff?.role !== 'viewer'} onUnread={setMailUnread} />;
+    }
     return <AuditView rows={audit} />;
   }, [bootstrap, tab, tickets, selectedTicket, messages, ticketLoading, users, userDetail, audit, feedbacks, feedbackFilter, feedbackLoading]);
 
@@ -861,6 +881,7 @@ export default function App() {
             >
               <Icon size={17} />
               <span>{label}</span>
+              {id === 'mail' && mailUnread > 0 && <em className="nav-badge">{mailUnread}</em>}
             </button>
           ))}
         </nav>

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { appDataRequest, dbValue } from './appDataService.js';
 import type { FirebaseIdentity } from './firebaseTokenService.js';
+import { handleMailAction } from './internalMailService.js';
 import { listBusinessFeedback } from './businessFeedbackService.js';
 import { getManagedAccount, setDisabledFeatures, setManagedPlan, MANAGED_FEATURE_KEYS } from './accountAdminService.js';
 
@@ -298,6 +299,11 @@ export async function handleInternalAction(
 ): Promise<{ status: number; body: any }> {
   if (action === 'internal-authorize') {
     return { status: 200, body: { success: true, staff } };
+  }
+
+  if (action.startsWith('internal-mail-')) {
+    const result = await handleMailAction(action, payload, staff);
+    if (result) return result;
   }
 
   if (action === 'internal-bootstrap') {

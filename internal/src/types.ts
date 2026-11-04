@@ -1,4 +1,4 @@
-export type InternalTab = 'dashboard' | 'tickets' | 'customers' | 'billing' | 'feedbacks' | 'audit';
+export type InternalTab = 'dashboard' | 'tickets' | 'customers' | 'billing' | 'feedbacks' | 'mail' | 'audit';
 
 export type TicketStatus =
   | 'OPEN'
@@ -140,4 +140,50 @@ export interface ManagedAccount {
   stripeManaged: boolean;
   features: Array<{ key: string; label: string; enabled: boolean }>;
   overrideNote: string | null;
+}
+
+export type MailView = 'inbox' | 'sent' | 'archive' | 'trash';
+
+export interface Mailbox {
+  address: string;
+  displayName: string;
+  unread: number;
+}
+
+export interface MailThread {
+  id: string;
+  mailbox: string;
+  counterpart: string;
+  counterpart_name: string | null;
+  subject: string;
+  folder: 'inbox' | 'archive' | 'trash';
+  has_outbound: boolean;
+  unread_count: number;
+  message_count: number;
+  last_snippet: string;
+  last_direction: 'in' | 'out';
+  last_message_at: string;
+}
+
+export interface MailAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number | null;
+}
+
+export interface MailMessage {
+  id: string;
+  thread_id: string;
+  direction: 'in' | 'out';
+  from_addr: string;
+  from_name: string | null;
+  to_addrs: string[];
+  cc_addrs: string[];
+  subject: string;
+  text_body: string;
+  html_body: string | null;
+  attachments: MailAttachment[];
+  sent_by: string | null;
+  created_at: string;
 }

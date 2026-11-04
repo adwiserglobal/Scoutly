@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import type { BusinessFeedback, DashboardData, ManagedAccount, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
+import type { BusinessFeedback, MailMessage, MailThread, MailView, Mailbox, DashboardData, ManagedAccount, Ticket, TicketMessage, UserDetail, UserSummary } from './types';
 
 const ENDPOINT = '/api/ai/suggestions';
 const GATE_STORAGE_KEY = 'scoutly_internal_gate_session';
@@ -133,4 +133,32 @@ export async function applyManagedPlan(
 
 export async function saveManagedFeatures(uid: string, enabled: string[], note?: string): Promise<ManagedAccount> {
   return internalAction('internal-features-set', { uid, enabled, note });
+}
+
+export async function fetchMailboxes(): Promise<Mailbox[]> {
+  return (await internalAction('internal-mail-boxes')).mailboxes || [];
+}
+
+export async function fetchMailThreads(mailbox: string, view: MailView, q = ''): Promise<MailThread[]> {
+  return (await internalAction('internal-mail-threads', { mailbox, view, q })).threads || [];
+}
+
+export async function fetchMailThread(threadId: string): Promise<{ thread: MailThread; messages: MailMessage[] }> {
+  return internalAction('internal-mail-thread', { threadId });
+}
+
+export async function sendMail(payload: { mailbox: string; threadId?: string; to: string; cc?: string; subject: string; body: string }): Promise<{ threadId: string }> {
+  return internalAction('internal-mail-send', payload);
+}
+
+export async function moveMailThread(threadId: string, folder: 'inbox' | 'archive' | 'trash') {
+  return internalAction('internal-mail-move', { threadId, folder });
+}
+
+export async function markMailUnread(threadId: string) {
+  return internalAction('internal-mail-mark-unread', { threadId });
+}
+
+export async function fetchMailAttachmentUrl(messageId: string, attachmentId: string): Promise<string> {
+  return (await internalAction('internal-mail-attachment', { messageId, attachmentId })).url;
 }

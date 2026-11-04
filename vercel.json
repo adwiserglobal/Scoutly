@@ -94,6 +94,10 @@
       "dest": "/api/stripe-webhook.ts"
     },
     {
+      "src": "/api/inbound-email",
+      "dest": "/api/inbound-email.ts"
+    },
+    {
       "src": "/(prospeccao-local|prospeccao-com-ia|para-agencias|recursos|dados-e-fontes|perguntas-frequentes|en)/?",
       "dest": "/$1/index.html"
     },
