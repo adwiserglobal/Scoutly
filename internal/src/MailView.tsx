@@ -37,12 +37,14 @@ function formatSize(bytes: number | null) {
 function HtmlBody({ html }: { html: string }) {
   const [images, setImages] = useState(false);
   const [height, setHeight] = useState(120);
+  // Plain e-mails (no styling of their own) follow the dark theme; designed ones keep their own colors on white.
+  const designed = /bgcolor|background|<table/i.test(html);
   const ref = useRef<HTMLIFrameElement>(null);
   const srcDoc = useMemo(
     () => `<!doctype html><html><head><meta charset="utf-8"><base target="_blank">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${images ? 'https: http:' : ''}; style-src 'unsafe-inline'; font-src data:">
-<style>body{margin:0;padding:2px;font:14px/1.55 Arial,Helvetica,sans-serif;color:#14161a;background:#fff;word-wrap:break-word}img{max-width:100%;height:auto}blockquote{margin:0 0 0 6px;padding-left:10px;border-left:2px solid #d4d7dd;color:#5b6270}</style></head><body>${html}</body></html>`,
-    [html, images],
+<style>body{margin:0;padding:0;font:13.5px/1.6 Arial,Helvetica,sans-serif;color:${designed ? '#14161a' : '#d3d7dd'};background:${designed ? '#fff' : 'transparent'};word-wrap:break-word}a{color:${designed ? '#1a56db' : '#ff8a55'}}img{max-width:100%;height:auto}blockquote{margin:0 0 0 6px;padding-left:10px;border-left:2px solid ${designed ? '#d4d7dd' : '#3a414b'};color:${designed ? '#5b6270' : '#9aa1ab'}}</style></head><body>${html}</body></html>`,
+    [html, images, designed],
   );
   const hasRemoteImages = /<img[^>]+src=["']?https?:/i.test(html);
   const measure = () => {
@@ -54,7 +56,7 @@ function HtmlBody({ html }: { html: string }) {
       {hasRemoteImages && !images && (
         <button className="ghost-button mail-images-btn" onClick={() => setImages(true)}>Carregar imagens deste e-mail</button>
       )}
-      <iframe ref={ref} title="Mensagem" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin" srcDoc={srcDoc} onLoad={measure} style={{ height }} className="mail-frame" />
+      <iframe ref={ref} title="Mensagem" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin" srcDoc={srcDoc} onLoad={measure} style={{ height }} className={`mail-frame ${designed ? 'designed' : ''}`} />
     </div>
   );
 }

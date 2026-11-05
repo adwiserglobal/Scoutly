@@ -3,7 +3,7 @@
 create table if not exists public.internal_mailboxes (
   address text primary key check (address = lower(address)),
   display_name text not null,
-  -- Staff e-mails allowed to open this mailbox. Admins can open every mailbox.
+  -- Staff e-mails that own this mailbox (only they can open it). While empty, admins can open it.
   member_emails text[] not null default '{}',
   created_at timestamptz not null default now()
 );

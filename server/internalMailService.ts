@@ -90,9 +90,11 @@ async function allMailboxes(): Promise<MailboxRow[]> {
 }
 
 function canOpen(staff: InternalStaff, mailbox: MailboxRow) {
-  if (staff.role === 'admin') return true;
-  const email = String(staff.email || '').toLowerCase();
-  return mailbox.member_emails.map((m) => m.toLowerCase()).includes(email);
+  const members = mailbox.member_emails.map((m) => m.toLowerCase());
+  // Personal mailbox: only its owners, admins included. A mailbox nobody owns yet stays visible to admins
+  // so no incoming mail is ever locked away.
+  if (members.length) return members.includes(String(staff.email || '').toLowerCase());
+  return staff.role === 'admin';
 }
 
 async function requireMailbox(staff: InternalStaff, address: unknown): Promise<MailboxRow> {
