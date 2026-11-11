@@ -48,7 +48,7 @@ function mergePlaceSources(primary: any[], secondary: any[], limit: number) {
 
   const add = (place: any, sourceName: string) => {
     const name = String(place?.name || '').trim().toLocaleLowerCase('pt-BR')
-      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      .normalize('NFD').replace(/\\p{M}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
     const lat = Number(place?.latitude);
     const lng = Number(place?.longitude);
     if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
