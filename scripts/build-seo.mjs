@@ -456,8 +456,8 @@ function renderBlogIndex() {
   const route = BLOG_ROUTE;
   const page = {
     route, name: 'Guias e artigos', extraCss: blogCss,
-    title: 'Guias de prospecção local, WhatsApp e LGPD | Scoutly',
-    description: 'Guias práticos para agências e freelancers: prospecção no Google Maps, WhatsApp sem banimento, LGPD, venda de sites e uso de IA para conseguir clientes.'
+    title: 'Ferramentas de prospecção B2B e guias de vendas | Scoutly',
+    description: 'Comparativos de ferramentas de prospecção B2B, softwares para encontrar empresas, guias de vendas, prospecção local, LGPD e uso de IA.'
   };
   const graph = [
     organization,
