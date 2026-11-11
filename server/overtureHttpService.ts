@@ -27,7 +27,7 @@ export async function queryOvertureViaApi(
   timeoutMs = 15000,
 ): Promise<OvertureHttpResult> {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 5000));
-  const url = new URL('/api/places', getInternalBaseUrl());
+  const url = new URL('/api/places-fast', getInternalBaseUrl());
 
   url.searchParams.set('west', String(west));
   url.searchParams.set('south', String(south));
