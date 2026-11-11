@@ -13,6 +13,7 @@ import { normalizeExternalUrl } from '../utils/externalUrl';
 import BrandIcon, { brandFromUrl, type BrandName } from './BrandIcon';
 import { useDiagnosticPdf } from '../hooks/useDiagnosticPdf';
 import { getActiveLocale } from '../i18n/language';
+import DemoSiteCard from './DemoSiteCard';
 
 interface BusinessDetailsModalProps {
   business: Business | null;
@@ -673,6 +674,10 @@ export default function BusinessDetailsModal({
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="mb-5">
+          <DemoSiteCard business={business} phone={phones[0] || null} />
         </div>
 
         {/* Informações Principais */}
