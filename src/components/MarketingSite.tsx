@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage, type Language } from '../i18n';
-import { useLanguage, type Language } from '../i18n';
 import {
   ArrowRight,
   CheckCircle2,
