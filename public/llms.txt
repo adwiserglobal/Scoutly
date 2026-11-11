@@ -21,6 +21,10 @@ Languages: Brazilian Portuguese; English overview: https://www.scoutly.pro/en/
 - [B2B prospecting and LGPD](https://www.scoutly.pro/blog/prospeccao-de-empresas-lgpd/)
 - [Find businesses without a website and sell sites](https://www.scoutly.pro/blog/como-vender-sites-para-empresas-sem-site/)
 - [How agencies win clients with AI (30-day plan)](https://www.scoutly.pro/blog/como-agencias-conseguem-clientes-com-ia/)
+
+- [Best B2B prospecting tools in 2026: comparison by use case](https://www.scoutly.pro/blog/melhores-ferramentas-de-prospeccao-b2b/)
+- [How to choose customer prospecting software](https://www.scoutly.pro/blog/software-de-prospeccao-de-clientes/)
+- [Tools to find companies and new customers](https://www.scoutly.pro/blog/ferramentas-para-encontrar-empresas-para-prospectar/)
 - [Help center index](https://www.scoutly.pro/ajuda/): all how-to guides with screenshots.
 - [Generate a PDF report for a client](https://www.scoutly.pro/ajuda/relatorio-pdf/): the 3-page digital presence report.
 - [Add your logo and colors to the report](https://www.scoutly.pro/ajuda/logo-e-cores/): white-label report settings.
