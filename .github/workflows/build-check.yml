@@ -28,6 +28,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: SEO content and sitemap validation
+        run: npm run seo:check
+
       - name: Install Internal dependencies
         working-directory: internal
         run: npm install --no-audit --no-fund

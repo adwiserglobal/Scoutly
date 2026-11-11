@@ -163,7 +163,7 @@ export const BLOG_ARTICLES = [
       ['Google Maps Platform: Termos de Serviço', 'https://cloud.google.com/maps-platform/terms'],
       ['PageSpeed Insights (teste gratuito de desempenho)', 'https://pagespeed.web.dev/']
     ],
-    related: ['prospeccao-whatsapp-sem-ser-banido', 'como-vender-sites-para-empresas-sem-site', 'como-agencias-conseguem-clientes-com-ia']
+    related: ['prospeccao-whatsapp-sem-ser-banido', 'como-vender-sites-para-empresas-sem-site', 'como-agencias-conseguem-clientes-com-ia', 'melhores-ferramentas-de-prospeccao-b2b', 'ferramentas-para-encontrar-empresas-para-prospectar']
   },
   {
     id: 'prospeccao-whatsapp-sem-ser-banido',
@@ -503,7 +503,7 @@ export const BLOG_ARTICLES = [
       ['Google Business Profile: ajuda oficial', 'https://support.google.com/business/'],
       ['PageSpeed Insights', 'https://pagespeed.web.dev/']
     ],
-    related: ['como-prospectar-clientes-no-google-maps', 'prospeccao-whatsapp-sem-ser-banido', 'como-agencias-conseguem-clientes-com-ia']
+    related: ['como-prospectar-clientes-no-google-maps', 'prospeccao-whatsapp-sem-ser-banido', 'como-agencias-conseguem-clientes-com-ia', 'melhores-ferramentas-de-prospeccao-b2b', 'software-de-prospeccao-de-clientes']
   },
   {
     id: 'como-agencias-conseguem-clientes-com-ia',
@@ -617,8 +617,519 @@ export const BLOG_ARTICLES = [
       ['Scoutly: Prospecção com IA', 'https://www.scoutly.pro/prospeccao-com-ia/'],
       ['Scoutly: Dados e fontes', 'https://www.scoutly.pro/dados-e-fontes/']
     ],
-    related: ['como-prospectar-clientes-no-google-maps', 'como-vender-sites-para-empresas-sem-site', 'prospeccao-de-empresas-lgpd']
+    related: ['como-prospectar-clientes-no-google-maps', 'como-vender-sites-para-empresas-sem-site', 'prospeccao-de-empresas-lgpd', 'melhores-ferramentas-de-prospeccao-b2b', 'software-de-prospeccao-de-clientes']
   }
+
+,
+  {
+    id: 'melhores-ferramentas-de-prospeccao-b2b',
+    tag: 'Ferramentas de prospecção',
+    title: 'Melhores ferramentas de prospecção B2B em 2026: comparativo por perfil',
+    seoTitle: 'Melhores ferramentas de prospecção B2B em 2026',
+    seoDescription: 'Compare Scoutly, Ramper, Apollo, Econodata, Speedio e Sales Navigator por tipo de lead, dados, automação e perfil de equipe. Veja como escolher.',
+    published: '2026-11-11',
+    updated: '2026-11-11',
+    readMinutes: 12,
+    tldr: [
+      'A melhor ferramenta de prospecção depende de quem você precisa encontrar: empresas locais, decisores B2B, contatos profissionais ou contas para uma cadência comercial.',
+      'Scoutly é voltada à descoberta de negócios por região e segmento, com mapa, sinais digitais e pipeline. Ramper, Apollo, Econodata, Speedio e Sales Navigator resolvem etapas diferentes da prospecção.',
+      'Antes de contratar, teste a cobertura do seu segmento, a qualidade dos contatos, a atualização dos dados, as integrações e o custo por oportunidade realmente utilizável.'
+    ],
+    intro: 'Escolher uma ferramenta de prospecção B2B parece simples até você comparar plataformas que fazem coisas diferentes. Algumas ajudam a encontrar empresas e decisores. Outras enriquecem contatos, organizam cadências de e-mail e LinkedIn ou permitem mapear negócios em uma região. Este comparativo organiza as principais opções por finalidade, mostra onde cada uma se encaixa e explica quando uma ferramenta de prospecção local como a Scoutly faz mais sentido.',
+    sections: [
+      {
+        id: 'o-que-e-uma-ferramenta-de-prospeccao',
+        h: 'Antes do ranking: o que você chama de prospecção?',
+        p: [
+          'Prospecção é o processo de identificar empresas ou pessoas que podem ter interesse em uma solução, avaliar se fazem sentido para a oferta e iniciar uma conversa comercial. O software pode apoiar uma ou várias dessas etapas, mas nem toda plataforma cobre o processo inteiro.',
+          'Uma busca por empresas de determinado segmento em uma cidade é diferente de uma busca por diretores de tecnologia em companhias com mais de mil funcionários. Também é diferente de automatizar uma sequência de e-mails depois que os contatos já foram encontrados. Comparar essas ferramentas apenas pelo tamanho da base ou pela quantidade de funcionalidades leva a escolhas ruins.',
+          'Por isso, este guia não apresenta uma vencedora universal. A ordem abaixo é organizada por tipo de operação e não representa um ranking de qualidade. As descrições consideram as funcionalidades divulgadas publicamente pelas próprias empresas e devem ser confirmadas em um teste antes da contratação.'
+        ]
+      },
+      {
+        id: 'comparativo-das-ferramentas',
+        h: 'Comparativo das ferramentas de prospecção',
+        table: {
+          head: ['Ferramenta', 'Mais indicada para', 'Principal proposta', 'O que avaliar no teste'],
+          rows: [
+            ['Scoutly', 'Prospecção local, agências e equipes de campo', 'Descobrir negócios por cidade, região e segmento, analisar sinais digitais e organizar oportunidades no mapa e no pipeline', 'Cobertura no território, disponibilidade de contatos e sinais para o segmento escolhido'],
+            ['Ramper GTM', 'Outbound B2B estruturado', 'Combinar base de empresas e decisores, enriquecimento, cadências e recursos de IA para prospecção', 'Aderência da base ao ICP, qualidade dos contatos, limites e canais incluídos no plano'],
+            ['Econodata', 'Inteligência de mercado e listas B2B no Brasil', 'Segmentar empresas, dimensionar mercados, localizar decisores e apoiar a geração de leads', 'Filtros disponíveis, critérios de atualização e aderência da lista ao mercado real'],
+            ['Speedio', 'Pesquisa de empresas e decisores com filtros', 'Montar listas B2B a partir de atributos firmográficos e critérios de segmentação', 'Precisão dos filtros, cobertura do nicho e possibilidade de integração com o CRM'],
+            ['Apollo.io', 'Prospecção B2B e enriquecimento de contatos', 'Pesquisar empresas e pessoas, consultar dados de contato e apoiar atividades de vendas e engajamento', 'Cobertura de empresas brasileiras, créditos, validade dos e-mails e custo por contato útil'],
+            ['LinkedIn Sales Navigator', 'Encontrar decisores e desenvolver relações profissionais', 'Pesquisar leads e contas com filtros profissionais e acompanhar sinais dentro do LinkedIn', 'Acesso aos perfis do seu ICP, limites de uso e processo para levar os leads ao CRM']
+          ]
+        },
+        p2: [
+          'O comparativo é funcional, não uma avaliação laboratorial de precisão. Cobertura, disponibilidade de dados e condições comerciais podem mudar conforme o plano, o segmento e o país. Não trate uma funcionalidade anunciada como garantia de que todo registro da sua amostra terá a mesma qualidade.'
+        ]
+      },
+      {
+        id: 'scoutly-prospeccao-local',
+        h: 'Scoutly: para encontrar empresas por território e oportunidade digital',
+        p: [
+          'A Scoutly foi desenhada para uma pergunta comercial muito concreta: quais negócios existem nesta região e quais deles merecem uma investigação ou abordagem? A busca combina nome, segmento e localização em uma experiência baseada em mapa. Isso ajuda quem precisa prospectar clínicas, restaurantes, imobiliárias, oficinas, escolas, prestadores de serviço e outros negócios com presença física ou atuação local.',
+          'Além de encontrar empresas, a plataforma reúne sinais digitais disponíveis para ajudar na qualificação. Dependendo do registro e da região, é possível analisar site, canais públicos de contato, presença digital, indicadores técnicos e informações relacionadas a rastreamento. Favoritos, pipeline e rotas ajudam a transformar uma pesquisa em uma rotina de vendas, em vez de deixar uma lista perdida em uma planilha.',
+          'Esse recorte é especialmente útil para agências de marketing, empresas de criação de sites, consultorias, fornecedores regionais e equipes comerciais que trabalham por território. Um exemplo é uma agência que deseja identificar negócios de determinado bairro e priorizar aqueles cuja presença digital merece uma auditoria.',
+          'A Scoutly não deve ser confundida com uma base universal de decisores ou com uma plataforma completa de cadências outbound. Ela não promete encontrar o contato pessoal de todas as empresas nem substituir ferramentas especializadas em sequências de e-mail e LinkedIn. Sua proposta é conectar descoberta local, contexto digital e organização da oportunidade. Veja os [recursos da Scoutly](/recursos/) e os [dados e limites das fontes](/dados-e-fontes/) antes de definir seu processo.'
+        ]
+      },
+      {
+        id: 'ramper-outbound',
+        h: 'Ramper: para operações de outbound B2B',
+        p: [
+          'A Ramper apresenta o Ramper GTM como uma plataforma para apoiar o caminho entre definir o cliente ideal e iniciar conversas com potenciais compradores. A proposta pública reúne base de empresas e decisores, descoberta de contatos, cadências multicanal e recursos de IA. É uma opção a considerar quando a operação já trabalha com ICP, listas, abordagem recorrente e acompanhamento de respostas.',
+          'Esse tipo de ferramenta tende a ser mais relevante para equipes que vendem para outras empresas e precisam abordar profissionais com cargos específicos. Uma empresa de software que procura gestores financeiros em organizações de determinado porte tem uma necessidade diferente de uma agência que quer encontrar restaurantes em cinco bairros.',
+          'No teste, não avalie apenas se a plataforma encontra um nome. Verifique se os cargos correspondem ao decisor que compra sua solução, se o contato está atualizado, quais canais entram na cadência e o que é liberado em cada plano. A própria oferta da Ramper diferencia recursos por plano, portanto confirme os limites comerciais diretamente na página oficial.'
+        ]
+      },
+      {
+        id: 'econodata-inteligencia-mercado',
+        h: 'Econodata: para inteligência de mercado e segmentação de empresas',
+        p: [
+          'A Econodata se posiciona em inteligência de mercado e prospecção B2B. Sua plataforma apresenta recursos para dimensionar mercados, segmentar empresas por características e apoiar a identificação de decisores e a geração de listas. É uma alternativa relevante para operações que precisam entender o universo de empresas de um setor antes de montar uma carteira comercial.',
+          'Esse enfoque pode ajudar tanto na definição de um mercado endereçável quanto na seleção de empresas para uma equipe de vendas. O valor está em transformar uma hipótese ampla, como vender para indústrias de alimentos, em recortes mais específicos por porte, localização e características da empresa.',
+          'Antes de contratar, faça uma amostra com empresas conhecidas e compare os resultados com informações recentes. Pergunte como a plataforma atualiza registros, quais dados de contato estão disponíveis, como funciona a exportação e se a ferramenta se integra ao CRM que sua equipe já utiliza.'
+        ]
+      },
+      {
+        id: 'speedio-listas-b2b',
+        h: 'Speedio: para construir listas B2B com filtros',
+        p: [
+          'A Speedio divulga uma plataforma de prospecção comercial B2B baseada em filtros para encontrar empresas que correspondam a um perfil de cliente ideal. A página oficial destaca critérios firmográficos, dados de empresas e decisores e integração com ferramentas de CRM.',
+          'Esse modelo é interessante quando a principal tarefa é construir listas a partir de atributos definidos, como setor, porte, localização ou tecnologias utilizadas. A pergunta para o teste é direta: consigo encontrar empresas parecidas com meus melhores clientes sem receber uma quantidade excessiva de registros fora do perfil?',
+          'Peça uma demonstração com um recorte real do seu ICP. Compare os registros com fontes independentes, verifique a proporção de dados úteis e entenda quais campos estão disponíveis em cada plano. Quantidade de filtros não garante que os resultados serão comercialmente relevantes.'
+        ]
+      },
+      {
+        id: 'apollo-database-enrichment',
+        h: 'Apollo.io: para dados de contato, pesquisa e enriquecimento',
+        p: [
+          'A Apollo combina pesquisa de empresas e profissionais com dados de contato e recursos de enriquecimento. Sua documentação descreve registros de empresas e pessoas, endereços de e-mail, telefones diretos e atributos firmográficos e tecnológicos. A plataforma também divulga funcionalidades de gestão e engajamento comercial.',
+          'É uma opção que costuma entrar na avaliação de equipes com atuação internacional ou que precisam pesquisar contatos profissionais em diferentes mercados. Para uma operação brasileira, porém, é importante medir a cobertura do setor e do cargo desejado. A existência de um registro não significa que o e-mail esteja válido ou que o telefone seja o melhor canal para abordar aquela pessoa.',
+          'Observe também como os créditos são consumidos, quais informações são liberadas em cada plano e como funciona o enriquecimento de dados que sua equipe já possui. Faça uma amostra pequena, confira os contatos manualmente e calcule o custo por contato efetivamente utilizável, não apenas o custo por registro encontrado.'
+        ]
+      },
+      {
+        id: 'linkedin-sales-navigator',
+        h: 'LinkedIn Sales Navigator: para encontrar decisores e relações profissionais',
+        p: [
+          'O Sales Navigator é voltado à pesquisa de leads e contas dentro do LinkedIn. A documentação oficial descreve filtros para refinar pessoas e empresas por critérios como função, senioridade, empresa atual, localização, setor e porte. A ferramenta também ajuda a salvar leads e acompanhar mudanças relevantes nas contas.',
+          'Seu maior valor está no contexto profissional: entender quem ocupa determinada função, onde trabalha e quais relações podem facilitar uma apresentação. Para vendas consultivas, contratos de maior valor e abordagens baseadas em relacionamento, esse contexto pode ser mais útil do que uma lista genérica de e-mails.',
+          'O Sales Navigator não é, por si só, um mapa de todos os estabelecimentos de uma cidade nem um CRM completo. Avalie como os leads serão registrados, como a equipe respeitará os limites e termos da plataforma e quais integrações são necessárias para manter o histórico comercial.'
+        ]
+      },
+      {
+        id: 'como-escolher-a-ferramenta',
+        h: 'Como escolher a ferramenta certa para sua operação',
+        p: [
+          'Comece pela origem do seu próximo cliente. Se ele é uma empresa local que você encontra por bairro e segmento, priorize cobertura geográfica e contexto do negócio. Se é um decisor em uma empresa de médio ou grande porte, priorize dados profissionais e filtros de conta. Se sua equipe já possui uma lista e precisa realizar cadências, avalie automação, entregabilidade e integração com CRM.',
+          'Depois, transforme a escolha em um teste controlado. Defina um segmento, uma região, um perfil de decisor e uma amostra que sua equipe consiga validar. Use os mesmos critérios para comparar cada fornecedor, em vez de aceitar demonstrações feitas com exemplos selecionados pela própria ferramenta.'
+        ],
+        ol: [
+          '**Aderência ao ICP:** a ferramenta encontra o tipo de empresa ou pessoa que realmente compra sua solução?',
+          '**Cobertura:** os resultados existem nos estados, cidades e setores em que você vende?',
+          '**Confiabilidade:** os registros estão atualizados e os contatos podem ser confirmados?',
+          '**Qualificação:** a plataforma mostra contexto suficiente para entender por que um lead merece atenção?',
+          '**Fluxo de trabalho:** é possível salvar, distribuir, acompanhar e exportar os leads sem retrabalho?',
+          '**Custo real:** quanto custa um lead que passou pela validação e pode ser trabalhado pela equipe?',
+          '**Governança:** as fontes, permissões, termos de uso e práticas de tratamento de dados são compatíveis com a sua operação?'
+        ],
+        p2: [
+          'Uma forma simples de comparar fornecedores é atribuir uma nota de 1 a 5 para cada critério e dar mais peso aos dois fatores que mais afetam seu negócio. Para uma equipe de campo, cobertura territorial pode valer mais que automação de e-mail. Para uma operação enterprise, a identificação do decisor pode ser o principal requisito.'
+        ]
+      },
+      {
+        id: 'combinar-ferramentas',
+        h: 'É melhor usar uma ferramenta ou combinar várias?',
+        p: [
+          'Muitas operações precisam de mais de uma camada. Uma ferramenta encontra empresas, outra revela decisores e uma terceira organiza a cadência. Isso não é necessariamente um problema, desde que cada produto tenha uma responsabilidade clara e que os dados não precisem ser copiados manualmente várias vezes.',
+          'Uma agência regional pode usar a Scoutly para mapear empresas por território e identificar oportunidades digitais, depois registrar a conversa em seu CRM. Uma empresa de software B2B pode usar uma base de empresas para selecionar contas, Sales Navigator para investigar decisores e uma plataforma de cadência para executar o processo de contato. O stack ideal depende do canal de venda, do ticket e do tamanho da equipe.',
+          'Evite comprar ferramentas que repetem a mesma função sem uma hipótese clara de ganho. Antes de adicionar um produto, identifique o gargalo atual: falta de empresas, falta de decisores, contatos desatualizados, pouca personalização, baixa resposta ou ausência de acompanhamento.'
+        ]
+      },
+      {
+        id: 'erros-ao-comparar',
+        h: 'Erros comuns ao comparar softwares de prospecção',
+        ul: [
+          'Escolher pela maior quantidade de registros sem testar a relevância para seu ICP.',
+          'Comparar uma ferramenta de descoberta local com uma base de decisores como se fossem o mesmo produto.',
+          'Considerar um e-mail encontrado como um contato automaticamente válido.',
+          'Ignorar créditos, limites de exportação, usuários adicionais e recursos restritos a planos superiores.',
+          'Automatizar abordagens antes de validar a lista, a mensagem e as regras do canal.',
+          'Tratar sinais ausentes como prova de que a empresa não utiliza uma tecnologia ou não possui determinado recurso.'
+        ],
+        p2: [
+          'O teste precisa refletir o trabalho diário da equipe. Se a ferramenta exige muitas etapas manuais para transformar resultados em oportunidades, esse esforço também faz parte do custo.'
+        ]
+      }
+    ],
+    faq: [
+      ['Qual é a melhor ferramenta de prospecção B2B?', 'Não existe uma vencedora para todas as operações. A escolha depende de procurar empresas locais, decisores, dados de contato ou automação de cadências. Compare a cobertura e a qualidade em uma amostra do seu ICP.'],
+      ['A Scoutly é concorrente do Apollo?', 'As propostas se sobrepõem apenas em parte. A Scoutly foca na descoberta de negócios por localização, sinais digitais e organização de oportunidades locais. A Apollo enfatiza dados de empresas e contatos, enriquecimento e recursos de prospecção. Elas podem atender operações diferentes ou complementares.'],
+      ['Qual ferramenta é melhor para prospectar empresas locais?', 'Uma ferramenta baseada em território, mapa e segmento tende a fazer mais sentido quando a equipe precisa encontrar negócios em cidades ou bairros. A Scoutly foi desenhada para esse fluxo, mas a cobertura deve ser testada na região de atuação.'],
+      ['CRM e software de prospecção são a mesma coisa?', 'Não. O CRM normalmente organiza contatos, oportunidades e histórico comercial. O software de prospecção ajuda a encontrar e qualificar potenciais clientes e pode incluir recursos de automação. Algumas plataformas combinam as duas categorias.'],
+      ['Como saber se os dados de uma ferramenta são bons?', 'Selecione uma amostra de empresas e contatos conhecidos, confira as informações em fontes independentes, verifique a atualidade e meça quantos registros são realmente utilizáveis. Não use apenas o volume anunciado pelo fornecedor.']
+    ],
+    sources: [
+      ['Scoutly: recursos da plataforma', 'https://www.scoutly.pro/recursos/'],
+      ['Scoutly: dados, fontes e limites', 'https://www.scoutly.pro/dados-e-fontes/'],
+      ['Ramper GTM: principais funcionalidades', 'https://www.ramper.com.br/plataforma'],
+      ['Econodata: plataforma de prospecção B2B', 'https://www.econodata.com.br/plataforma-de-prospeccao'],
+      ['Speedio: ferramenta de prospecção B2B', 'https://prospeccao.speedio.com.br/'],
+      ['Apollo: visão geral dos dados', 'https://knowledge.apollo.io/hc/en-us/articles/45824429846669-Apollo-Data-Overview'],
+      ['LinkedIn: como usar o Sales Navigator', 'https://business.linkedin.com/br/pt/sell/sales-navigator/how-to-use']
+    ],
+    related: [
+      'software-de-prospeccao-de-clientes',
+      'ferramentas-para-encontrar-empresas-para-prospectar',
+      'como-prospectar-clientes-no-google-maps',
+      'como-agencias-conseguem-clientes-com-ia'
+    ]
+  },
+  {
+    id: 'software-de-prospeccao-de-clientes',
+    tag: 'Software de vendas',
+    title: 'Software de prospecção de clientes: como escolher em 2026',
+    seoTitle: 'Software de prospecção de clientes: como escolher',
+    seoDescription: 'Entenda como funciona um software de prospecção de clientes, quais recursos avaliar e como escolher uma plataforma para gerar oportunidades comerciais.',
+    published: '2026-11-11',
+    updated: '2026-11-11',
+    readMinutes: 11,
+    tldr: [
+      'Um software de prospecção ajuda a encontrar, organizar e qualificar potenciais clientes antes e durante a abordagem comercial.',
+      'Existem ferramentas de dados B2B, descoberta local, pesquisa de decisores, enriquecimento, automação de cadências e CRM. Elas resolvem etapas diferentes.',
+      'A escolha deve partir do perfil do comprador e ser validada com uma amostra real, medindo cobertura, contatos úteis, tempo poupado e custo por oportunidade.'
+    ],
+    intro: 'Um software de prospecção de clientes não serve apenas para gerar uma lista de nomes. A ferramenta certa ajuda a encontrar empresas com perfil para comprar, entender o contexto de cada oportunidade e transformar pesquisa em uma rotina comercial organizada. Neste guia, você vai entender os tipos de plataforma, os recursos que realmente importam e um método prático para escolher sem pagar por funcionalidades que sua equipe não usa.',
+    sections: [
+      {
+        id: 'definicao-software-prospeccao',
+        h: 'O que é um software de prospecção de clientes?',
+        p: [
+          'É uma plataforma que apoia a identificação e a qualificação de potenciais compradores. Dependendo do produto, ela pesquisa empresas, encontra profissionais, disponibiliza informações de contato, analisa sinais de compra, organiza listas ou automatiza atividades de abordagem.',
+          'A prospecção pode ser feita para consumidores ou empresas. Neste artigo, o foco é a prospecção comercial B2B e a descoberta de empresas locais: negócios que vendem para outras organizações, prestadores de serviço, agências, representantes e equipes que precisam criar novas oportunidades.',
+          'Um ponto importante: software de prospecção não cria demanda automaticamente. Ele reduz o trabalho de pesquisa e organização, mas o resultado ainda depende da oferta, do mercado, da qualidade dos dados, da abordagem e da capacidade comercial da equipe.'
+        ]
+      },
+      {
+        id: 'etapas-processo',
+        h: 'Quais etapas da prospecção o software pode resolver?',
+        table: {
+          head: ['Etapa', 'Pergunta que a equipe precisa responder', 'Recurso que pode ajudar'],
+          rows: [
+            ['Definir o mercado', 'Que tipo de empresa tem maior chance de comprar?', 'Filtros de setor, porte, localização e perfil ideal'],
+            ['Encontrar empresas', 'Quais negócios existem dentro desse recorte?', 'Bases B2B, mapas, pesquisa local e diretórios'],
+            ['Identificar decisores', 'Quem participa ou influencia a compra?', 'Dados profissionais, cargos, áreas e LinkedIn'],
+            ['Qualificar oportunidades', 'Por que vale abordar esta empresa agora?', 'Sinais digitais, contexto comercial, dados da conta e pesquisa'],
+            ['Iniciar contato', 'Qual canal e mensagem fazem sentido?', 'Cadências, modelos, tarefas e apoio de IA'],
+            ['Acompanhar vendas', 'Quem respondeu e qual é o próximo passo?', 'Pipeline, CRM, histórico, lembretes e relatórios']
+          ]
+        },
+        p2: [
+          'Algumas ferramentas são especialistas em uma dessas etapas. Outras cobrem várias. O erro é assumir que um produto anunciado como all-in-one será automaticamente o melhor para todas as equipes.'
+        ]
+      },
+      {
+        id: 'tipos-de-software',
+        h: 'Tipos de software de prospecção',
+        p: [
+          '**Bases de empresas e inteligência de mercado.** Ajudam a segmentar organizações por setor, porte, localização e outros atributos. São úteis quando a equipe vende para empresas com um perfil relativamente específico e precisa construir listas.',
+          '**Plataformas de dados de contatos.** Procuram profissionais, cargos, e-mails e telefones associados às empresas. A qualidade e a atualidade dos registros precisam ser verificadas, principalmente em mercados menores ou nichos especializados.',
+          '**Ferramentas de descoberta local.** Ajudam a mapear negócios por cidade, bairro e categoria, muitas vezes com visualização geográfica. São relevantes para vendas territoriais, franquias, agências e prestadores de serviços que atendem empresas locais.',
+          '**Ferramentas de sales engagement.** Organizam e automatizam atividades de contato, como sequências de e-mail, tarefas e acompanhamento de respostas. A maior utilidade aparece quando a equipe já tem uma lista qualificada e um processo de abordagem definido.',
+          '**Redes profissionais e pesquisa de decisores.** Permitem descobrir quem trabalha em uma empresa, qual função ocupa e como chegar a uma conversa contextual. O LinkedIn Sales Navigator é um exemplo dessa categoria.',
+          '**CRM.** Registra contatos, oportunidades, atividades e histórico. Pode estar integrado ao software de prospecção, mas sua função principal é dar continuidade ao relacionamento comercial, não necessariamente encontrar novas empresas.'
+        ]
+      },
+      {
+        id: 'recursos-essenciais',
+        h: '7 recursos que merecem atenção na escolha',
+        ol: [
+          '**Busca que acompanha seu ICP.** Deve permitir selecionar setor, porte, localização, tipo de empresa ou características relevantes para a compra.',
+          '**Cobertura demonstrável.** O fornecedor precisa conseguir mostrar resultados no seu setor e nas regiões onde você realmente vende.',
+          '**Contexto para qualificação.** Além do nome, procure sinais que ajudem a decidir por que aquela empresa merece uma abordagem.',
+          '**Dados de contato com transparência.** Entenda quais campos existem, quando são verificados e como o sistema sinaliza dados ausentes ou incertos.',
+          '**Organização e histórico.** Favoritos, listas, pipeline, notas e responsáveis evitam que a prospecção vire uma planilha sem dono.',
+          '**Integrações e exportação.** Confira se os dados chegam ao CRM e aos canais que sua equipe já utiliza, sem criar uma nova ilha de informação.',
+          '**Controles e governança.** Avalie gestão de acesso, origem dos dados, segurança, termos das plataformas e procedimentos internos para tratar dados pessoais.'
+        ],
+        p2: [
+          'Não confunda quantidade de funcionalidades com qualidade. Uma plataforma com menos recursos, mas que resolve o principal gargalo da equipe e apresenta resultados melhores no seu segmento, pode ser a compra mais racional.'
+        ]
+      },
+      {
+        id: 'como-avaliar-dados',
+        h: 'Como avaliar a qualidade dos dados antes de contratar',
+        p: [
+          'Peça acesso a uma demonstração ou teste e prepare uma pequena amostra com empresas que você conhece. Inclua diferentes portes, cidades e perfis de cliente. Depois, confira manualmente se os negócios existem, se os segmentos estão corretos, se os sites estão ativos e se os contatos correspondem à empresa.',
+          'Registre quantos resultados da amostra são relevantes, quantos possuem dados que podem ser confirmados e quantos podem ser trabalhados pela equipe. Essa análise é mais útil do que comparar somente o tamanho da base divulgado em uma página comercial.',
+          'Faça a mesma verificação em mais de um dia ou região quando a cobertura geográfica for importante. Bases e serviços de mapas podem ter lacunas, duplicidades e diferenças de atualização. Nenhum fornecedor deve ser tratado como fonte infalível.',
+          'No caso de e-mails e telefones, diferencie dado encontrado, dado validado e dado que realmente permitiu uma conversa. São níveis diferentes de qualidade. Um telefone público também não confirma, por si só, que exista uma conta de WhatsApp ativa.'
+        ]
+      },
+      {
+        id: 'como-escolher-por-operacao',
+        h: 'Como escolher de acordo com o seu modelo de vendas',
+        table: {
+          head: ['Sua operação', 'O que priorizar', 'Categoria para avaliar'],
+          rows: [
+            ['Agência que vende para negócios locais', 'Empresas por região, sinais digitais e organização das oportunidades', 'Descoberta local e mapa, como Scoutly'],
+            ['SaaS que vende para outras empresas', 'Segmentação por empresa, decisores e processo de outbound', 'Base B2B, dados de contatos e sales engagement'],
+            ['Equipe enterprise', 'Pesquisa de contas, cargos, relações e mudanças profissionais', 'Inteligência de mercado e Sales Navigator'],
+            ['Representante ou vendedor de campo', 'Cobertura do território, endereços, rotas e histórico', 'Ferramenta de descoberta geográfica e CRM'],
+            ['Equipe com lista própria', 'Enriquecimento, cadência, qualidade dos dados e integração', 'Dados de contatos e sales engagement']
+          ]
+        },
+        p2: [
+          'A Scoutly, por exemplo, atende melhor operações que precisam encontrar negócios por cidade, segmento e território, analisar sinais digitais públicos e organizar oportunidades no mapa e no pipeline. Para uma equipe cuja prioridade é descobrir decisores de grandes contas e automatizar sequências extensas de e-mails, uma plataforma B2B especializada pode ser mais adequada. Veja [como a prospecção local funciona na Scoutly](/prospeccao-local/) e compare os [recursos disponíveis](/recursos/).'
+        ]
+      },
+      {
+        id: 'roteiro-de-implementacao',
+        h: 'Roteiro de implementação em quatro semanas',
+        p: [
+          'A adoção precisa começar por um processo pequeno que seja possível medir. Comprar licenças e liberar o software para todo mundo sem definir um método costuma produzir listas duplicadas e pouca aprendizagem.'
+        ],
+        ol: [
+          '**Semana 1: defina o recorte.** Escolha um segmento, região, ticket e perfil de comprador. Documente o que faz um lead ser considerado qualificado.',
+          '**Semana 2: teste a ferramenta.** Monte uma amostra, confira os dados e registre o tempo necessário para encontrar e validar cada oportunidade.',
+          '**Semana 3: desenhe o fluxo.** Defina quem pesquisa, quem aprova a lista, qual canal será usado, como registrar tentativas e quando fazer follow-up.',
+          '**Semana 4: revise o resultado.** Compare o número de oportunidades qualificadas, respostas, reuniões, propostas e tempo por lead com o processo anterior.'
+        ],
+        p2: [
+          'O objetivo inicial não deve ser automatizar tudo. Deve ser descobrir onde a equipe perde tempo e se a ferramenta reduz esse esforço sem piorar a qualidade da lista ou da abordagem.'
+        ]
+      },
+      {
+        id: 'indicadores-prospeccao',
+        h: 'Indicadores para saber se o software está funcionando',
+        p: [
+          'Acompanhe métricas próximas do trabalho real. Volume de registros encontrados é uma métrica de atividade, não prova de resultado comercial.'
+        ],
+        table: {
+          head: ['Indicador', 'Como interpretar', 'O que pode revelar'],
+          rows: [
+            ['Taxa de aproveitamento da lista', 'Leads que passaram na qualificação ÷ registros encontrados', 'Se a busca está alinhada ao ICP'],
+            ['Tempo por lead qualificado', 'Tempo de pesquisa e validação ÷ leads aprovados', 'Se a plataforma reduz trabalho operacional'],
+            ['Taxa de contato válido', 'Contatos confirmados ÷ contatos pesquisados', 'Se os dados servem ao canal escolhido'],
+            ['Taxa de resposta', 'Respostas ÷ abordagens realizadas', 'Se público, mensagem e canal fazem sentido'],
+            ['Conversão em reunião ou oportunidade', 'Reuniões ou oportunidades ÷ abordagens', 'Se a prospecção gera avanço comercial'],
+            ['Custo por oportunidade', 'Custo total da operação ÷ oportunidades qualificadas', 'Se o investimento se sustenta economicamente']
+          ]
+        }
+      },
+      {
+        id: 'erros-contratacao',
+        h: 'Erros que fazem a contratação dar errado',
+        ul: [
+          'Escolher pelo número de leads da base, sem avaliar quantos correspondem ao cliente ideal.',
+          'Comprar automação antes de ter uma proposta clara e uma lista confiável.',
+          'Ignorar as limitações regionais e descobrir depois que o segmento principal tem pouca cobertura.',
+          'Não combinar o uso da plataforma com o CRM e o processo comercial.',
+          'Medir sucesso pelo número de mensagens enviadas, em vez de respostas e oportunidades.',
+          'Presumir que uma informação ausente é prova de que a empresa não possui aquele recurso.',
+          'Deixar de revisar a conformidade com a LGPD e com os termos dos canais utilizados.'
+        ],
+        p2: [
+          'Uma boa ferramenta torna o processo mais claro, não substitui a responsabilidade comercial. Dados, mensagens e decisões importantes precisam de revisão humana e de critérios documentados.'
+        ]
+      },
+      {
+        id: 'onde-entra-scoutly',
+        h: 'Onde a Scoutly entra nesse cenário',
+        p: [
+          'A Scoutly é um software de prospecção local. Seu fluxo começa pela busca de empresas por nome, segmento e região, com resultados apresentados em mapa. A partir daí, a equipe pode avaliar informações públicas e sinais digitais disponíveis, salvar os negócios relevantes e acompanhá-los no pipeline.',
+          'Esse desenho favorece quem vende serviços para empresas locais, trabalha por território ou precisa descobrir oportunidades em uma cidade sem montar manualmente uma planilha de cada bairro. O mapa ajuda a pensar em cobertura geográfica; os sinais digitais ajudam a preparar uma hipótese de abordagem; o pipeline mantém o histórico da oportunidade.',
+          'A cobertura e a disponibilidade das informações variam por região e fonte. A Scoutly não garante que toda empresa tenha site, telefone, WhatsApp ou e-mail disponível, e um sinal técnico não detectado precisa ser confirmado antes de virar uma afirmação comercial. Consulte a página de [fontes e confiabilidade](/dados-e-fontes/) para entender esses limites.',
+          'Se o seu problema é descobrir quais empresas da sua região merecem atenção, conheça a [prospecção local da Scoutly](/prospeccao-local/) e teste o fluxo com um segmento em que você já tenha experiência.'
+        ]
+      }
+    ],
+    faq: [
+      ['O que faz um software de prospecção?', 'Ajuda a identificar e qualificar potenciais clientes. Dependendo da plataforma, pode pesquisar empresas, encontrar decisores, disponibilizar dados de contato, organizar listas, automatizar abordagens e conectar o trabalho ao CRM.'],
+      ['Qual a diferença entre software de prospecção e CRM?', 'O software de prospecção apoia a descoberta e a qualificação de novos clientes. O CRM organiza o relacionamento, o histórico e as oportunidades ao longo do processo comercial. Algumas soluções combinam recursos das duas categorias.'],
+      ['Uma pequena empresa precisa de um software de prospecção?', 'Não necessariamente. Uma empresa pequena pode começar com pesquisa manual e planilha. A ferramenta passa a fazer sentido quando o tempo gasto para encontrar, qualificar e acompanhar oportunidades se torna um gargalo recorrente.'],
+      ['Qual software é indicado para encontrar empresas por região?', 'Uma plataforma com busca geográfica, filtros por segmento e visualização em mapa é mais aderente a essa necessidade. A Scoutly é voltada à descoberta de negócios locais, sinais digitais e organização de oportunidades por território.'],
+      ['Software de prospecção garante novos clientes?', 'Não. Ele pode reduzir o trabalho de pesquisa e organizar atividades, mas vendas dependem de mercado, oferta, qualidade dos dados, abordagem e execução comercial.']
+    ],
+    sources: [
+      ['Scoutly: recursos da plataforma', 'https://www.scoutly.pro/recursos/'],
+      ['Scoutly: prospecção local', 'https://www.scoutly.pro/prospeccao-local/'],
+      ['Scoutly: dados, fontes e confiabilidade', 'https://www.scoutly.pro/dados-e-fontes/'],
+      ['Ramper GTM: funcionalidades', 'https://www.ramper.com.br/plataforma'],
+      ['Econodata: plataforma de prospecção B2B', 'https://www.econodata.com.br/plataforma-de-prospeccao'],
+      ['LinkedIn: pesquisa avançada no Sales Navigator', 'https://business.linkedin.com/br/pt/sell/sales-navigator/how-to-use']
+    ],
+    related: [
+      'melhores-ferramentas-de-prospeccao-b2b',
+      'ferramentas-para-encontrar-empresas-para-prospectar',
+      'como-prospectar-clientes-no-google-maps',
+      'prospeccao-de-empresas-lgpd'
+    ]
+  },
+  {
+    id: 'ferramentas-para-encontrar-empresas-para-prospectar',
+    tag: 'Geração de leads',
+    title: 'Ferramentas para encontrar empresas e novos clientes para prospectar',
+    seoTitle: 'Ferramentas para encontrar empresas e novos clientes',
+    seoDescription: 'Conheça ferramentas para localizar empresas por cidade, segmento e perfil. Compare mapas, bases B2B, LinkedIn e métodos para montar listas melhores.',
+    published: '2026-11-11',
+    updated: '2026-11-11',
+    readMinutes: 10,
+    tldr: [
+      'Para encontrar empresas, você pode usar mapas, bases B2B, pesquisa profissional, diretórios setoriais e fontes públicas. Cada caminho revela um tipo diferente de oportunidade.',
+      'O melhor método combina um recorte claro de segmento e região, validação dos dados e critérios para priorizar empresas que realmente podem comprar.',
+      'A Scoutly ajuda a descobrir negócios locais por cidade e categoria, avaliar sinais digitais disponíveis e organizar os leads em favoritos e pipeline.'
+    ],
+    intro: 'Encontrar empresas para prospectar é uma tarefa diferente de simplesmente pesquisar nomes na internet. Uma boa lista precisa reunir negócios que combinam com sua oferta, estão em uma região atendida e apresentam informações suficientes para uma abordagem responsável. Neste guia, você vai conhecer as principais ferramentas e fontes para encontrar empresas, entender os pontos fortes de cada uma e montar uma lista que possa avançar para uma conversa comercial.',
+    sections: [
+      {
+        id: 'por-que-fonte-importa',
+        h: 'A fonte muda o tipo de empresa que você encontra',
+        p: [
+          'Uma pesquisa por empresas em um mapa tende a revelar negócios com presença local e endereço identificável. Uma base B2B pode oferecer filtros de setor, porte e estrutura empresarial. Uma rede profissional ajuda a encontrar pessoas que trabalham nessas empresas. Já um diretório setorial costuma reunir organizações de um mercado específico.',
+          'Nenhuma fonte é universal. O que importa é escolher o lugar em que seu comprador provavelmente aparece e complementar o resultado com uma verificação independente. Se você vende para restaurantes e clínicas de uma cidade, uma ferramenta de busca geográfica pode ser mais produtiva do que uma base internacional de decisores. Se vende software para diretores financeiros de grandes empresas, o caminho é outro.'
+        ]
+      },
+      {
+        id: 'mapas-e-prospeccao-local',
+        h: '1. Mapas e ferramentas de prospecção local',
+        p: [
+          'Mapas e plataformas geográficas permitem procurar negócios por nome, categoria e localização. São úteis para representantes, prestadores de serviço, empresas de tecnologia local, agências, distribuidores e operações com cobertura territorial.',
+          'A Scoutly organiza esse tipo de busca em uma experiência de mapa. Você pode escolher uma cidade, bairro ou segmento, explorar os negócios encontrados e analisar sinais digitais disponíveis, como presença de site e canais públicos de contato. Favoritos, pipeline e rotas ajudam a acompanhar o trabalho depois que a empresa é descoberta.',
+          'A principal vantagem é enxergar o território como uma carteira de oportunidades. Em vez de montar uma lista sem contexto, a equipe pode pensar em bairros, rotas, densidade de negócios e segmentos. A limitação é que a cobertura depende das fontes e pode variar de uma cidade para outra. Confirme os resultados antes de abordar.',
+          'O Google Maps também pode ser usado para pesquisa manual. Porém, pesquisar e copiar nomes para uma planilha não cria automaticamente um processo de qualificação, histórico ou follow-up. Além disso, é necessário respeitar os termos de uso do serviço e evitar extração automatizada em massa não autorizada. Veja o guia de [como prospectar clientes no Google Maps](/blog/como-prospectar-clientes-no-google-maps/).'
+        ]
+      },
+      {
+        id: 'bases-b2b',
+        h: '2. Bases de empresas e plataformas de inteligência B2B',
+        p: [
+          'Bases de empresas são indicadas quando o objetivo é montar uma lista a partir de atributos empresariais. Dependendo do fornecedor, é possível pesquisar por setor, porte, localização, atividade econômica e outras características. Algumas plataformas também oferecem informações de decisores, enriquecimento e integração com CRM.',
+          'Econodata e Speedio são exemplos de plataformas brasileiras que divulgam recursos para segmentação e prospecção B2B. A Ramper também apresenta uma base de empresas e decisores conectada a recursos de descoberta de contatos e cadências. Essas soluções podem ser mais adequadas quando o time precisa trabalhar com listas empresariais estruturadas.',
+          'O cuidado está na qualidade do recorte. Uma base extensa pode conter empresas inativas, registros repetidos, informações antigas ou organizações que não correspondem ao seu cliente ideal. Teste com uma amostra e confira o que realmente pode ser utilizado.'
+        ]
+      },
+      {
+        id: 'linkedin-e-rede-profissional',
+        h: '3. Redes profissionais para encontrar decisores',
+        p: [
+          'Quando você já sabe quais empresas deseja abordar, precisa descobrir quem participa da decisão. O LinkedIn e o Sales Navigator ajudam a pesquisar pessoas por empresa, cargo, função, senioridade, localização e outros filtros profissionais.',
+          'A rede profissional oferece contexto que uma lista de telefones não entrega. Você pode entender a trajetória de uma pessoa, acompanhar mudanças de função e identificar conexões em comum que facilitem uma apresentação. Isso é especialmente importante em vendas consultivas, contratos complexos e ciclos de compra mais longos.',
+          'A limitação é que a pesquisa dentro de uma rede profissional não substitui uma base de todos os negócios de uma região. Também é importante respeitar os termos da plataforma e manter o processo de registro dos leads no sistema comercial da equipe.'
+        ]
+      },
+      {
+        id: 'busca-web-diretorios',
+        h: '4. Pesquisa na web, diretórios e associações setoriais',
+        p: [
+          'Mecanismos de busca podem revelar associações comerciais, sindicatos, feiras, listas de expositores, diretórios de fornecedores e páginas de empresas de um nicho. Para segmentos especializados, essas fontes ajudam a identificar organizações que não aparecem bem em uma pesquisa genérica.',
+          'Uma associação do setor industrial pode reunir fabricantes e distribuidores. Uma feira de tecnologia pode publicar a lista de expositores. Um conselho ou diretório profissional pode indicar organizações que atuam em determinada área. Esses caminhos são úteis para complementar bases e encontrar nichos menos óbvios.',
+          'Registre a origem de cada empresa e confira se a página está atualizada. Um diretório pode manter empresas que mudaram de endereço ou encerraram atividades. Use a fonte como ponto de partida, não como validação definitiva.'
+        ]
+      },
+      {
+        id: 'fontes-publicas',
+        h: '5. Registros públicos e dados empresariais',
+        p: [
+          'Registros públicos e dados empresariais podem ajudar a confirmar a existência de uma empresa, sua razão social, situação cadastral e atividade econômica, conforme o dado disponível e as condições de acesso. No Brasil, informações cadastrais e classificações como CNAE podem apoiar a validação de uma lista.',
+          'Esses registros não substituem uma ferramenta comercial. Nem sempre informam o contato responsável pela compra, a necessidade atual ou o canal ideal de abordagem. São mais úteis como fonte de conferência e segmentação do que como solução completa para o trabalho diário do vendedor.',
+          'Ao combinar diferentes fontes, mantenha a origem e a data de consulta. Isso facilita corrigir informações e explicar de onde veio cada dado utilizado na prospecção.'
+        ]
+      },
+      {
+        id: 'comparativo-fontes',
+        h: 'Comparativo: qual fonte usar em cada situação?',
+        table: {
+          head: ['Fonte ou ferramenta', 'Melhor uso', 'Ponto de atenção'],
+          rows: [
+            ['Scoutly e mapas', 'Descobrir negócios locais por segmento e território', 'Cobertura e dados disponíveis variam por região'],
+            ['Econodata, Speedio e Ramper', 'Segmentar empresas e montar listas B2B', 'Validar campos, atualização, limites e aderência ao ICP'],
+            ['Apollo.io', 'Pesquisar empresas e contatos, inclusive em operações internacionais', 'Conferir a cobertura do Brasil e a validade dos contatos'],
+            ['LinkedIn Sales Navigator', 'Encontrar decisores e contexto profissional', 'Não substitui a descoberta de todos os negócios locais'],
+            ['Google e diretórios setoriais', 'Pesquisar nichos, fornecedores, expositores e associações', 'Exigem validação manual e organização'],
+            ['Registros públicos', 'Confirmar dados cadastrais e atividade empresarial', 'Não garantem contato comercial ou intenção de compra']
+          ]
+        },
+        p2: [
+          'A combinação ideal costuma ser uma fonte principal e uma fonte de validação. Adicionar muitos serviços sem um motivo claro aumenta duplicidade, trabalho operacional e dificuldade para manter os dados atualizados.'
+        ]
+      },
+      {
+        id: 'metodo-lista-prospeccao',
+        h: 'Como montar uma lista de empresas em seis passos',
+        ol: [
+          '**Defina o que você vende.** Descreva o serviço, o problema que resolve, o ticket e o tipo de empresa que costuma se beneficiar.',
+          '**Escolha um segmento e uma região.** Comece com um recorte que a equipe consiga validar. Evite pesquisar todos os setores e todas as cidades de uma vez.',
+          '**Selecione a fonte.** Use mapa para negócios locais, base B2B para listas firmográficas e rede profissional para localizar decisores.',
+          '**Valide uma amostra.** Confira existência, segmento, site, localização e contato. Remova duplicados e registros que não correspondem ao perfil.',
+          '**Priorize por sinais.** Dê prioridade a empresas com necessidade visível, potencial de compra e um canal adequado para iniciar a conversa.',
+          '**Registre o próximo passo.** Salve o lead, anote a origem, registre a abordagem e defina quando revisar ou fazer follow-up.'
+        ],
+        p2: [
+          'Uma lista menor e bem qualificada geralmente é mais fácil de trabalhar do que milhares de registros sem contexto. O processo deve permitir que qualquer pessoa da equipe entenda por que uma empresa foi incluída.'
+        ]
+      },
+      {
+        id: 'qualificar-antes-abordar',
+        h: 'Como saber se uma empresa vale a abordagem',
+        p: [
+          'Encontrar uma empresa é apenas o começo. Antes de entrar em contato, responda a quatro perguntas: ela se encaixa no segmento que você atende? Está dentro da sua região ou capacidade de entrega? Existe um problema que sua solução pode resolver? Há um canal apropriado para iniciar uma conversa?',
+          'Sinais digitais ajudam a formular hipóteses. Uma empresa sem site identificado pode ter interesse em presença digital, mas pode também depender de redes sociais ou de outro canal. Um site lento pode justificar uma análise, mas não prova que a empresa esteja perdendo vendas. Uma tag de rastreamento não detectada pode estar bloqueada ou carregada de forma dinâmica.',
+          'A abordagem deve descrever o que você observou e convidar a uma conversa, sem transformar uma hipótese em acusação. Para entender limites e boas práticas de dados pessoais, leia o guia sobre [prospecção B2B e LGPD](/blog/prospeccao-de-empresas-lgpd/) e o conteúdo sobre [WhatsApp na prospecção](/blog/prospeccao-whatsapp-sem-ser-banido/).'
+        ]
+      },
+      {
+        id: 'como-scoutly-ajuda',
+        h: 'Como a Scoutly ajuda a encontrar empresas para prospectar',
+        p: [
+          'A Scoutly foi criada para operações que precisam encontrar negócios por território e entender melhor o contexto de cada empresa. A pesquisa pode partir de um segmento, de uma localização ou do nome de uma empresa. Os resultados aparecem no mapa e podem ser avaliados por informações públicas disponíveis.',
+          'A equipe pode salvar oportunidades, organizar o pipeline e planejar o próximo passo sem separar a descoberta do acompanhamento. Para agências e freelancers, sinais de presença digital ajudam a identificar empresas que merecem uma auditoria mais detalhada. Para equipes de campo, a visualização geográfica facilita pensar em bairros e rotas.',
+          'A plataforma não garante que todas as empresas tenham contatos completos, WhatsApp ou dados técnicos identificáveis. A disponibilidade depende da fonte, da região e do próprio negócio. Consulte [como os dados são obtidos e quais são seus limites](/dados-e-fontes/) e conheça a página de [prospecção local](/prospeccao-local/).',
+          'Quando o gargalo da equipe é descobrir negócios locais e organizar as oportunidades, teste a Scoutly com um segmento conhecido. Comece por uma cidade e avalie a qualidade dos resultados antes de ampliar a pesquisa.'
+        ]
+      },
+      {
+        id: 'erros-lista-empresas',
+        h: 'Erros que prejudicam uma lista de prospecção',
+        ul: [
+          'Pesquisar muitos segmentos e regiões antes de entender quem compra sua solução.',
+          'Confundir volume de registros com quantidade de oportunidades qualificadas.',
+          'Usar dados de contato sem conferir a origem, a atualidade e a finalidade do canal.',
+          'Não registrar como cada empresa foi encontrada.',
+          'Abordar um negócio com uma afirmação que a equipe não verificou.',
+          'Deixar a lista parada sem responsável, próxima ação e histórico.'
+        ],
+        p2: [
+          'Uma rotina eficiente não termina quando a empresa aparece na tela. Ela termina quando existe uma decisão: abordar, pesquisar melhor, acompanhar em outro momento ou descartar com um motivo registrado.'
+        ]
+      }
+    ],
+    faq: [
+      ['Qual ferramenta usar para encontrar empresas para prospectar?', 'Depende do perfil. Mapas e ferramentas de prospecção local ajudam a encontrar negócios por território. Bases B2B apoiam filtros empresariais e dados de decisores. Redes profissionais ajudam a localizar pessoas dentro das contas.'],
+      ['Como encontrar empresas por cidade e segmento?', 'Defina a categoria e a região, pesquise em mapas ou em uma plataforma de descoberta local, confira os registros e organize os resultados em uma lista ou pipeline. A Scoutly reúne busca geográfica, sinais digitais disponíveis e organização de oportunidades.'],
+      ['Google Maps é suficiente para prospectar?', 'Pode servir para pesquisa inicial, principalmente em negócios locais, mas não substitui qualificação, registro de histórico e follow-up. Também é necessário respeitar os termos de uso e evitar extração automatizada em massa não autorizada.'],
+      ['Como encontrar o dono ou decisor de uma empresa?', 'Use fontes profissionais e registros públicos adequados para identificar funções e vínculos, e confirme as informações antes de tratar uma pessoa como decisora. Uma ficha comercial ou um telefone da empresa não prova quem é o responsável pela compra.'],
+      ['Posso usar os dados encontrados para enviar mensagens em massa?', 'Não presuma que a disponibilidade pública de um dado autoriza qualquer uso. Verifique a base legal aplicável, a finalidade, os direitos dos titulares, os termos do canal e as regras da plataforma. Prefira contatos relevantes e abordagens individualizadas.']
+    ],
+    sources: [
+      ['Scoutly: prospecção local', 'https://www.scoutly.pro/prospeccao-local/'],
+      ['Scoutly: recursos', 'https://www.scoutly.pro/recursos/'],
+      ['Scoutly: fontes e confiabilidade dos dados', 'https://www.scoutly.pro/dados-e-fontes/'],
+      ['Econodata: plataforma de prospecção B2B', 'https://www.econodata.com.br/plataforma-de-prospeccao'],
+      ['Speedio: ferramenta de prospecção comercial B2B', 'https://prospeccao.speedio.com.br/'],
+      ['LinkedIn: pesquisa avançada no Sales Navigator', 'https://business.linkedin.com/br/pt/sell/sales-navigator/how-to-use'],
+      ['Google Maps Platform: termos de serviço', 'https://cloud.google.com/maps-platform/terms']
+    ],
+    related: [
+      'melhores-ferramentas-de-prospeccao-b2b',
+      'software-de-prospeccao-de-clientes',
+      'como-prospectar-clientes-no-google-maps',
+      'como-vender-sites-para-empresas-sem-site'
+    ]
+  }
+
 ];
 
 export const getBlogArticle = (id) => BLOG_ARTICLES.find((article) => article.id === id);
