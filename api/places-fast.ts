@@ -42,6 +42,50 @@ function safeResult(result: any, source?: string) {
   };
 }
 
+function mergePlaceSources(primary: any[], secondary: any[], limit: number) {
+  const merged = new Map<string, any>();
+  const locationKeys = new Map<string, string>();
+
+  const add = (place: any, sourceName: string) => {
+    const name = String(place?.name || '').trim().toLocaleLowerCase('pt-BR')
+      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const lat = Number(place?.latitude);
+    const lng = Number(place?.longitude);
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const locationKey = `${name}:${Math.round(lat * 1000)}:${Math.round(lng * 1000)}`;
+    const existingId = locationKeys.get(locationKey);
+    const id = String(place?.id || `${sourceName}_${locationKey}`);
+
+    if (existingId && merged.has(existingId)) {
+      const previous = merged.get(existingId);
+      merged.set(existingId, {
+        ...previous,
+        ...place,
+        id: previous.id,
+        website: previous.website || place.website || null,
+        websites: Array.from(new Set([...(previous.websites || []), ...(place.websites || [])].filter(Boolean))),
+        phone: previous.phone || place.phone || null,
+        phones: Array.from(new Set([...(previous.phones || []), ...(place.phones || [])].filter(Boolean))),
+        email: previous.email || place.email || null,
+        emails: Array.from(new Set([...(previous.emails || []), ...(place.emails || [])].filter(Boolean))),
+        socials: Array.from(new Set([...(previous.socials || []), ...(place.socials || [])].filter(Boolean))),
+        source: [previous.source, place.source].filter(Boolean).join(' + '),
+      });
+      return;
+    }
+
+    if (!merged.has(id)) {
+      merged.set(id, { ...place, id });
+      locationKeys.set(locationKey, id);
+    }
+  };
+
+  for (const place of primary) add(place, 'osm');
+  for (const place of secondary) add(place, 'overture');
+  return Array.from(merged.values()).slice(0, limit);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -84,8 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Small municipalities frequently have partial coverage in a single
+    // public dataset. Use OSM as the quick first source, then merge Overture
+    // whenever OSM returns fewer than 120 named businesses.
+    let osm: any = { places: [], cached: false, durationMs: 0 };
     try {
-      const osm = await queryOsmPlacesInBBox(
+      osm = await queryOsmPlacesInBBox(
         west,
         south,
         east,
@@ -93,18 +141,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Math.min(safeLimit, zoom && zoom >= 14 ? 1800 : 1500),
         5200,
       );
-      if (osm.places.length > 0) {
-        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
-        return res.status(200).json(safeResult(osm, 'openstreetmap'));
-      }
-      console.warn('[Fast Places] OSM returned 0 places; using heavy Overture fallback.');
     } catch (err: any) {
-      console.warn('[Fast Places] OSM fallback unavailable; using heavy Overture fallback:', err?.message || err);
+      console.warn('[Fast Places] OSM fallback unavailable:', err?.message || err);
     }
 
-    const fallback = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom);
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
-    return res.status(200).json(safeResult(fallback, 'overture'));
+    if (osm.places.length >= 120) {
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+      return res.status(200).json(safeResult(osm, 'openstreetmap'));
+    }
+
+    let overture: any = { places: [], cached: false, durationMs: 0 };
+    try {
+      overture = await queryOvertureViaApi(west, south, east, north, safeLimit, zoom, 10000);
+    } catch (err: any) {
+      console.warn('[Fast Places] Overture fallback unavailable:', err?.message || err);
+    }
+
+    const places = mergePlaceSources(osm.places || [], overture.places || [], safeLimit);
+    const result = {
+      places,
+      cached: Boolean(osm.cached && overture.cached),
+      durationMs: Math.max(Number(osm.durationMs || 0), Number(overture.durationMs || 0)),
+    };
+    const source = [
+      osm.places.length ? 'openstreetmap' : null,
+      overture.places?.length ? 'overture' : null,
+    ].filter(Boolean).join('+') || 'none';
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+    return res.status(200).json(safeResult(result, source));
   } catch (err: any) {
     console.error('[API /api/places-fast Error]:', err);
     return res.status(500).json({
