@@ -163,7 +163,7 @@ export const BLOG_ARTICLES = [
       ['Google Maps Platform: Termos de Serviço', 'https://cloud.google.com/maps-platform/terms'],
       ['PageSpeed Insights (teste gratuito de desempenho)', 'https://pagespeed.web.dev/']
     ],
-    related: ['prospeccao-whatsapp-sem-ser-banido', 'como-vender-sites-para-empresas-sem-site', 'como-agencias-conseguem-clientes-com-ia']
+    related: ['prospeccao-whatsapp-sem-ser-banido', 'como-vender-sites-para-empresas-sem-site', 'como-agencias-conseguem-clientes-com-ia', 'melhores-ferramentas-de-prospeccao-b2b', 'ferramentas-para-encontrar-empresas-para-prospectar']
   },
   {
     id: 'prospeccao-whatsapp-sem-ser-banido',
@@ -503,7 +503,7 @@ export const BLOG_ARTICLES = [
       ['Google Business Profile: ajuda oficial', 'https://support.google.com/business/'],
       ['PageSpeed Insights', 'https://pagespeed.web.dev/']
     ],
-    related: ['como-prospectar-clientes-no-google-maps', 'prospeccao-whatsapp-sem-ser-banido', 'como-agencias-conseguem-clientes-com-ia']
+    related: ['como-prospectar-clientes-no-google-maps', 'prospeccao-whatsapp-sem-ser-banido', 'como-agencias-conseguem-clientes-com-ia', 'melhores-ferramentas-de-prospeccao-b2b', 'software-de-prospeccao-de-clientes']
   },
   {
     id: 'como-agencias-conseguem-clientes-com-ia',
@@ -617,7 +617,7 @@ export const BLOG_ARTICLES = [
       ['Scoutly: Prospecção com IA', 'https://www.scoutly.pro/prospeccao-com-ia/'],
       ['Scoutly: Dados e fontes', 'https://www.scoutly.pro/dados-e-fontes/']
     ],
-    related: ['como-prospectar-clientes-no-google-maps', 'como-vender-sites-para-empresas-sem-site', 'prospeccao-de-empresas-lgpd']
+    related: ['como-prospectar-clientes-no-google-maps', 'como-vender-sites-para-empresas-sem-site', 'prospeccao-de-empresas-lgpd', 'melhores-ferramentas-de-prospeccao-b2b', 'software-de-prospeccao-de-clientes']
   }
 
 ,
