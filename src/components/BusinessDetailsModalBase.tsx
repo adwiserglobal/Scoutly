@@ -502,6 +502,15 @@ export default function BusinessDetailsModal({
                 <span>{isGeneratingMessage ? 'Gerando...' : 'Gerar mensagem'}</span>
               </button>
               <SimilarAlertButton business={business} compact />
+              <button
+                type="button"
+                onClick={() => document.getElementById('demo-site-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#FF4D00]/25 bg-[#14181d] px-3.5 py-2 text-xs font-semibold text-[#FF7A45] transition hover:bg-[#FF5A12]/[0.1]"
+                title="Ir para criação do site de demonstração"
+              >
+                <Globe2 className="h-3.5 w-3.5" />
+                <span>Criar website</span>
+              </button>
               <DevWhatsAppTool compact />
 
               <button
@@ -676,7 +685,7 @@ export default function BusinessDetailsModal({
           </div>
         </div>
 
-        <div className="mb-5">
+        <div id="demo-site-card" className="mb-5">
           <DemoSiteCard business={business} phone={phones[0] || null} />
         </div>
 
